@@ -1,0 +1,3 @@
+ALTER TYPE "ResourceType" ADD VALUE IF NOT EXISTS 'Website';
+ALTER TYPE "ResourceType" ADD VALUE IF NOT EXISTS 'App';
+ALTER TYPE "ResourceType" ADD VALUE IF NOT EXISTS 'Link';

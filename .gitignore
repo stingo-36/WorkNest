@@ -1,0 +1,23 @@
+# Dependencies & builds (the Next.js app has its own app/.gitignore too)
+node_modules/
+.next/
+out/
+.vercel/
+
+# Secrets — never commit real env files
+.env
+.env.*
+!.env.example
+
+# Local machine / tool state
+.DS_Store
+.vscode/
+*.log
+
+# Python bytecode (from the ui-ux-pro-max skill scripts)
+__pycache__/
+*.pyc
+
+# Neon backups — the backup script and its output stay on this machine only
+backups/
+scripts/backup-neon.mjs

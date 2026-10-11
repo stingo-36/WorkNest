@@ -1,0 +1,113 @@
+/*
+ * Login / register — homepage family (2026-10-02), one screen, no scrolling, no
+ * cards: the form sits on the page; beside it one colour panel with a banner
+ * person, a serif line and three plain points. Sizes scale with viewport height
+ * (vh clamps) so the whole thing fits on short laptop screens.
+ * People/doodles: app/brand-art.css. The forms are Tailwind + `--c-*` tokens.
+ */
+.auth-shell {
+  color-scheme: light;
+  --a-bg: #f3f5f9;
+  --a-ink: #2a2c3f;
+  --a-muted: #575c72;
+  --a-serif: var(--font-dm-serif), Georgia, serif;
+  --c-bg: var(--a-bg);
+  --c-surface: #ffffff;
+  --c-surface-2: #eef1f6;
+  --c-text: var(--a-ink);
+  --c-text-muted: var(--a-muted);
+  --c-text-subtle: #626779;
+  --c-border: #c9cdd8;
+  --c-border-strong: #8a8fa3;
+  --c-primary: var(--a-ink);
+  --c-primary-strong: var(--a-ink);
+  --c-primary-hover: #3a3d55;
+  --c-primary-active: #1f2131;
+  --c-primary-fg: #ffffff;
+  --c-primary-subtle: #e4e7f0;
+  --c-accent-text: var(--a-ink);
+  --c-ring: var(--a-ink);
+  --c-ring-offset: var(--a-bg);
+  min-height: 100dvh;
+  background: var(--a-bg);
+  color: var(--a-ink);
+  font-family: var(--font-jakarta), sans-serif;
+}
+.auth-shell ::selection { background: #fbd7a8; color: var(--a-ink); }
+.auth-shell :focus-visible { outline: 2px solid var(--c-ring); outline-offset: 3px; }
+
+/* ------------------------------------------------------------- layout */
+.auth-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: 100dvh; }
+.auth-form-panel { display: flex; flex-direction: column; min-width: 0; padding: 0 clamp(24px, 5vw, 80px) clamp(16px, 3vh, 32px); }
+.auth-header { display: flex; align-items: center; min-height: clamp(56px, 10vh, 88px); }
+.auth-brand { color: var(--a-ink); font-family: var(--a-serif); font-size: 1.5rem; text-decoration: none; }
+.auth-form { display: flex; flex: 1; flex-direction: column; justify-content: center; width: min(100%, 420px); margin-inline: auto; animation: auth-in 700ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Re-skin the form to the scale; vh clamps keep it on one screen */
+.auth-form form { gap: clamp(8px, 2vh, 20px); }
+.auth-form h1 { color: var(--a-ink); font-family: var(--a-serif); font-size: clamp(2rem, 5.6vh, 3rem); font-weight: 400; letter-spacing: -0.01em; line-height: 1.05; }
+.auth-form form > div:first-child { gap: 6px; }
+.auth-form form > div:first-child p { color: var(--a-muted); font-size: 1rem; line-height: 1.5; }
+.auth-form label { font-size: 0.875rem; }
+.auth-form input { min-height: clamp(40px, 5.6vh, 48px); border-radius: 12px; background: #ffffff; }
+.auth-form button[type="submit"] { min-height: clamp(44px, 6vh, 52px); border-radius: 999px; background: var(--a-ink); color: #ffffff; font-weight: 650; }
+.auth-form button[type="submit"]:hover:not(:disabled) { background: var(--c-primary-hover); box-shadow: 0 14px 28px -14px rgba(42, 44, 63, 0.7); }
+.auth-form a { color: var(--a-ink); text-decoration-thickness: 1.5px; text-underline-offset: 4px; }
+.auth-form a:hover { text-decoration: underline; }
+/* Error slots under each field reserve height only when there's something in them */
+.auth-form .min-h-5:empty { display: none; }
+
+/* ------------------------------------------------------------- art panel */
+.auth-art { position: relative; display: flex; min-width: 0; padding: clamp(12px, 2vh, 20px) clamp(12px, 2vh, 20px) clamp(12px, 2vh, 20px) 0; }
+.auth-switch { position: absolute; top: clamp(20px, 3.6vh, 36px); right: clamp(28px, 3vw, 48px); z-index: 3; display: inline-flex; align-items: center; min-height: 40px; padding: 0 18px; border: 1.5px solid var(--a-ink); border-radius: 999px; background: rgba(255, 255, 255, 0.6); color: var(--a-ink); font-size: 0.875rem; font-weight: 650; text-decoration: none; transition: background-color 180ms ease, color 180ms ease, transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.auth-switch:hover { background: var(--a-ink); color: #ffffff; transform: translateY(-2px); }
+.auth-panel { position: relative; display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: clamp(12px, 2.6vh, 28px); overflow: hidden; padding: clamp(24px, 5vh, 56px) clamp(24px, 4vw, 64px); border-radius: 36px; isolation: isolate; text-align: center; }
+/* Panel tints follow each character render's brush strokes: login = pink/magenta,
+   register = blue/violet, so the art sits in its own colour family */
+.auth-shell-login .auth-panel { background: radial-gradient(70% 60% at 72% 26%, #fbd3ea, transparent 62%), radial-gradient(70% 60% at 12% 92%, #f6dcf3, transparent 60%), #fbf0f6; }
+.auth-shell-register .auth-panel { background: radial-gradient(70% 60% at 72% 26%, #d9defd, transparent 62%), radial-gradient(70% 60% at 12% 92%, #e6dcfc, transparent 60%), #f1f1fc; }
+/* The register render is cut off at the trousers: fade its lower edge into the panel */
+.auth-shell-register .auth-hero-person { -webkit-mask-image: linear-gradient(to bottom, #000 74%, transparent 97%); mask-image: linear-gradient(to bottom, #000 74%, transparent 97%); }
+/* Still image: no shadow (with the register mask it drew a grey box) and no motion (user decision) */
+.auth-hero-person { display: block; width: auto; height: clamp(200px, 40vh, 400px); max-width: 100%; object-fit: contain; }
+.auth-statement { max-inline-size: 16ch; margin: 0; color: var(--a-ink); font-family: var(--a-serif); font-size: clamp(1.75rem, 5.4vh, 3rem); line-height: 1.05; text-wrap: balance; animation: auth-in 800ms cubic-bezier(0.16, 1, 0.3, 1) 0.3s both; }
+.auth-statement em { font-style: italic; color: var(--a-muted); }
+.auth-points { display: grid; gap: clamp(6px, 1.4vh, 12px); margin: 0; padding: 0; list-style: none; color: var(--a-muted); font-size: 1rem; line-height: 1.5; text-align: left; animation: auth-in 800ms cubic-bezier(0.16, 1, 0.3, 1) 0.45s both; }
+.auth-points li { display: flex; align-items: center; gap: 12px; }
+.auth-dot { width: 10px; height: 10px; flex: none; border-radius: 50%; background: var(--tone); }
+
+.auth-art .dd { animation: art-fade 0.8s ease 0.5s both, art-drift 9s ease-in-out infinite alternate; }
+.auth-dd-1 { left: 12%; top: 14%; width: 40px; color: #f8aa4b; }
+.auth-dd-2 { right: 14%; top: 22%; width: 30px; color: #9b5cf0; }
+.auth-dd-3 { left: 8%; bottom: 7%; width: 26px; color: #7d9cf4; }
+.auth-dd-4 { left: 6%; top: 40%; width: 120px; color: #4a4d60; rotate: -10deg; }
+
+/* ------------------------------------------------------------- form motion (used by the forms) */
+@keyframes auth-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes auth-error-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+.auth-rise { opacity: 1; }
+.auth-reveal { animation: auth-error-in 200ms ease-out both; }
+.auth-cta { transition: background-color 180ms ease, box-shadow 180ms ease, transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.auth-cta:hover:not(:disabled) { transform: translateY(-2px); }
+.auth-cta:active:not(:disabled) { transform: translateY(0) scale(0.98); }
+
+/* ------------------------------------------------------------- responsive */
+@media (min-width: 900px) {
+  /* Exactly one screen: no page scroll; the form column scrolls itself only if a tiny window forces it */
+  .auth-layout { height: 100dvh; overflow: hidden; }
+  .auth-form-panel { overflow-y: auto; }
+  /* Register has four fields — tighten its rhythm a step */
+  .auth-shell-register .auth-form form { gap: clamp(6px, 1.4vh, 14px); }
+  .auth-shell-register .auth-form h1 { font-size: clamp(1.875rem, 5vh, 2.75rem); }
+}
+@media (max-width: 899px) {
+  .auth-layout { grid-template-columns: 1fr; }
+  .auth-form-panel { padding: 0 16px 40px; }
+  .auth-form { justify-content: flex-start; padding-top: 24px; }
+  .auth-form h1 { font-size: 2rem; }
+  .auth-art { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-shell *, .auth-shell *::before, .auth-shell *::after { animation: none !important; transition-duration: 0.01ms !important; }
+  .auth-cta:hover:not(:disabled) { transform: none; }
+}

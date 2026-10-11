@@ -1,0 +1,22 @@
+{
+  "name": "personal-workspace",
+  "private": true,
+  "description": "Root convenience scripts. The Next.js app lives in ./app",
+  "engines": {
+    "node": ">=20.9"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "dev": "node scripts/setup.mjs --then-dev && npm --prefix app run dev",
+    "build": "npm --prefix app run build",
+    "start": "npm --prefix app run start",
+    "lint": "npm --prefix app run lint",
+    "typecheck": "npm --prefix app run typecheck",
+    "install:app": "npm --prefix app install",
+    "db:up": "docker compose up -d --wait",
+    "db:down": "docker compose down",
+    "db:seed": "npm --prefix app run db:seed",
+    "db:studio": "npm --prefix app exec prisma studio",
+    "db:migrate": "npm --prefix app exec prisma migrate dev"
+  }
+}

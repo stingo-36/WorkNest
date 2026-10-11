@@ -1,0 +1,459 @@
+/*
+ * Public homepage — the user's "Take it to the next level" banner (2026-10-02).
+ * Scoped to .home. Display: DM Serif Display (--font-dm-serif); text: Plus Jakarta Sans.
+ *
+ * The hero is a 2000×1100 "stage" (the banner's own frame) with
+ * container-type: inline-size, so the headline (cqi units), people and doodles
+ * (% positions measured off the banner) scale together, exactly like the image.
+ * People, shapes, tones and doodle basics live in app/brand-art.css.
+ */
+
+.home {
+  color-scheme: light;
+  --h-bg: #f3f5f9;
+  --h-ink: #2a2c3f;
+  --h-muted: #575c72;
+  --h-line: rgba(42, 44, 63, 0.14);
+  --h-card: #ffffff;
+  --h-orange: #f8aa4b;
+  --h-shadow: 0 1px 2px rgba(42, 44, 63, 0.05), 0 28px 56px -32px rgba(42, 44, 63, 0.28);
+  --h-serif: var(--font-dm-serif), Georgia, "Times New Roman", serif;
+  --h-sans: var(--font-jakarta), system-ui, sans-serif;
+  --h-section: clamp(72px, 8vw, 128px);
+  /* One type scale for the whole page (13 · 14 · 16 · 18 · 24 · 32 · display) */
+  --fs-xs: 0.8125rem;
+  --fs-sm: 0.875rem;
+  --fs-base: 1rem;
+  --fs-md: 1.125rem;
+  --fs-lg: 1.5rem;
+  --fs-xl: 2rem;
+  --fs-2xl: clamp(2.25rem, 3.4vw, 3rem);
+  --fs-3xl: clamp(2.75rem, 5vw, 4.5rem);
+  --lh-body: 1.6;
+  --h-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --h-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  min-height: 100dvh;
+  overflow-x: clip;
+  background: var(--h-bg);
+  color: var(--h-ink);
+  font-family: var(--h-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.home *, .home *::before, .home *::after { box-sizing: border-box; }
+.home a { color: inherit; text-decoration: none; }
+.home p { text-wrap: pretty; }
+.home h1, .home h2, .home h3 { text-wrap: balance; }
+.home ::selection { background: color-mix(in srgb, var(--h-orange) 45%, white); color: var(--h-ink); }
+.home :focus-visible { outline: 2px solid var(--h-ink); outline-offset: 4px; border-radius: 6px; }
+
+.home-shell { width: min(calc(100% - 48px), 1360px); margin-inline: auto; }
+.home-skip { position: absolute; left: 16px; top: -60px; z-index: 50; padding: 10px 16px; border-radius: 999px; background: var(--h-ink); color: var(--h-bg) !important; font-weight: 600; transition: top 160ms ease; }
+.home-skip:focus { top: 16px; }
+
+/* ---------------------------------------------------------------- header */
+.home-header { position: relative; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 88px; }
+.home-brand { font-family: var(--h-serif); font-size: var(--fs-lg); letter-spacing: -0.01em; }
+.home-nav { display: flex; gap: 36px; }
+.home-nav a, .home-footer nav a { position: relative; padding-block: 8px; color: var(--h-muted); font-size: var(--fs-sm); font-weight: 600; transition: color 160ms ease; }
+.home-nav a::after, .home-footer nav a::after { position: absolute; left: 0; right: 0; bottom: 2px; height: 1.5px; content: ""; background: currentColor; transform: scaleX(0); transform-origin: right; transition: transform 260ms var(--h-ease); }
+.home-nav a:hover, .home-footer nav a:hover { color: var(--h-ink); }
+.home-nav a:hover::after, .home-footer nav a:hover::after { transform: scaleX(1); transform-origin: left; }
+
+/* ---------------------------------------------------------------- pills */
+.home-pill { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; padding: 0 22px; border: 1.5px solid var(--h-ink); border-radius: 999px; font-family: var(--h-sans); font-size: var(--fs-sm); font-weight: 650; letter-spacing: 0; line-height: 1; white-space: nowrap; transition: background-color 200ms ease, color 200ms ease, transform 260ms var(--h-spring), box-shadow 200ms ease; }
+.home-pill svg { width: 18px; height: 18px; transition: transform 260ms var(--h-ease); }
+.home-pill:hover { transform: translateY(-2px); }
+.home-pill:hover svg { transform: translateX(3px); }
+.home-pill:active { transform: translateY(0) scale(0.97); }
+.home-pill-solid { background: var(--h-ink); color: var(--h-bg) !important; }
+.home-pill-solid:hover { box-shadow: 0 14px 28px -14px rgba(42, 44, 63, 0.7); }
+.home-pill-outline { background: transparent; color: var(--h-ink); }
+.home-pill-outline:hover { background: var(--h-ink); color: var(--h-bg) !important; }
+.home-pill-lg { min-height: 56px; padding: 0 32px; font-size: var(--fs-base); }
+.home-text-link { border-bottom: 1.5px solid currentColor; padding-bottom: 2px; color: var(--h-muted); font-weight: 600; transition: color 160ms ease; }
+.home-text-link:hover { color: var(--h-ink); }
+
+/* ---------------------------------------------------------------- screen motion
+   One entrance system for every full-screen section (components/home/screen-motion.tsx):
+   a screen's [data-anim] items rise in (or drop in when scrolling up) each time it becomes
+   active, and reset instantly once it's fully off-screen. Active items end at
+   `translate: none` so they never become a containing block for absolute children. */
+.home[data-motion] [data-anim] { transition: opacity 650ms var(--h-ease), translate 850ms var(--h-ease); transition-delay: calc(var(--i, 0) * 90ms + 60ms); }
+.home[data-motion] .home-screen:not([data-active]) [data-anim] { opacity: 0; translate: 0 44px; transition: none; }
+.home[data-motion] .home-screen[data-dir="up"]:not([data-active]) [data-anim] { translate: 0 -44px; }
+.home[data-motion] .home-screen[data-active] [data-anim] { translate: none; }
+/* Looping decoration only runs on the screen you're looking at — off-screen loops are paused
+   so scrolling isn't competing with ~30 animations */
+.home[data-motion] .home-screen:not([data-active]) :is(*, *::before, *::after) { animation-play-state: paused; }
+/* Continuously animated art gets its own GPU layer, so floats/drifts/glows composite instead
+   of repainting (the hero characters also carry a drop-shadow filter) */
+.hero-person, .home-hero-art .dd, .fs-doodle, .fs-backdrop, .rc-sticker, .rc-hero-spark, .rc-spine-doodle, .home-cta-art .dd { will-change: transform, opacity; }
+/* Keyframe entrances (hero lines, people, doodles, scribbles, sticker) restart on re-entry */
+.home[data-motion] .home-screen:not([data-active]) :is(.home-line, .hero-person, .home-hero-art .dd, .home-scribble circle, .home-scribble-dot, .rc-squiggle, .rc-sticker) { animation: none; }
+
+/* ---------------------------------------------------------------- hero stage */
+.home-hero { padding-bottom: clamp(48px, 5vw, 80px); }
+.home-hero-stage { position: relative; width: min(100% - 32px, 1440px); aspect-ratio: 2000 / 1020; margin-inline: auto; container-type: inline-size; }
+.home-hero-art { position: absolute; inset: 0; }
+
+/* Headline — sizes measured off the banner (cap height ≈ 7.2% of its width) */
+.home-title { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0; padding-top: 1cqi; font-family: var(--h-serif); font-size: 8.6cqi; font-weight: 400; letter-spacing: -0.012em; line-height: 0.8; }
+.home-line { display: flex; align-items: center; animation: art-rise 1s var(--h-ease) both; animation-delay: calc(var(--i, 0) * 110ms + 650ms); }
+.home-line-1 { translate: 0.27em 0; }
+/* "one" has no ascenders, so pull it up under the chip row to keep the gaps optically even;
+   the row sits above it (z-index) or "one" would cover the CTA and swallow its clicks */
+.home-line-2 { position: relative; z-index: 1; gap: 0.09em; margin: 0.05em 0 -0.1em; }
+.home-line-3 { translate: 0.32em 0; }
+.home-line-4 { position: relative; translate: 0.3em 0; }
+
+/* "the" chip: dark rounded tile with a second outline, as in the banner */
+.home-chip { display: grid; place-items: center; height: 0.83em; padding: 0 0.15em; border-radius: 0.15em; background: var(--h-ink); color: var(--h-bg); box-shadow: 0 0 0 0.03em var(--h-bg), 0 0 0 0.045em var(--h-ink); transition: transform 500ms var(--h-spring); }
+.home-chip span { font-size: 0.78em; line-height: 1; translate: 0 -0.04em; }
+.home-chip:hover { transform: rotate(-3deg) scale(1.03); }
+.home-line-2 em { margin-inline: 0.02em; font-size: 0.46em; font-style: italic; line-height: 1; translate: 0 0.05em; }
+/* nudged down: centred on the gap between "Keep it" and "one", not the chip box */
+.home-hero-cta { align-self: center; min-height: 0; height: max(42px, 3.2cqi); padding-inline: max(20px, 2.3cqi); font-size: max(0.875rem, 1.15cqi); translate: 0 0.8cqi; }
+
+/* Hand-drawn ring around the end of the last word */
+.home-scribble { position: absolute; right: -0.47em; top: -0.18em; width: 1.24em; height: 1.24em; overflow: visible; fill: none; stroke: var(--h-orange); stroke-width: 4; pointer-events: none; }
+.home-scribble circle:first-child { stroke-dasharray: 1; stroke-dashoffset: 1; animation: art-draw 1.2s var(--h-ease) 1.05s forwards; }
+.home-scribble-dot { fill: var(--h-orange); stroke: none; opacity: 0; animation: art-fade 0.4s ease 2.1s forwards; }
+
+
+/* People — positions/sizes measured off the banner */
+/* Hero entrance: the four characters pop in together first, the headline lines follow, and
+   the doodles pop in at scattered moments throughout; the orange ring draws last */
+.hero-person { position: absolute; height: auto; filter: drop-shadow(0 14px 18px rgba(42, 44, 63, 0.16)); animation: art-pop 0.9s var(--h-spring) both, art-float 7s ease-in-out 1.2s infinite; }
+.hero-person-1 { left: 5%; top: 6%; width: 19%; animation-delay: 0.1s, 1.1s; }
+.hero-person-2 { left: 77%; top: 7%; width: 17%; animation-delay: 0.1s, 1.1s; }
+.hero-person-3 { left: 5%; top: 64%; width: 19%; animation-delay: 0.1s, 1.1s; }
+.hero-person-4 { left: 76%; top: 62%; width: 19%; animation-delay: 0.1s, 1.1s; }
+
+/* Doodles — positions/sizes measured off the banner */
+/* Doodles pop in at scattered moments while the characters and headline arrive (not after
+   them): each sets its own --dd entrance delay and --drift phase */
+.home-hero-art .dd { animation: art-pop 0.7s var(--h-spring) both, art-drift 9s ease-in-out infinite alternate; animation-delay: var(--dd, 0.4s), var(--drift, 0s); }
+.home-hero-art .dd-plus { left: 29.6%; top: 14.6%; width: 4%; color: var(--h-orange); --dd: .25s; }
+.home-hero-art .dd-ring-orange { left: 36.2%; top: 11.6%; width: 2.8%; color: var(--h-orange); --dd: .7s; --drift: -3s; }
+.home-hero-art .dd-book { left: 62%; top: 6.5%; width: 6%; color: #4a4d60; --dd: .45s; --drift: -1s; }
+.home-hero-art .dd-plane { left: 64.5%; top: 20%; width: 12%; color: #4a4d60; animation: art-pop 0.7s var(--h-spring) 0.95s both; }
+.home-hero-art .dd-bulb { left: 23%; top: 26.5%; width: 2.9%; color: #4a4d60; --dd: .15s; --drift: -5s; }
+.home-hero-art .dd-globe { left: 32.4%; top: 71.6%; width: 5.4%; color: #4a4d60; --dd: .85s; --drift: -2s; }
+.home-hero-art .dd-pencil { left: 83.2%; top: 57.2%; width: 3.4%; color: #4a4d60; --dd: .35s; --drift: -6s; }
+.home-hero-art .dd-cross-red { left: 92%; top: 42.2%; width: 2.5%; color: #ec6f6f; --dd: .6s; --drift: -4s; }
+.home-hero-art .dd-cross-blue { left: 69.2%; top: 65.6%; width: 2.6%; color: #7d9cf4; --dd: 1.05s; --drift: -7s; }
+.home-hero-art .dd-ring-blue { left: 13%; top: 57.6%; width: 2.4%; color: #7d9cf4; --dd: .5s; --drift: -2s; }
+.home-hero-art .dd-dot { width: 0.75%; }
+.home-hero-art .dd-dot-1 { left: 52.9%; top: 1.6%; color: #7d9cf4; --dd: .8s; }
+.home-hero-art .dd-dot-2 { left: 7.7%; top: 52%; color: #9b5cf0; --dd: .3s; }
+.home-hero-art .dd-dot-3 { left: 27%; top: 75.2%; color: #ec6f6f; --dd: 1s; }
+.home-hero-art .dd-dot-4 { left: 93.5%; top: 62.4%; color: #9b5cf0; --dd: .55s; }
+.home-hero-art .dd-dot-5 { left: 80.9%; top: 89%; color: #9b5cf0; --dd: .2s; }
+
+/* ---------------------------------------------------------------- sections */
+.home-section { padding-block: var(--h-section); }
+.home-head { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.7fr); align-items: end; gap: 24px 64px; margin-bottom: clamp(36px, 4.5vw, 56px); }
+.home-head h2, .home-cta h2 { max-inline-size: 18ch; margin: 0; font-family: var(--h-serif); font-size: var(--fs-2xl); font-weight: 400; letter-spacing: -0.01em; line-height: 1.05; }
+.home-head h2 em, .home-cta h2 em { font-style: italic; color: var(--h-muted); }
+.home-head p { max-width: 40ch; margin: 0 0 0.4em; color: var(--h-muted); font-size: var(--fs-base); line-height: var(--lh-body); }
+
+/* Features — tab list + live preview panel (components/home/feature-showcase.tsx) */
+.home-features { padding-top: calc(var(--h-section) * 0.5); }
+/* Darker muted text so copy keeps AA contrast on the area tint */
+.home-features { --h-muted: #43475b; }
+.fs { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); align-items: center; gap: clamp(32px, 5vw, 80px); }
+.fs-backdrop { display: none; }
+.fs-tabs { display: grid; }
+/* baseline-aligned so the number sits on the title's line at either title size */
+.home .fs-tab { position: relative; display: grid; grid-template-columns: 3.5rem minmax(0, 1fr); align-items: baseline; gap: 12px; width: 100%; padding: 20px 0; border: 0; border-top: 1px solid var(--h-line); background: none; color: var(--h-ink); font: inherit; text-align: left; cursor: pointer; }
+.home .fs-tab:last-child { border-bottom: 1px solid var(--h-line); }
+.fs-num { color: color-mix(in srgb, var(--tone) 80%, var(--h-ink)); font-family: var(--h-serif); font-size: var(--fs-xl); font-style: italic; line-height: 1.1; transition: font-size 400ms var(--h-ease); }
+/* Number grows with the active title so the pair reads as one heading */
+.fs-tab.is-active .fs-num { font-size: clamp(2rem, 3.4vw, 2.75rem); }
+.fs-tab-body { display: grid; }
+.fs-tab-title { font-family: var(--h-serif); font-size: var(--fs-lg); line-height: 1.1; opacity: 0.62; transition: opacity 240ms ease, font-size 400ms var(--h-ease); }
+/* The playing area reads as the headline; the rest step back */
+.fs-tab.is-active .fs-tab-title { font-size: clamp(2rem, 3.4vw, 2.75rem); }
+.fs-tab:hover .fs-tab-title, .fs-tab.is-active .fs-tab-title { opacity: 1; }
+.fs-tab-copy { max-height: 0; overflow: hidden; color: var(--h-muted); font-size: var(--fs-base); line-height: var(--lh-body); opacity: 0; transition: max-height 400ms var(--h-ease), opacity 300ms ease, margin 400ms var(--h-ease); }
+.fs-tab.is-active .fs-tab-copy { max-height: 12em; margin-top: 8px; opacity: 1; }
+.fs-progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--tone); transform-origin: left; animation: fs-fill var(--fs-cycle, 4s) linear both; }
+@keyframes fs-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.fs-panel { position: relative; isolation: isolate; display: grid; place-items: center; aspect-ratio: 1.3; max-height: 62vh; overflow: hidden; border-radius: 32px; background: radial-gradient(70% 60% at 22% 14%, color-mix(in srgb, var(--tone) 30%, white), transparent 70%), radial-gradient(60% 60% at 90% 95%, color-mix(in srgb, var(--tone) 18%, white), transparent 70%), color-mix(in srgb, var(--tone) 9%, var(--h-bg)); transition: background 400ms ease; }
+.fs-stage { width: min(82%, 560px); }
+@keyframes fs-in { from { opacity: 0; transform: translateY(16px) rotate(1deg); } to { opacity: 1; transform: none; } }
+.fs-mock { color: var(--h-ink); font-size: var(--fs-base); }
+/* No card: content sits on the panel, lines arriving one by one each time the area changes */
+.fs-mock > * { animation: fs-line 520ms var(--h-ease) both; }
+.fs-mock > *:nth-child(2) { animation-delay: 80ms; } .fs-mock > *:nth-child(3) { animation-delay: 160ms; }
+.fs-mock > *:nth-child(4) { animation-delay: 240ms; } .fs-mock > *:nth-child(5) { animation-delay: 320ms; }
+.fs-mock > *:nth-child(6) { animation-delay: 400ms; } .fs-mock > *:nth-child(7) { animation-delay: 480ms; }
+.fs-mock > *:nth-child(8) { animation-delay: 560ms; }
+@keyframes fs-line { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+/* Doodles: slot 0 is the big themed mark, 1–4 small accents. Each pops in (staggered)
+   on area change, then keeps a slow idle drift or bob; pop uses transform, idle uses
+   translate/rotate, so the two don't fight. */
+.fs-doodle { position: absolute; z-index: -1; color: color-mix(in srgb, var(--tone) 70%, var(--h-ink)); pointer-events: none; animation: art-pop 700ms var(--h-spring) both, art-drift 9s ease-in-out infinite alternate; }
+.fs-d0 { right: 3%; top: 5%; width: 15%; opacity: 0.4; }
+.fs-d1 { left: 3%; bottom: 8%; width: 9%; opacity: 0.45; animation-delay: 120ms, -3s; animation-name: art-pop, fs-bob; animation-duration: 700ms, 5s; }
+.fs-d2 { right: 10%; bottom: 16%; width: 5%; color: var(--tone); opacity: 0.85; animation-delay: 220ms, -1s; animation-duration: 700ms, 6s; }
+.fs-d3 { left: 10%; top: 8%; width: 3.5%; color: var(--tone); opacity: 0.75; animation-delay: 300ms, -2s; animation-name: art-pop, fs-bob; animation-duration: 700ms, 4s; }
+.fs-d4 { right: 32%; top: 4%; width: 1.6%; color: var(--tone); opacity: 0.6; animation-delay: 380ms, -4s; animation-name: art-pop, fs-bob; animation-duration: 700ms, 3.5s; }
+@keyframes fs-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -10px; } }
+.fs-mock-title { display: flex; align-items: baseline; gap: 12px; margin: 0 0 8px; font-family: var(--h-serif); font-size: clamp(1.75rem, 3vw, 2.5rem); line-height: 1.1; }
+.fs-mock-title span { padding: 3px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.7); color: var(--h-muted); font-family: var(--h-sans); font-size: var(--fs-xs); font-weight: 650; }
+.fs-mock-label { margin: 16px 0 4px; color: var(--h-muted); font-size: var(--fs-xs); font-weight: 650; }
+.fs-red { color: #c0392b; }
+.fs-row, .fs-todo { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px 0; border-bottom: 1px solid color-mix(in srgb, var(--tone) 25%, transparent); white-space: nowrap; }
+.fs-row b { font-weight: 650; }
+.fs-line { display: block; height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--tone) 22%, white); }
+.fs-row .fs-line { flex: none; margin-left: auto; }
+.fs-page .fs-line { margin: 10px 0; }
+.fs-key { padding: 3px 10px; border-radius: 8px; background: #ffffff; color: color-mix(in srgb, var(--tone) 70%, var(--h-ink)); font-style: normal; font-weight: 700; }
+.fs-pill, .fs-date { margin-left: auto; padding: 3px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.75); color: var(--h-muted); font-size: var(--fs-xs); font-style: normal; font-weight: 650; }
+.fs-pill-blue { background: #e3ecfd; color: #3b5bb5; }
+.fs-date { background: #fde8e8; color: #c0392b; }
+.fs-todo > span { display: grid; width: 16px; height: 16px; flex: none; place-items: center; border: 1.5px solid #8a8fa3; border-radius: 50%; }
+.fs-todo.is-done { color: var(--h-muted); text-decoration: line-through; text-decoration-color: rgba(42, 44, 63, 0.3); }
+.fs-todo.is-done > span { border-color: #7d9cf4; background: #7d9cf4; color: #fff; }
+.fs-todo svg { width: 10px; height: 10px; stroke-width: 3; }
+.fs-ai { display: flex; align-items: center; gap: 8px; margin-top: 18px; color: #5b3a9e; font-size: var(--fs-sm); font-weight: 650; }
+.fs-ai svg { width: 14px; height: 14px; }
+.fs-mock-split { display: grid; grid-template-columns: 34% minmax(0, 1fr); gap: 16px; }
+.fs-side { padding-right: 16px; border-right: 1px solid color-mix(in srgb, var(--tone) 30%, transparent); }
+.fs-side .fs-mock-label { margin-top: 4px; }
+.fs-side-item { margin: 2px 0; padding: 6px 8px; border-radius: 8px; }
+.fs-side-item.is-on { background: rgba(255, 255, 255, 0.8); font-weight: 650; }
+.fs-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 8px; }
+.fs-chips i { padding: 4px 12px; border-radius: 999px; background: #ffffff; color: color-mix(in srgb, var(--tone) 70%, var(--h-ink)); font-size: var(--fs-xs); font-style: normal; font-weight: 650; }
+.fs-res { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; padding: 10px 0; border-bottom: 1px solid color-mix(in srgb, var(--tone) 25%, transparent); }
+.fs-res b { font-weight: 650; }
+.fs-res small { color: var(--h-muted); font-size: var(--fs-xs); }
+.fs-res svg { grid-row: 1 / 3; grid-column: 2; align-self: center; width: 16px; height: 16px; color: #a0a4b4; }
+.fs-res svg.is-fav { color: #f8aa4b; fill: #f8aa4b; }
+.home .fs-open { position: absolute; right: 20px; bottom: 20px; display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; border-radius: 999px; background: var(--h-ink); color: #fff; font-size: var(--fs-sm); font-weight: 650; transition: transform 260ms var(--h-spring); }
+.home .fs-open:hover { transform: translateY(-2px); }
+.fs-open svg { width: 16px; height: 16px; }
+
+/* AI recap — a "big headline + centre character" poster in the site's palette: headline and
+   rule, then spines | 3D character | pitch + CTA. */
+.home-recap { position: relative; isolation: isolate; overflow: clip; }
+.home-section.home-screen.home-recap { padding-bottom: 0; }
+/* Fill the screen so the bottom row (.rc-stage) can stand on its lower edge */
+.home-recap > .home-shell { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.rc { display: grid; flex: 1; min-height: 0; grid-template-rows: auto minmax(0, 1fr); gap: clamp(16px, 3vh, 32px); }
+.rc-stage { align-self: stretch; min-height: 0; }
+.rc-headline { padding-bottom: clamp(24px, 4.5vh, 44px); border-bottom: 1px solid var(--h-line); }
+.home-recap h2 { margin: 0; font-family: var(--h-serif); font-size: clamp(3rem, 11vh, 6.5rem); font-weight: 400; letter-spacing: -0.02em; line-height: 0.95; }
+.home-recap h2 em { color: var(--h-muted); font-style: italic; }
+
+/* Bottom row: everything stands on the section's bottom edge */
+.rc-stage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); align-items: end; gap: clamp(16px, 3vw, 48px); }
+
+.rc-spines { position: relative; display: flex; align-items: flex-end; gap: clamp(16px, 2vw, 28px); margin: 0; padding: 0; list-style: none; }
+.rc-spine { flex: 0 0 auto; }
+/* Title and caption stand side by side, both reading bottom-to-top, resting on the foot */
+.rc-spine-body { --spine-h: min(58vh, 600px); position: relative; display: flex; flex-direction: row; align-items: flex-end; justify-content: center; gap: 4px; width: clamp(110px, 10vw, 160px); height: var(--spine-h); padding: 20px 0 calc(var(--spine-h) * 0.24 + 14px); overflow: hidden; border-radius: 22px 22px 0 0; background: var(--spine-bg); color: var(--spine-ink); box-shadow: var(--h-shadow); transition: rotate 500ms var(--h-spring), translate 500ms var(--h-spring); }
+.rc-spine-body::after { position: absolute; left: 0; right: 0; bottom: 0; height: 24%; content: ""; background: var(--spine-pattern); }
+.rc-spine-title, .rc-spine-sub { writing-mode: vertical-rl; rotate: 180deg; white-space: nowrap; }
+.rc-spine-title { font-family: var(--h-serif); font-size: clamp(2.25rem, 6vh, 3.75rem); line-height: 0.9; }
+.rc-spine-sub { font-size: var(--fs-sm); font-weight: 650; opacity: 0.8; }
+.rc-spine-1 .rc-spine-body { --spine-bg: var(--h-ink); --spine-ink: #ffffff; --spine-pattern: repeating-linear-gradient(45deg, color-mix(in srgb, #9b5cf0 55%, var(--h-ink)) 0 10px, transparent 10px 20px); }
+.rc-spine-2 .rc-spine-body { rotate: 6deg; transform-origin: 50% 100%; overflow: visible; --spine-bg: color-mix(in srgb, #f58ea8 45%, white); --spine-ink: var(--h-ink); --spine-pattern: linear-gradient(135deg, color-mix(in srgb, #f58ea8 80%, var(--h-ink)) 25%, transparent 25%) -14px 0 / 28px 28px, linear-gradient(225deg, color-mix(in srgb, #f58ea8 80%, var(--h-ink)) 25%, transparent 25%) -14px 0 / 28px 28px; }
+.rc-spine-body:hover { rotate: 0deg; translate: 0 -10px; }
+.rc-spine-doodle { position: absolute; right: -40%; top: 6%; width: 42%; color: #f8aa4b; rotate: 18deg; animation: fs-bob 4s ease-in-out infinite; }
+.rc-sticker { position: absolute; left: calc(2 * clamp(110px, 10vw, 160px) + clamp(16px, 2vw, 28px) - 24px); bottom: 4%; z-index: 2; display: grid; width: 88px; height: 88px; place-items: center; align-content: center; border: 3px solid #ffffff; border-radius: 50%; background: var(--h-ink); box-shadow: 0 0 0 3px var(--h-ink), var(--h-shadow); color: #ffffff; font-family: var(--h-serif); font-size: 1.75rem; line-height: 1; rotate: -12deg; animation: rc-wobble 3s ease-in-out infinite; }
+.rc-sticker svg { width: 18px; height: 18px; color: #f8aa4b; }
+@keyframes rc-wobble { 50% { rotate: 6deg; scale: 1.06; } }
+
+/* Centre: the 3D character (components/home/recap-avatar.tsx) over a soft purple glow; it
+   only fades in — no hover, tilt or zoom (user decision). */
+.rc-center { position: relative; display: grid; place-items: end center; height: 100%; max-height: 700px; min-height: 0; }
+.rc-glow { position: absolute; left: 50%; bottom: 12%; width: 100%; aspect-ratio: 1; border-radius: 50%; translate: -50% 0; background: radial-gradient(closest-side, color-mix(in srgb, #9b5cf0 26%, white), transparent); }
+.rc-avatar { position: relative; display: block; height: 100%; max-width: 100%; object-fit: contain; object-position: 50% 100%; opacity: 0; filter: drop-shadow(0 24px 30px rgba(42, 44, 63, 0.22)); transition: opacity 700ms ease; }
+.rc-avatar.is-ready { opacity: 1; }
+.rc-hero-spark { position: absolute; right: 10%; top: 12%; width: 44px; color: #9b5cf0; animation: rc-twinkle 2.4s ease-in-out infinite; }
+@keyframes rc-twinkle { 50% { scale: 1.25; rotate: 15deg; opacity: 0.7; } }
+
+/* Right: the pitch, CTA and a self-drawing hand line */
+.rc-pitch { position: relative; align-self: center; display: grid; justify-items: start; gap: 24px; padding-bottom: 8vh; }
+.rc-pitch-title { max-width: 12ch; margin: 0; font-family: var(--h-serif); font-size: clamp(2rem, 5.4vh, 3.25rem); line-height: 1.05; }
+.rc-cta svg { width: 18px; height: 18px; }
+.rc-squiggle { position: absolute; left: -18%; bottom: -10%; z-index: -1; width: 22%; overflow: visible; stroke: #f58ea8; stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: art-draw 1.6s var(--h-ease) 0.6s forwards; }
+
+/* How it works */
+.home-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--h-line); }
+.home-steps li { padding: 32px 32px 8px; text-align: center; }
+.home-steps li + li { border-left: 1px solid var(--h-line); }
+.home-how .home-head { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+/* Features title runs the full width on one line; its note sits underneath */
+.home-features .home-head { grid-template-columns: 1fr; gap: 12px; }
+.home-features .home-head h2 { max-inline-size: none; }
+.home-step-num { display: inline-grid; place-items: center; width: clamp(64px, 6vw, 84px); aspect-ratio: 1; border-radius: 50%; background: color-mix(in srgb, var(--tone) 20%, white); color: color-mix(in srgb, var(--tone) 80%, var(--h-ink)); font-family: var(--h-serif); font-size: clamp(1.9rem, 2.6vw, 2.5rem); font-style: italic; line-height: 1; }
+.home-steps h3 { margin: 16px 0 0; font-family: var(--h-serif); font-size: var(--fs-lg); font-weight: 400; letter-spacing: -0.005em; }
+.home-steps p { max-width: 32ch; margin: 8px auto 0; color: var(--h-muted); font-size: var(--fs-base); line-height: var(--lh-body); }
+
+/* Closing */
+.home-cta { position: relative; overflow: hidden; padding: var(--h-section) 0 calc(var(--h-section) + 16px); text-align: center; }
+.home-cta-art { position: absolute; inset: 0; }
+.home-cta h2 { max-inline-size: none; font-size: var(--fs-3xl); line-height: 1; }
+.home-cta-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 16px 32px; margin-top: 40px; }
+.home-cta-art .dd { animation: art-drift 9s ease-in-out infinite alternate; }
+.dd-cta-plus { left: 14%; top: 22%; width: 56px; color: var(--h-orange); }
+.dd-cta-ring { right: 16%; bottom: 20%; width: 46px; color: #7d9cf4; }
+.dd-cta-cross { right: 13%; top: 16%; width: 32px; color: #ec6f6f; }
+
+.home-footer { padding: 36px 0 40px; border-top: 1px solid var(--h-line); }
+.home-footer .home-shell { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 32px; }
+.home-footer nav { display: flex; flex-wrap: wrap; gap: 6px 28px; }
+.home-footer p { margin: 0; color: var(--h-muted); font-size: var(--fs-sm); }
+
+/* ---------------------------------------------------------------- screens
+   Hero, Features, AI recap, and How + CTA + footer each fill one viewport and
+   snap into place — on large screens with enough height only, so nothing is
+   ever trapped behind the fold on small ones. */
+html:has(.home) { scroll-behavior: smooth; }
+.home-screen-hero { display: flex; flex-direction: column; }
+.home-screen-hero-main { display: flex; flex: 1; flex-direction: column; justify-content: center; }
+@media (min-width: 900px) and (min-height: 560px) {
+  /* One section per scroll, done by the browser (native snapping blends with trackpad
+     momentum, so you never wait — the JS pager tried earlier locked between glides).
+     snap-stop: one flick moves one screen, never skips past one. The earlier jerkiness came
+     mostly from off-screen loops and repainted art, now paused / layer-promoted below.
+     globals.css pads anchors 96px for the app nav; zero it so screens aren't offset. */
+  html:has(.home) { scroll-snap-type: y mandatory; scroll-padding-top: 0; }
+  .home-screen { min-height: 100dvh; scroll-snap-align: start; scroll-snap-stop: always; display: flex; flex-direction: column; justify-content: center; }
+  .home-hero { padding-bottom: 32px; }
+  /* The art spans the full width (people out at the edges, like the banner) while the
+     stage height and the headline size come from the viewport height, so the lead line
+     stays on screen and nothing crowds the title on short windows. */
+  .home-hero-stage { width: min(100% - 32px, 1440px); aspect-ratio: auto; height: calc(100dvh - 88px - 40px); }
+  .home-title { font-size: min(8.6cqi, 12.5vh); }
+  /* People pinned to the four corners and sized by height, so they never reach the title or the lead */
+  .hero-person-1 { left: 5%; top: 4%; width: min(19%, 40vh); }
+  .hero-person-2 { left: auto; right: 6%; top: 4%; width: min(17%, 36vh); }
+  .hero-person-3 { left: 5%; top: auto; bottom: 3%; width: min(19%, 40vh); }
+  .hero-person-4 { left: auto; right: 5%; top: auto; bottom: 3%; width: min(19%, 40vh); }
+  .home-hero-art .dd-bulb { left: 22%; }
+  .home-hero-art .dd-ring-blue { left: 14%; }
+  .home-hero-art .dd-dot-2 { left: 10%; }
+  .home-hero-art .dd-globe { left: 27%; }
+  .home-hero-art .dd-pencil { left: 80%; }
+  .home-hero-art .dd-cross-red { left: 87%; }
+  .home-hero-art .dd-dot-4 { left: 88%; }
+  .home-hero-art .dd-dot-3 { left: 34%; }
+  .home-section.home-screen { padding-block: clamp(24px, 5vh, 64px); }
+  /* Exactly one screen tall, so the recap's bottom row can size to what's left (no cropping) */
+  .home-section.home-screen.home-recap { height: 100dvh; }
+  .home-screen .home-head { margin-bottom: clamp(20px, 4vh, 48px); }
+  .home-screen .home-head h2 { font-size: clamp(2rem, 6vh, 3rem); }
+  .home-recap .home-head { margin-bottom: clamp(32px, 7vh, 72px); }
+  /* The area's tint fills the whole screen (.fs-backdrop) instead of a card, so the panel
+     itself goes clear and just follows the preview's height. */
+  .home-features { position: relative; isolation: isolate; overflow: clip; }
+  /* Each area: a diagonal wash from its tone into a neighbouring one (--tone-2), lighter on
+     the text side, plus a soft glow behind the preview that drifts slowly. On change the
+     new layer fades in while settling from a slight zoom, so the switch reads as motion. */
+  .fs-backdrop { position: absolute; inset: 0; z-index: -1; display: block; opacity: 0; transform: scale(1.08); background: linear-gradient(120deg, color-mix(in srgb, var(--tone) 18%, var(--h-bg)) 0%, color-mix(in srgb, var(--tone) 34%, var(--h-bg)) 52%, color-mix(in srgb, var(--tone-2) 46%, var(--h-bg)) 100%); transition: opacity 700ms ease, transform 1100ms var(--h-ease); pointer-events: none; }
+  .fs-backdrop::after { content: ""; position: absolute; left: 50%; top: 18%; width: 46%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--tone) 55%, white), transparent); animation: fs-glow 14s ease-in-out infinite alternate; }
+  .fs-backdrop.is-on { opacity: 1; transform: none; }
+  .fs-backdrop.tone-purple { --tone-2: #f58ea8; }
+  .fs-backdrop.tone-blue { --tone-2: #9b5cf0; }
+  .fs-backdrop.tone-pink { --tone-2: #f8aa4b; }
+  .fs-backdrop.tone-orange { --tone-2: #f58ea8; }
+  /* only the visible area's glow drifts; the three hidden layers stay still */
+  .fs-backdrop::after { will-change: transform; }
+  .fs-backdrop:not(.is-on)::after { animation-play-state: paused; }
+  @keyframes fs-glow { from { translate: -6% -4%; scale: 1; } to { translate: 8% 6%; scale: 1.12; } }
+  .fs-panel { aspect-ratio: auto; min-height: min(60vh, 640px); max-height: none; padding: clamp(16px, 3vh, 40px) 0 clamp(56px, 8vh, 80px); border-radius: 0; background: none; overflow: visible; }
+  .home .fs-tab, .home .fs-tab:last-child { border-color: color-mix(in srgb, var(--h-ink) 16%, transparent); }
+  /* Preview type scaled up to sit with the larger active title */
+  .fs-stage { width: min(86%, 620px); }
+  .fs-mock { font-size: var(--fs-md); }
+  .fs-mock-label { font-size: var(--fs-sm); }
+  .fs-row, .fs-todo { padding-block: clamp(4px, 0.9vh, 8px); }
+  .home .fs-tab { padding-block: clamp(10px, 2vh, 20px); }
+  .fs-tab-title { font-size: clamp(1.25rem, 3.4vh, 1.5rem); }
+  .fs-tab.is-active .fs-tab-title { font-size: clamp(2rem, 6.4vh, 2.75rem); }
+  .fs-num { font-size: clamp(1.5rem, 4vh, 2rem); }
+  .fs-tab.is-active .fs-num { font-size: clamp(2rem, 6.4vh, 2.75rem); }
+  .home-step-num { width: clamp(48px, 8vh, 72px); font-size: clamp(1.5rem, 4vh, 2.25rem); }
+  .home-steps li { padding-top: clamp(16px, 3vh, 32px); }
+  .home-screen-end .home-cta h2 { font-size: clamp(2.5rem, 8vh, 4.5rem); }
+  .home-screen-end .home-cta-actions { margin-top: clamp(16px, 3vh, 40px); }
+  .home-screen-end .home-footer { padding-block: clamp(16px, 3vh, 36px); }
+  .home-screen-end { justify-content: space-between; }
+  .home-screen-end .home-how { padding-block: clamp(24px, 6vh, 80px) clamp(8px, 2vh, 24px); }
+  .home-screen-end .home-cta { padding-block: clamp(16px, 4vh, 48px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:has(.home) { scroll-behavior: auto; }
+  .home *, .home *::before, .home *::after { animation: none !important; transition-duration: 0.01ms !important; }
+  .home-scribble circle:first-child { stroke-dashoffset: 0; }
+  .home-scribble-dot { opacity: 1; }
+}
+
+/* ---------------------------------------------------------------- tablet */
+@media (max-width: 899px) {
+  .home-head { grid-template-columns: 1fr; }
+  .fs { grid-template-columns: 1fr; }
+  .fs-panel { max-height: none; }
+  /* Recap: the bottom row stacks — spines, character, pitch */
+  .rc-spine-body { --spine-h: min(42vh, 380px); }
+  .rc-center { height: 480px; }
+  .rc-stage { grid-template-columns: 1fr; justify-items: center; }
+  .rc-pitch { justify-items: center; padding-bottom: 32px; text-align: center; }
+  .home-recap h2 { font-size: clamp(2.5rem, 9vw, 4rem); }
+}
+
+/* ---------------------------------------------------------------- phone */
+@media (max-width: 767px) {
+  .home-shell { width: calc(100% - 32px); }
+  /* Recap spines shrink to share the phone width */
+  .rc-spines { width: 100%; gap: 12px; }
+  .rc-spine { flex: 1 1 0; min-width: 0; }
+  .rc-spine-body { --spine-h: 280px; width: 100%; border-radius: 16px 16px 0 0; }
+  .rc-spine-title { font-size: 2rem; }
+  .rc-spine-sub { font-size: var(--fs-xs); }
+  .rc-sticker { left: auto; right: 6px; bottom: 2%; width: 64px; height: 64px; font-size: 1.25rem; }
+  .rc-spine-doodle { display: none; }
+  .rc-center { height: 440px; }
+  .home-header { min-height: 72px; }
+  .home-nav { display: none; }
+  .home-brand { font-size: 1.5rem; }
+  .home-header .home-pill { min-height: 40px; padding: 0 16px; font-size: 0.875rem; }
+  /* A taller stage so the headline can stay large; people tuck into the corners */
+  .home-hero-stage { aspect-ratio: 375 / 560; width: 100%; }
+  .home-title { font-size: 19cqi; padding-top: 4cqi; }
+  .home-line-1, .home-line-3, .home-line-4 { translate: 0.12em 0; }
+  .home-line-2 { flex-wrap: wrap; justify-content: center; translate: 0; }
+  .home-hero-cta { height: 40px; padding-inline: 18px; font-size: 0.875rem; translate: 0; }
+  .hero-person-1 { left: -4%; top: 1%; width: 36%; }
+  .hero-person-2 { left: 70%; top: 1%; width: 32%; }
+  .hero-person-3 { left: -4%; top: 78%; width: 36%; }
+  .hero-person-4 { left: 68%; top: 78%; width: 36%; }
+  .home-hero-art .dd-book, .home-hero-art .dd-plane, .home-hero-art .dd-globe, .home-hero-art .dd-pencil, .home-hero-art .dd-bulb, .home-hero-art .dd-dot-2, .home-hero-art .dd-dot-4, .home-hero-art .dd-dot-5 { display: none; }
+  .home-hero-art .dd-plus { left: 30%; top: 5%; width: 7%; }
+  .home-hero-art .dd-ring-orange { left: 62%; top: 7%; width: 5%; }
+  .home-hero-art .dd-cross-red { left: 86%; top: 52%; width: 5%; }
+  .home-hero-art .dd-cross-blue { left: 6%; top: 60%; width: 5%; }
+  .home-hero-art .dd-ring-blue { left: 82%; top: 70%; width: 5%; }
+  .fs-panel { aspect-ratio: auto; padding: 32px 16px 80px; border-radius: 24px; }
+  .fs-stage { width: 100%; }
+  .fs-tab-title { font-size: var(--fs-md); }
+  .fs-tab.is-active .fs-tab-title { font-size: var(--fs-xl); }
+  .home .fs-tab { grid-template-columns: 2.5rem minmax(0, 1fr); }
+  .fs-d3, .fs-d4 { display: none; }
+  .fs-num { font-size: var(--fs-lg); }
+  .fs-tab.is-active .fs-num { font-size: var(--fs-xl); }
+  .home-steps li { padding: 24px 0; }
+  .home-steps { grid-template-columns: 1fr; }
+  .home-steps li, .home-steps li + li { padding: 28px 0; border-left: 0; }
+  .home-steps li + li { border-top: 1px solid var(--h-line); }
+  .dd-cta-plus { left: 6%; top: 10%; width: 34px; }
+  .dd-cta-ring { right: 8%; bottom: 10%; width: 30px; }
+  .dd-cta-cross { display: none; }
+  .home-footer .home-shell { flex-direction: column; align-items: flex-start; }
+}

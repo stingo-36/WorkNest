@@ -1,0 +1,626 @@
+// Personal Workspace — data model (spec section 20)
+// Prisma 7: connection URL lives in prisma.config.ts, not here.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  runtime  = "nodejs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+/// What kind of day a work log records. Holiday / Leave days carry no meetings
+/// or ticket work in the UI; they just account for the day.
+enum DayType {
+  Work
+  Holiday
+  Leave
+}
+
+enum AttachmentKind {
+  File
+  Link
+}
+
+enum TicketStatus {
+  // Legacy values remain in the database for historical rows. The application
+  // normalizes them into the five workflow stages below.
+  Open
+  InProgress
+  Blocked
+  Waiting
+  Testing
+  Completed
+  Closed
+  SentToQA
+  ReadyForProduction
+  Released
+  Done
+}
+
+enum TaskPriority {
+  Low
+  Medium
+  High
+  Urgent
+}
+
+enum TaskStatus {
+  Todo
+  InProgress
+  Completed
+}
+
+/// How you actually told them. Kept coarse on purpose — this is for recall
+/// ("I said it on Slack"), not for integration.
+/// Lists the user can edit on the Profile page. One `UserList` row per kind.
+enum UserListKind {
+  /// Follow-up "Where" options (was the FollowUpChannel enum).
+  FollowUpChannel
+  /// Resource types (was the ResourceType enum).
+  ResourceType
+  /// Meeting cards every new work log starts with.
+  DefaultMeeting
+  /// Project / site suggestions on tickets.
+  Project
+  /// Note tags kept as suggestions before they are used.
+  NoteTag
+  /// Resource tags kept as suggestions before they are used.
+  ResourceTag
+}
+
+enum FollowUpStatus {
+  Open
+  Done
+}
+
+/// What a tracker entry IS. All three share one table because they share one
+/// spine: a subject, an optional date, and an append-only record of what
+/// happened. Only the required fields and the wording differ per kind.
+/// (`Idea` was folded into `Note` on 2026-10-01 — they were the same thing.)
+/// Achievements (/achievements).
+enum AchievementStatus {
+  InProgress
+  Completed
+}
+
+enum EntryKind {
+  FollowUp
+  Task
+  Note
+}
+
+/// Account-level access. Admin is deliberately explicit: normal user queries
+/// remain isolated, while the admin dashboard may aggregate across accounts.
+enum UserRole {
+  User
+  Admin
+}
+
+
+// ---------------------------------------------------------------------------
+// Auth (NextAuth v5 + @auth/prisma-adapter)
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  role          UserRole  @default(User)
+  /// Incremented after an administrator resets this account's password. JWTs
+  /// carry the version from sign-in, so older sessions stop authenticating.
+  authVersion   Int       @default(0)
+  /// Profile: the day sprints are counted from (null = app default). Plain calendar day.
+  sprintStartDate  DateTime? @db.Date
+  /// Profile: sprint length in days.
+  sprintLengthDays Int       @default(14)
+  /// Profile: track tickets inside work logs (and show the Tickets page).
+  ticketsEnabled   Boolean   @default(true)
+  /// Profile: the user's OpenRouter API key, AES-256-GCM encrypted (lib/secret-box.ts). Never sent to the client.
+  openRouterKeyEnc  String?
+  /// Last 4 characters of that key, so Profile can show which one is saved.
+  openRouterKeyHint String?
+  /// Profile: comma-separated OpenRouter model ids (null = OPENROUTER_MODEL env / `openrouter/free`).
+  openRouterModel   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts             Account[]
+  sessions             Session[]
+  workLogs             WorkLog[]
+  workLogAttachments   WorkLogAttachment[]
+  tickets              Ticket[]
+  ticketWorkUpdates    TicketWorkUpdate[]
+  ticketHistoryEntries TicketHistoryEntry[]
+  tasks                Task[]
+  notes                Note[]
+  links                Link[]
+  resources            Resource[]
+  followUps            FollowUp[]
+  lists                UserList[]
+  achievements         Achievement[]
+  achievementFiles     AchievementFile[]
+  followUpUpdates      FollowUpUpdate[]
+  sprintReports        SprintReport[]
+
+  @@index([email])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Work Logs
+// ---------------------------------------------------------------------------
+
+model WorkLog {
+  id            String   @id @default(cuid())
+  userId        String
+  title         String   @default("Daily Work Log")
+  dayType       DayType  @default(Work)
+  /// Learning / upskilling notes for the day (Markdown). Independent of tickets.
+  learningNotes String   @default("") @db.Text
+  /// AI-written summary of the log (Markdown, via OpenRouter). AI only since 2026-10-02;
+  /// rows without `summaryModel` are older code-built ones and are hidden.
+  summary            String?   @db.Text
+  /// When `summary` was last generated; older than `updatedAt` means it's out of date.
+  summaryGeneratedAt DateTime?
+  /// OpenRouter model that wrote `summary`; null = an older code-built summary (not shown).
+  summaryModel       String?
+  /// SHA-256 of the text the AI last read for this log (summary + title). Leaving the
+  /// editor regenerates only when the log's text no longer matches it.
+  aiInputHash        String?
+  /// True while `title` was written by the AI; a title the user types sets it false,
+  /// and the AI never overwrites a user's title.
+  titleGenerated     Boolean   @default(false)
+  /// Stored as a UTC-midnight DateTime. One primary log per user per date.
+  date          DateTime @db.Date
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meetings      Meeting[]
+  ticketUpdates TicketWorkUpdate[]
+  attachments   WorkLogAttachment[]
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([userId, date])
+  @@index([userId, updatedAt])
+}
+
+/// A file uploaded to, or a link added to, a work log. Files are stored in the
+/// database (`data`, ≤10 MB) so they survive serverless hosting; `data` is never
+/// selected in list queries — only the download route reads it.
+model WorkLogAttachment {
+  id        String         @id @default(cuid())
+  workLogId String
+  userId    String
+  kind      AttachmentKind
+  /// File name, or the link's label.
+  name      String
+  /// Links only.
+  url       String?
+  mimeType  String?
+  size      Int?
+  data      Bytes?
+  createdAt DateTime       @default(now())
+
+  workLog WorkLog @relation(fields: [workLogId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workLogId])
+  @@index([userId])
+}
+
+model Meeting {
+  id        String   @id @default(cuid())
+  workLogId String
+  name      String
+  notes     String   @default("") @db.Text
+  order     Int      @default(0)
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workLog WorkLog @relation(fields: [workLogId], references: [id], onDelete: Cascade)
+
+  @@index([workLogId])
+  @@index([workLogId, order])
+}
+
+// ---------------------------------------------------------------------------
+// Tickets
+// ---------------------------------------------------------------------------
+
+model Ticket {
+  id          String       @id @default(cuid())
+  userId      String
+  /// Human ticket key, e.g. "ASU-1234". UNIQUE PER USER, not globally.
+  ticketId    String
+  title       String
+  /// Project / site the ticket belongs to (moved here from WorkLog).
+  projectName String?
+  status      TicketStatus @default(InProgress)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updates        TicketWorkUpdate[]
+  historyEntries TicketHistoryEntry[]
+  tasks          Task[]
+
+  @@unique([userId, ticketId])
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, updatedAt])
+  @@index([userId, ticketId])
+}
+
+/// Append-only work history. A new row per (ticket, work log).
+/// Rows belonging to a *past* work log are immutable history.
+model TicketWorkUpdate {
+  id          String       @id @default(cuid())
+  ticketId    String
+  workLogId   String
+  userId      String
+  description String       @default("") @db.Text
+  /// The ticket's status at the moment this update was written.
+  status      TicketStatus
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  ticket  Ticket  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  workLog WorkLog @relation(fields: [workLogId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The autosave key: at most one update per ticket per work log.
+  @@unique([ticketId, workLogId])
+  @@index([userId])
+  @@index([ticketId])
+  @@index([workLogId])
+  @@index([ticketId, createdAt])
+  @@index([userId, createdAt])
+}
+
+/// Standalone updates written directly from the ticket page. They may be
+/// explicitly deleted, but never replace or modify work-log TicketWorkUpdate rows.
+model TicketHistoryEntry {
+  id        String       @id @default(cuid())
+  ticketId  String
+  userId    String
+  body      String       @db.Text
+  /// The ticket's status when this direct update was appended.
+  status    TicketStatus
+  createdAt DateTime     @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([ticketId])
+  @@index([ticketId, createdAt])
+  @@index([userId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Follow-ups — "what did I tell whom, and when"
+// ---------------------------------------------------------------------------
+
+/// A running thread with one person about one subject. The thread itself holds
+/// no note text: everything you said lives in FollowUpUpdate, so the record of
+/// what was said on a given day can never be silently rewritten.
+model FollowUp {
+  id          String         @id @default(cuid())
+  userId      String
+  kind        EntryKind      @default(FollowUp)
+  /// Who you are keeping in the loop, e.g. "Ashwini". Free text — no contacts
+  /// table. Required for a FollowUp; null for a Task or Note, which are yours.
+  person      String?
+  subject     String
+  /// Optional human ticket key ("ASU-1234"), not a FK: a follow-up often
+  /// concerns a ticket that was never opened in this app.
+  ticketKey   String?
+  status      FollowUpStatus @default(Open)
+  /// Flagged as important — shown in its own group at the top of the Tracker.
+  pinned      Boolean        @default(false)
+  /// Lowercase labels for grouping and searching. Used by Notes; empty elsewhere.
+  tags        String[]       @default([])
+  /// When the next nudge is due. Null = logged for the record, no date attached.
+  dueDate     DateTime?      @db.Date
+  completedAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updates FollowUpUpdate[]
+
+  @@index([userId])
+  @@index([userId, kind])
+  @@index([userId, status])
+  @@index([userId, kind, status, dueDate])
+  @@index([userId, person])
+  @@index([userId, updatedAt])
+}
+
+/// Append-only. One row per thing you told them. NEVER updated in place — that
+/// is the whole point of the feature, the same rule TicketWorkUpdate follows.
+model FollowUpUpdate {
+  id         String          @id @default(cuid())
+  followUpId String
+  userId     String
+  note       String          @db.Text
+  /// Free text from the user's channel list (Profile). Was an enum until 2026-10-01.
+  channel    String          @default("Slack")
+  /// When the conversation happened. Defaults to now, can be backdated for
+  /// something you are recording after the fact.
+  occurredAt DateTime        @default(now())
+  /// True when this row records THEIR reply rather than something you said.
+  /// A follow-up whose newest row is from them is "replied"; otherwise it is
+  /// still waiting on them. Derived, so there is no status to drift.
+  fromThem   Boolean         @default(false)
+  createdAt  DateTime        @default(now())
+
+  followUp FollowUp @relation(fields: [followUpId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([followUpId])
+  @@index([followUpId, occurredAt])
+  @@index([userId, occurredAt])
+}
+
+// ---------------------------------------------------------------------------
+// Tasks / Notes / Links / Resources
+// ---------------------------------------------------------------------------
+
+model Task {
+  id          String       @id @default(cuid())
+  userId      String
+  /// Optional FK to Ticket.id (the cuid, not the human key).
+  ticketId    String?
+  title       String
+  description String       @default("") @db.Text
+  dueDate     DateTime?
+  priority    TaskPriority @default(Medium)
+  status      TaskStatus   @default(Todo)
+  notes       String       @default("") @db.Text
+  completedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ticket Ticket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, dueDate])
+  @@index([ticketId])
+}
+
+/// A notebook, ported from the Nexa project: Note -> Section -> Page, the way
+/// OneNote is shaped. The note itself carries no body text — everything written
+/// lives on a NotePage as a TipTap document.
+model Note {
+  id          String    @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  /// react-icons component name, e.g. "SiOpenjdk"
+  iconName    String?
+  /// which react-icons set the name belongs to: "si" | "lu" | "fa6"
+  iconLibrary String?
+  /// favourite notes sort to the top of the list
+  favorite    Boolean   @default(false)
+  /// set when the note is moved to trash; null means live
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sections NoteSection[]
+
+  @@index([userId])
+  @@index([userId, updatedAt])
+  @@index([userId, deletedAt])
+  @@index([userId, favorite])
+}
+
+model NoteSection {
+  id     String @id @default(cuid())
+  noteId String
+  title  String
+  /// position within the note, as arranged in the editor
+  order  Int
+
+  note      Note       @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  pages     NotePage[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([noteId])
+  @@index([noteId, order])
+}
+
+model NotePage {
+  id        String @id @default(cuid())
+  sectionId String
+  title     String
+  /// TipTap document JSON. The shape is the editor's business, not ours.
+  content   Json
+  /// position within the section
+  order     Int
+
+  section   NoteSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([sectionId])
+  @@index([sectionId, order])
+}
+
+model Link {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  url         String
+  description String   @default("") @db.Text
+  category    String   @default("Other")
+  tags        String[] @default([])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, category])
+  @@index([userId, createdAt])
+}
+
+model Resource {
+  id          String       @id @default(cuid())
+  userId      String
+  title       String
+  description String       @default("") @db.Text
+  /// Free text from the user's resource-type list (Profile). Was an enum until 2026-10-01.
+  type        String       @default("Other")
+  url         String?
+  content     String       @default("") @db.Text
+  tags        String[]     @default([])
+  /// Starred — shown on the Favourites page.
+  favorite    Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, favorite])
+  @@index([userId, type])
+  @@index([userId, createdAt])
+}
+
+/// One editable list per user and kind (Profile → Dropdown lists / Tags).
+/// No row = the built-in defaults (`lib/user-lists.ts`); a row, even empty, wins.
+model UserList {
+  userId    String
+  kind      UserListKind
+  /// In display order. For Project / NoteTag / ResourceTag: names added ahead of use.
+  values    String[]     @default([])
+  /// Project only: names still used on tickets that should no longer be suggested.
+  hidden    String[]     @default([])
+  /// ResourceType only: value → picked icon as "library:Name" (e.g. "si:SiGithub").
+  /// Missing = the icon is guessed from the name.
+  icons     Json         @default("{}")
+  updatedAt DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, kind])
+}
+
+/// Something you earned — a certification, award, course. /achievements.
+model Achievement {
+  id          String            @id @default(cuid())
+  userId      String
+  title       String
+  /// Free text: Certification, Course, Award… (suggestions live in the form).
+  type        String            @default("Certification")
+  status      AchievementStatus @default(Completed)
+  /// Who set it as a goal, if anyone (e.g. a manager).
+  assignedBy  String?
+  /// Plain calendar days, like WorkLog.date.
+  startDate   DateTime?         @db.Date
+  endDate     DateTime?         @db.Date
+  description String            @default("") @db.Text
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  user  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  files AchievementFile[]
+
+  @@index([userId])
+  @@index([userId, endDate])
+}
+
+/// A certificate or other proof, stored in Postgres like WorkLogAttachment
+/// (≤10 MB). `data` is only ever read by the download route.
+model AchievementFile {
+  id            String   @id @default(cuid())
+  achievementId String
+  userId        String
+  name          String
+  mimeType      String
+  size          Int
+  data          Bytes
+  createdAt     DateTime @default(now())
+
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([achievementId])
+  @@index([userId])
+}
+
+/// Reports page: one generated "5-15 Report" per user per sprint (Markdown).
+/// Regenerating replaces it; the user copies it into their own doc.
+model SprintReport {
+  id          String   @id @default(cuid())
+  userId      String
+  /// First day of the sprint (lib/sprint.ts), as a UTC-midnight calendar day like WorkLog.date.
+  sprintStart DateTime @db.Date
+  content     String   @db.Text
+  /// OpenRouter model that wrote it; null = an older code-built report (not shown).
+  model       String?
+  generatedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sprintStart])
+  @@index([userId])
+}
