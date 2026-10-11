@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { InstallAppDialog } from "@/components/pwa/install-app";
 import { QuickLogProvider } from "@/components/quick-log/quick-log";
 import { AppNav, type ShellUser } from "@/components/shell/app-nav";
-import { ScrollReveal } from "@/components/shell/scroll-reveal";
+import { PageMotion } from "@/components/shell/page-motion";
 /**
  * The authenticated frame: the content well, and a floating section dock at
  * the bottom (2026-10-09 — no top bar, no sidebar; see AppNav).
@@ -40,10 +40,11 @@ export function AppShell({
             id="main"
             className="min-w-0 flex-1 overflow-x-clip px-4 py-5 md:px-5 md:py-6 lg:px-8"
           >
-            <div className="mx-auto w-full max-w-[85rem]">{children}</div>
+            <div className="mx-auto w-full max-w-[85rem]">
+              <PageMotion>{children}</PageMotion>
+            </div>
           </main>
           <InstallAppDialog />
-          <ScrollReveal />
         </QuickLogProvider>
       </div>
     </>

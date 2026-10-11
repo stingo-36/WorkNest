@@ -223,8 +223,11 @@ Built from the user's "Take it to the next level" banner. Homepage scoped by `.h
   footer. Spacing inside screens uses `vh` clamps so each fits a ~600px-tall window.
 - **Sections**: Features = `feature-showcase.tsx` (tab list with tone-coloured italic
   numbers + a tinted panel showing a live mini preview of the selected area;
-  auto-advances every 6s until hover/focus/click; no avatars, no cards); AI recap = notes
-  paper → AI summary → 5-15 doc joined by marching dashed arrows; How it works =
+  auto-advances every 4s unless reduced motion is requested; no avatars, no cards).
+  On phones, preview grid items use `min-width: 0`, primary row copy ellipsizes and
+  supporting status pills may collapse below 360px, so the mock never widens its card;
+  the two AI recap spines also reserve rotation clearance inside the phone gutter.
+  AI recap = notes paper → AI summary → 5-15 doc joined by marching dashed arrows; How it works =
   centred steps with tone-filled number badges; closing CTA; footer.
 - **Type scale** (ui-ux-pro-max: one modular scale, body 1.6): `--fs-xs 13 · sm 14 ·
   base 16 · md 18 · lg 24 · xl 32 · 2xl clamp(36–48) · 3xl clamp(44–72)`; headings
@@ -412,19 +415,17 @@ What the eye should hit, in order — one step per level, never two the same siz
 
 ## 7. Motion
 
-**Scroll reveals in the app (2026-10-01).** Add `data-reveal` to a section/card, or
-`data-reveal-stagger` to a list (its children cascade, 50ms apart, max 8). Driven by
-`components/shell/scroll-reveal.tsx` + the `reveal-*` rules at the end of
-`globals.css`: 12px rise, 420ms, `--ease-smooth-out`, `translate` + `animation` (so
-hover lifts and colour transitions keep working). Guarantees: content already on
-screen at first paint is never hidden; only below-the-fold items wait, once; content
-that mounts later (tab switch, section change) cascades in; no-JS and
-`prefers-reduced-motion` show everything. Used on: Tracker lists and note grids,
-Notes cards and note sections, Resources cards, Favourites lists, Tickets list,
-work-log timeline/cards/to-dos, Profile cards and tag rows. Headers keep the
-`t-reveal` text reveal. The CSS scroll-timeline `.scroll-reveal` stays **off** in the
-app (it stranded content); existing `.scroll-reveal(-item)` markup is driven by the
-controller instead.
+**Authenticated app motion (2026-10-11).** `PageMotion` uses GSAP to choreograph each
+route's major header/section/card regions on load, always beginning above the resting
+position and proceeding in reading order. Motion varies by page family rather than
+using one effect everywhere: Tracker/Notes = editorial vertical sequence;
+Resources/Favourites = soft depth/scale; Admin/Profile = lateral console panels;
+Tickets/Reports/Achievements = compact alternating workflow rows; editors/new pages =
+quiet document settle. Durations are 560ms with 65–100ms family-specific staggers.
+Existing `data-reveal` / `data-reveal-stagger` markup participates in load choreography.
+Work Logs keeps its own indexed 500ms date-card animation and is excluded from GSAP so
+it is not double-animated. Nothing animates in response to scrolling. No JS and
+`prefers-reduced-motion` show everything immediately.
 
 Tokens in `:root`: `--duration-{stagger 40, micro 80, quick 150, fast 250, medium 350,
 slow 400, very-slow 500}ms`, `--ease-smooth-out`, `--ease-bounce`, distance/scale/blur
@@ -433,10 +434,10 @@ tokens. Utilities: `.motion-page-enter`, `.motion-stagger`, `.motion-lift`,
 
 - Motion dial for the app: **4/10** (standard, not cinematic). State transitions
   150–250ms. Buttons press with `active:scale-[0.98]`.
-- Animate `transform` and `opacity` only; list properties explicitly
+- Animate `transform` and `opacity` only; GSAP route choreography follows the same rule. List CSS properties explicitly
   (`transition-[transform,opacity]`), never `transition-all`. Moving indicators
   (such as meeting tabs) position with `translate3d`, not `left/top`.
-- Navigation never animates in.
+- Navigation never animates in; only the route content well is keyed.
 - `prefers-reduced-motion` disables all of it.
 - Homepage scrolling moves **one section per scroll** on desktop (≥900×560): native CSS
   `scroll-snap-type: y mandatory` + `scroll-snap-stop: always` — no JS paging (it made you

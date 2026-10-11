@@ -27,6 +27,14 @@
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
 
+**2026-10-11 — Page-load choreography varies by route family, never by scroll.**
+GSAP gives Tracker/Notes an editorial vertical sequence, Resources/Favourites soft
+depth, Admin/Profile lateral console panels, workflow pages alternating compact motion,
+and document routes a quiet settle. Every family begins above the resting position and
+proceeds in reading order. Work Logs keeps its dedicated date-card sequence without a
+second generic animation. Reduced-motion shows everything immediately. *Rejected:* one
+animation everywhere; a whole-page "popup"; scroll-linked/observer animation; layout-property animation.
+
 **2026-10-11 — Mobile navigation is capped at five labelled destinations.**
 At phone widths, Work Logs, Tickets (when enabled), Tracker, Notes and Resources stay in
 the bottom dock; Favourites remains reachable from the floating account menu. The shell
@@ -705,6 +713,8 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-11 — Added GSAP route-family page-load choreography (editorial, library, console, workflow and document variants), kept Work Logs' bespoke calendar sequence, scrolling static and reduced-motion safe — `app/package.json`, `app/package-lock.json`, `components/shell/{page-motion,app-shell}.tsx`, `components/shell/scroll-reveal.tsx` (deleted), `app/globals.css`
+- 2026-10-11 — Fixed anonymous homepage cards at narrow phone widths: feature-preview rows now shrink/ellipsis instead of forcing a 360px grid track, AI recap cards stay inside 320px, and login/register remained overflow-free — `app/src/app/(marketing)/home.css`, `app/src/components/home/feature-showcase.tsx`
 - 2026-10-11 — Reinitialized the local Git repository for `git@github.com:stingo-36/WorkNest.git`; working files were preserved and nothing was staged, committed or pushed — `.git`, `Memory.md`
 - 2026-10-11 — Re-audited mobile typography across public, authenticated and source-backed detail/editor pages; aligned Work Logs/auth headings, reduced Tracker/Notes display metrics, and made shared controls, Profile switches/list editors and recurring actions at least 44px on phones — `app/globals.css`, `app/(auth)/auth-motion.css`, `components/ui/{button,password-field,toast}.tsx`, `components/{auth,work-log,profile,resources,shell}/*`, `app/(app)/work-logs/[workLogId]/page.tsx`
 - 2026-10-11 — Fixed phone responsiveness: five-item bottom dock with safe-area/content clearance, Favourites in the mobile account menu, adaptive Profile section select, smaller fluid headings and controls, and compact non-overflowing Admin cards/header/actions — `components/shell/{app-nav,app-shell,page-head}.tsx`, `components/profile/profile-form.tsx`, `components/admin/admin-dashboard.tsx`, `app/globals.css`

@@ -13,7 +13,7 @@
 | Layer | Choice | Notes |
 |---|---|---|
 | Framework | **Next.js 16.3** (App Router, `src/` dir, alias `@/*`) | Breaking changes vs. older Next — read `app/node_modules/next/dist/docs/` before using an unfamiliar API. `middleware.ts` is now **`proxy.ts`**. Production build uses `next build --webpack`. |
-| UI | **React 19.2**, TypeScript 5 | Server Components by default; `"use client"` only where needed. |
+| UI | **React 19.2**, TypeScript 5, GSAP | Server Components by default; `"use client"` only where needed. GSAP owns route-specific load choreography; CSS owns small state transitions and Work Logs' dedicated calendar sequence. |
 | Styling | **Tailwind CSS 4** (CSS-first, no `tailwind.config`) | All tokens in `src/app/globals.css` via `@theme inline`. |
 | Form fields | **MUI 9** (`@mui/material`, `@mui/material-nextjs`) + Emotion | In `@layer mui` so Tailwind wins. |
 | Rich text | **TipTap 3** (+ lowlight) | Notes pages (JSON) and work-log Markdown fields. |
@@ -96,9 +96,9 @@ authenticated shell.
 
 `(app)/layout.tsx` runs `requireUser()` + `getUserSettings()` once, wraps children in
 `MuiProvider` + `AppShell`, and passes `ticketsEnabled` and `isAdmin` to the nav. `AppShell` mounts
-`QuickLogProvider` (the Quick log dialog) inside `.app-shell`. `AppShell` also
-mounts `shell/scroll-reveal.tsx` (one-shot scroll reveals for `data-reveal` /
-`data-reveal-stagger` markup — see Design-System §7). Its fixed dock has five labelled
+`QuickLogProvider` (the Quick log dialog) inside `.app-shell`. Its content well is
+wrapped by `shell/page-motion.tsx`, which assigns a GSAP motion family by route and
+replays major regions when the pathname changes (see Design-System §7). Its fixed dock has five labelled
 destinations on phones (Favourites moves to the account menu), six on larger screens,
 and `--dock-clearance` reserves content and device safe-area space beneath it.
 
@@ -156,6 +156,7 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `components/notes/smooth-scroll.ts`, `components/notes/doc-height.ts` | client: frame-by-frame smooth jump that follows a moving target and pauses lazy page mounting while in flight (`isJumping`, `NOTE_SCROLL_END`); estimated height for an unmounted page body. Used by the reader and the editor |
 | `lib/content.ts` | tasks, links, resources (+ favourite) |
 | `components/shell/page-head.tsx` | the shared page header (`PageHead`), `SearchPill`, `UnderlineTabs`, `primaryPill` / `outlinePill` — every list page except Work Logs |
+| `components/shell/page-motion.tsx` | GSAP route-family choreography for authenticated page regions; reduced-motion safe, load-only and intentionally unrelated to scrolling |
 | `components/shell/page-band.tsx`, `components/ui/band-sx.ts` | leftovers: `bandField` (Quick log's band button) and the MUI `tone="band"` field styling |
 | `lib/sprint.ts` | **the only** sprint arithmetic (`getSprint`) — local calendar days |
 | `lib/user-lists.ts` | Profile-editable lists: `DEFAULT_LISTS`, ordered lists, project options/suggestions, tag usage + rename/delete (raw SQL, user-scoped) |

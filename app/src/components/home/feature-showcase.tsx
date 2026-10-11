@@ -29,8 +29,8 @@ function LogsPreview() {
       <div className="fs-row"><b>Team stand-up</b><span className="fs-line" style={{ width: "62%" }} /></div>
       <div className="fs-row"><b>Design review</b><span className="fs-line" style={{ width: "48%" }} /></div>
       <p className="fs-mock-label">Tickets</p>
-      <div className="fs-row"><i className="fs-key tone-purple">TCK-101</i>Fix login redirect<em className="fs-pill fs-pill-blue">Sent to QA</em></div>
-      <div className="fs-row"><i className="fs-key tone-orange">TCK-102</i>Update pricing page<em className="fs-pill">In progress</em></div>
+      <div className="fs-row"><i className="fs-key tone-purple">TCK-101</i><span className="fs-row-copy">Fix login redirect</span><em className="fs-pill fs-pill-blue">Sent to QA</em></div>
+      <div className="fs-row"><i className="fs-key tone-orange">TCK-102</i><span className="fs-row-copy">Update pricing page</span><em className="fs-pill">In progress</em></div>
       <div className="fs-ai"><Sparkles /> Sent TCK-101 to QA · stand-up notes done · 1 overdue</div>
     </div>
   );
@@ -41,12 +41,12 @@ function TrackerPreview() {
     <div className="fs-mock">
       <p className="fs-mock-title">Tracker <span>3 open</span></p>
       <p className="fs-mock-label fs-red">Overdue</p>
-      <div className="fs-todo"><span />Fix broken images on the blog<em className="fs-date">Tue</em></div>
+      <div className="fs-todo"><span /><span className="fs-row-copy">Fix broken images on the blog</span><em className="fs-date">Tue</em></div>
       <p className="fs-mock-label">Today</p>
-      <div className="fs-todo is-done"><span><Check /></span>Prepare sprint demo</div>
-      <div className="fs-todo"><span />Review the onboarding PR</div>
+      <div className="fs-todo is-done"><span><Check /></span><span className="fs-row-copy">Prepare sprint demo</span></div>
+      <div className="fs-todo"><span /><span className="fs-row-copy">Review the onboarding PR</span></div>
       <p className="fs-mock-label">Waiting on them</p>
-      <div className="fs-row"><i className="fs-key tone-blue">Client</i>Final copy for the homepage<em className="fs-pill">Nudge Mon</em></div>
+      <div className="fs-row"><i className="fs-key tone-blue">Client</i><span className="fs-row-copy">Final copy for the homepage</span><em className="fs-pill">Nudge Mon</em></div>
     </div>
   );
 }
@@ -67,8 +67,8 @@ function NotesPreview() {
         <span className="fs-line" style={{ width: "84%" }} />
         <span className="fs-line" style={{ width: "70%" }} />
         <p className="fs-mock-label">Checklist</p>
-        <div className="fs-todo is-done"><span><Check /></span>Freeze scope</div>
-        <div className="fs-todo"><span />Write release notes</div>
+        <div className="fs-todo is-done"><span><Check /></span><span className="fs-row-copy">Freeze scope</span></div>
+        <div className="fs-todo"><span /><span className="fs-row-copy">Write release notes</span></div>
       </div>
     </div>
   );
