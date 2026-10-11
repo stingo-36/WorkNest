@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { gsap } from "gsap";
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 type MotionFamily = "editorial" | "library" | "console" | "workflow" | "document" | "quiet";
 
@@ -24,7 +24,7 @@ export function PageMotion({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const rootRef = useRef<HTMLDivElement>(null);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;

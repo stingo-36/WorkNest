@@ -77,6 +77,12 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
+  // The switch lives in ignored app/.env.local. Production receives neither
+  // the variable nor this marker unless somebody deliberately configures it.
+  const showLocalMarker = process.env.WORKNEST_LOCAL === "1";
+  const localTint = process.env.WORKNEST_LOCAL_TINT;
+  const localAccent = process.env.WORKNEST_LOCAL_ACCENT;
+
   return (
     <html
       lang="en"
@@ -84,6 +90,21 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col bg-bg text-text">
         <Providers>{children}</Providers>
+        {showLocalMarker && localTint && localAccent ? (
+          <div aria-label="Local development environment" className="pointer-events-none fixed inset-0 z-100">
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 border-4 mix-blend-multiply"
+              style={{ backgroundColor: localTint, borderColor: localAccent }}
+            />
+            <div
+              className="absolute top-0 left-1/2 min-w-56 -translate-x-1/2 rounded-b-xl px-6 py-2 text-center font-mono text-sm font-black tracking-[0.18em] text-white uppercase shadow-lg"
+              style={{ backgroundColor: localAccent }}
+            >
+              Local development
+            </div>
+          </div>
+        ) : null}
       </body>
     </html>
   );

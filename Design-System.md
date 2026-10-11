@@ -427,6 +427,12 @@ Work Logs keeps its own indexed 500ms date-card animation and is excluded from G
 it is not double-animated. Nothing animates in response to scrolling. No JS and
 `prefers-reduced-motion` show everything immediately.
 
+**Local environment marker.** When Git-ignored `app/.env.local` sets
+`WORKNEST_LOCAL=1`, every React route gets a full-viewport tint and border plus a large
+top-centre `LOCAL DEVELOPMENT` ribbon. The tint/accent values come from ignored
+`WORKNEST_LOCAL_TINT` / `WORKNEST_LOCAL_ACCENT`, not tracked CSS. The layer is
+non-interactive and absent in production.
+
 Tokens in `:root`: `--duration-{stagger 40, micro 80, quick 150, fast 250, medium 350,
 slow 400, very-slow 500}ms`, `--ease-smooth-out`, `--ease-bounce`, distance/scale/blur
 tokens. Utilities: `.motion-page-enter`, `.motion-stagger`, `.motion-lift`,

@@ -107,6 +107,12 @@ Chromium install prompt, and exposes install state. `pwa/install-app.tsx` adds t
 account-menu action and the iOS/other-browser instruction dialog. The dialog is
 mounted by `AppShell` so it inherits the workspace tokens.
 
+`app/layout.tsx` also renders a full-viewport local tint, frame and **Local development**
+ribbon when `WORKNEST_LOCAL=1`. Its `WORKNEST_LOCAL_TINT` and
+`WORKNEST_LOCAL_ACCENT` colour values live only in Git-ignored `app/.env.local`;
+Vercel has none of these values and therefore renders no marker. Do not add these
+variables to Vercel environments.
+
 ## 4. Request lifecycle & layering
 
 ```

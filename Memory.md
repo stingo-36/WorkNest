@@ -27,6 +27,14 @@
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
 
+**2026-10-11 — Local and live are distinguished by an ignored environment switch.**
+`WORKNEST_LOCAL=1` in Git-ignored `app/.env.local` displays a full-page tint/frame and
+large `LOCAL DEVELOPMENT` ribbon on every React route. The actual tint and accent
+colours are also stored only in the ignored environment file. Vercel receives none of
+the variables, so production cannot show the treatment through source deployment
+alone. *Rejected:* hostname detection (preview/custom domains drift); a tiny badge;
+committing a local colour or permanent development banner.
+
 **2026-10-11 — Page-load choreography varies by route family, never by scroll.**
 GSAP gives Tracker/Notes an editorial vertical sequence, Resources/Favourites soft
 depth, Admin/Profile lateral console panels, workflow pages alternating compact motion,
@@ -713,6 +721,7 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-11 — Added an unmistakable full-page local tint/frame and large environment ribbon; its switch and actual colours live only in Git-ignored `app/.env.local` and remain absent from Vercel — `app/src/app/layout.tsx`, `app/.env.local` (ignored)
 - 2026-10-11 — Added GSAP route-family page-load choreography (editorial, library, console, workflow and document variants), kept Work Logs' bespoke calendar sequence, scrolling static and reduced-motion safe — `app/package.json`, `app/package-lock.json`, `components/shell/{page-motion,app-shell}.tsx`, `components/shell/scroll-reveal.tsx` (deleted), `app/globals.css`
 - 2026-10-11 — Fixed anonymous homepage cards at narrow phone widths: feature-preview rows now shrink/ellipsis instead of forcing a 360px grid track, AI recap cards stay inside 320px, and login/register remained overflow-free — `app/src/app/(marketing)/home.css`, `app/src/components/home/feature-showcase.tsx`
 - 2026-10-11 — Reinitialized the local Git repository for `git@github.com:stingo-36/WorkNest.git`; working files were preserved and nothing was staged, committed or pushed — `.git`, `Memory.md`
