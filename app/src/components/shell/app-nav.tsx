@@ -20,22 +20,14 @@ export type ShellUser = {
   isAdmin: boolean;
 };
 
-/**
- * The authenticated navigation (2026-10-09): one floating dock at the bottom of
- * every screen — the sections, then the account menu. There is no top bar any
- * more (owner's request); the current section is a white pill. The account
- * menu opens upwards.
- */
+/** The authenticated navigation: a full-width sticky bar above every screen. */
 export function AppNav({ user }: { user: ShellUser }) {
   const pathname = usePathname();
   const sections = navFor(user.ticketsEnabled);
 
   return (
-    <>
-    {/* Phones: the dock has no room for the account, so it floats top-right. */}
-    <div className="app-account fixed top-[calc(0.75rem+env(safe-area-inset-top))] right-3 z-40 rounded-full bg-sidebar shadow-md md:hidden"><AccountMenu user={user} side="bottom" /></div>
     <nav id="app-dock" aria-label="Sections" className="app-dock">
-      <div className="flex items-center md:gap-1">
+      <div className="mx-auto flex w-full max-w-[85rem] items-center gap-1 px-1 md:px-4 lg:px-8">
         <ul className="flex min-w-0 flex-1 items-center md:gap-1">
           {sections.map((item) => {
             const active = isActivePath(pathname, item);
@@ -59,11 +51,10 @@ export function AppNav({ user }: { user: ShellUser }) {
             );
           })}
         </ul>
-        <span aria-hidden="true" className="mx-1 hidden h-7 w-px bg-sidebar-border md:block" />
-        <div className="hidden md:block"><AccountMenu user={user} side="top" /></div>
+        <span aria-hidden="true" className="h-7 w-px shrink-0 bg-sidebar-border" />
+        <AccountMenu user={user} side="bottom" />
       </div>
     </nav>
-    </>
   );
 }
 

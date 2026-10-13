@@ -5,12 +5,11 @@ import { QuickLogProvider } from "@/components/quick-log/quick-log";
 import { AppNav, type ShellUser } from "@/components/shell/app-nav";
 import { PageMotion } from "@/components/shell/page-motion";
 /**
- * The authenticated frame: the content well, and a floating section dock at
- * the bottom (2026-10-09 — no top bar, no sidebar; see AppNav).
+ * The authenticated frame: a full-width top navigation bar and content well.
  *
  * Layout contract (design.md §8):
- *   360   five-item dock: icon over label; Favourites moves into the account menu
- *   768   dock: icon beside label, account at the dock's end
+ *   360   five nav items: icon over label; Favourites moves into the account menu
+ *   768   nav items: icon beside label, account at the bar's end
  *   1440  content capped at 1360px, the extra width becomes gutter
  */
 export function AppShell({

@@ -1,11 +1,11 @@
 "use client";
 
 import { format } from "date-fns";
-import { ArrowRight, Building2, CalendarDays, History, Loader2, Search, ShieldCheck, Ticket as TicketIcon, Trash2 } from "lucide-react";
+import { ArrowRight, Building2, CalendarDays, History, Loader2, Pencil, Search, ShieldCheck, Ticket as TicketIcon, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import { appendTicketHistoryEntry, deleteTicketHistoryEntry, getTicket } from "@/actions/tickets";
+import { appendTicketHistoryEntry, deleteTicketHistoryEntry, getTicket, updateTicket } from "@/actions/tickets";
 import { cn } from "@/components/cn";
 import { PageHead, SearchPill, UnderlineTabs } from "@/components/shell/page-head";
 import { MarkdownContent, MarkdownEditor } from "@/components/work-log/markdown-editor";
@@ -13,6 +13,8 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { ProjectInput } from "@/components/ui/project-input";
 import { Select } from "@/components/ui/select";
 import { TICKET_STATUS_DOT, TICKET_STATUS_LABELS, TICKET_STATUS_ORDER, TicketStatusBadge } from "@/components/ui/ticket-status-badge";
 import { toast } from "@/components/ui/toast";
@@ -65,7 +67,7 @@ export function TicketBoard({ initialTickets, loadError, daysOff = [] }: { initi
   // Never open on an empty detail panel: fall back to the first ticket in the list.
   const selectedTicket = visibleTickets.find((ticket) => ticket.id === selectedId) ?? visibleTickets[0] ?? null;
 
-  function replaceTicket(ticketId: string, patch: Partial<Pick<TicketBoardItem, "title" | "projectName" | "status" | "updatedAt">>) {
+  function replaceTicket(ticketId: string, patch: Partial<Pick<TicketBoardItem, "ticketId" | "title" | "projectName" | "status" | "updatedAt">>) {
     setTickets((current) => current.map((ticket) => ticket.id === ticketId ? { ...ticket, ...patch } : ticket));
   }
 
@@ -174,7 +176,7 @@ function TicketDetailPanel({ ticket, daysOff, onChange }: {
   ticket: TicketBoardItem;
   /** Holiday / Leave days (YYYY-MM-DD) — not counted as working days. */
   daysOff: string[];
-  onChange: (ticketId: string, patch: Partial<Pick<TicketBoardItem, "title" | "projectName" | "status" | "updatedAt">>) => void;
+  onChange: (ticketId: string, patch: Partial<Pick<TicketBoardItem, "ticketId" | "title" | "projectName" | "status" | "updatedAt">>) => void;
 }) {
   const [detail, setDetail] = useState<TicketDetail | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -183,7 +185,12 @@ function TicketDetailPanel({ ticket, daysOff, onChange }: {
   const [saving, setSaving] = useState<"body" | null>(null);
   const [message, setMessage] = useState("");
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
-  // Title and project are read-only here; only the status is a draft.
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [ticketKey, setTicketKey] = useState(ticket.ticketId);
+  const [title, setTitle] = useState(ticket.title);
+  const [projectName, setProjectName] = useState(ticket.projectName ?? "");
+  const [detailsError, setDetailsError] = useState("");
+  const [savingDetails, setSavingDetails] = useState(false);
   const statusChanged = status !== ticket.status;
 
   useEffect(() => {
@@ -217,6 +224,49 @@ function TicketDetailPanel({ ticket, daysOff, onChange }: {
   }, [detail]);
 
   const journey = useMemo(() => (detail ? ticketJourney(ticket, detail, new Set(daysOff)) : null), [detail, ticket, daysOff]);
+
+  function cancelDetailsEdit() {
+    setTicketKey(ticket.ticketId);
+    setTitle(ticket.title);
+    setProjectName(ticket.projectName ?? "");
+    setDetailsError("");
+    setEditingDetails(false);
+  }
+
+  async function saveDetails() {
+    if (savingDetails) return;
+    const nextKey = ticketKey.trim();
+    const nextTitle = title.trim();
+    if (!nextKey || !nextTitle) {
+      setDetailsError(!nextKey ? "Enter a ticket number." : "Enter a ticket title.");
+      return;
+    }
+    setSavingDetails(true);
+    setDetailsError("");
+    const result = await updateTicket({
+      ticketId: ticket.id,
+      ticketKey: nextKey,
+      title: nextTitle,
+      projectName: projectName.trim() || null,
+    });
+    setSavingDetails(false);
+    if (!result.ok) {
+      setDetailsError(result.error.message);
+      toast.error("Ticket details were not saved", { description: result.error.message });
+      return;
+    }
+    onChange(ticket.id, {
+      ticketId: result.data.ticketId,
+      title: result.data.title,
+      projectName: result.data.projectName,
+      updatedAt: result.data.updatedAt.toISOString(),
+    });
+    setTicketKey(result.data.ticketId);
+    setTitle(result.data.title);
+    setProjectName(result.data.projectName ?? "");
+    setEditingDetails(false);
+    toast.success("Ticket details updated");
+  }
 
   /**
    * The one save: writes the update (if any) with the chosen status, or — with
@@ -283,8 +333,31 @@ function TicketDetailPanel({ ticket, daysOff, onChange }: {
           <div className="shrink-0 text-base text-text-muted md:text-right">
             <p>{ticket.workLogCount} {ticket.workLogCount === 1 ? "work log" : "work logs"}</p>
             <time dateTime={ticket.updatedAt}>Updated {formatTicketDate(ticket.updatedAt)}</time>
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => setEditingDetails(true)}>
+              <Pencil className="size-4" aria-hidden="true" /> Edit ticket details
+            </Button>
           </div>
         </div>
+        {editingDetails ? (
+          <div className="mt-6 grid gap-4 border-t border-border pt-5 md:grid-cols-2">
+            <Field label="Ticket number" htmlFor={`ticket-key-${ticket.id}`}>
+              <Input id={`ticket-key-${ticket.id}`} value={ticketKey} maxLength={80} disabled={savingDetails} onChange={(event) => { setTicketKey(event.target.value); setDetailsError(""); }} />
+            </Field>
+            <Field label="Title" htmlFor={`ticket-title-${ticket.id}`}>
+              <Input id={`ticket-title-${ticket.id}`} value={title} maxLength={300} disabled={savingDetails} onChange={(event) => { setTitle(event.target.value); setDetailsError(""); }} />
+            </Field>
+            <Field label="Project / site" htmlFor={`ticket-project-${ticket.id}`} className="md:col-span-2">
+              <ProjectInput id={`ticket-project-${ticket.id}`} value={projectName} disabled={savingDetails} onValueChange={(value) => { setProjectName(value); setDetailsError(""); }} />
+            </Field>
+            <div className="flex flex-col gap-3 md:col-span-2 md:flex-row md:items-center md:justify-between">
+              <p role="alert" className="text-sm font-medium text-danger">{detailsError}</p>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" disabled={savingDetails} onClick={cancelDetailsEdit}>Cancel</Button>
+                <Button loading={savingDetails} onClick={() => void saveDetails()}>Save details</Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </header>
 
       {journey ? <TicketJourney journey={journey} /> : null}

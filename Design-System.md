@@ -5,7 +5,7 @@
 > and `app/src/app/(auth)/auth-motion.css` (login / register). This file explains the system and the rules. If you change a token,
 > update the table here in the same change.
 >
-> Last synced with the codebase: **2026-10-11**
+> Last synced with the codebase: **2026-10-14**
 
 ---
 
@@ -389,7 +389,10 @@ What the eye should hit, in order — one step per level, never two the same siz
 
 - **Breakpoints — exactly four:** `xs` 360 · `md` 768 · `lg` 1024 · `xl` 1440.
   **`sm:` and `2xl:` do not exist** (reset on purpose).
-- **Shell (2026-10-09):** no top bar and no sidebar — a floating **bottom dock** (`.app-dock`, slate pill, active section a white pill, account avatar at the end; `--dock-clearance` keeps page content above the dock and device safe area). Phones: maximum five icon + label destinations, avatar floats top-right (`.app-account`), and Favourites moves to the account menu; larger screens show all six destinations.
+- **Shell (2026-10-14):** no sidebar — a sticky, edge-to-edge **top bar** (`.app-dock`,
+  slate chrome, active section a white pill, account avatar at the end). Phones show a
+  maximum five icon + label destinations and move Favourites into the account menu;
+  larger screens show all six destinations. The account menu opens downwards.
   The bar is **white** (2026-10-03 values): `.app-header` re-points the `--c-sidebar-*`
   tokens locally (fg ink `#2a2c3f`, idle labels muted `#575c72`, hover `#f3f5f9`, accent
   blue `#4562c9`, hairline `#dcdfe8`), so primary buttons elsewhere stay ink. The brand
@@ -474,7 +477,7 @@ All under `app/src/components/`. Use these before writing new markup.
 | `Toaster`, `toast` | sonner, bottom-right, max 2. Import `toast` from here, never from sonner. **Not for autosave.** |
 
 ### Shell — `shell/`
-`AppShell`, `AppNav` (responsive bottom dock + account menu; `Menu side="top"` opens upwards), `nav-items.ts`
+`AppShell`, `AppNav` (responsive full-width top bar + downward-opening account menu), `nav-items.ts`
 (`PRIMARY_NAV`, `navFor(ticketsEnabled)`, `isActivePath`), `Menu` (doesn't close on a
 submit button, so form actions still fire), `PageHeader`, `ComingSoonPage`. The nav's
 right side holds `QuickLogButton variant="nav"` (44px icon on phones, 36px icon md–lg,

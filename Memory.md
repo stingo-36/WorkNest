@@ -4,7 +4,7 @@
 > (with the *why*), gotchas that cost time before, and a changelog. Newest first in
 > every section. Update rules are in `AGENTS.md` §2.
 >
-> Last synced with the codebase: **2026-10-11**
+> Last synced with the codebase: **2026-10-14**
 
 ---
 
@@ -26,6 +26,12 @@
 ## Decisions
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
+
+**2026-10-14 — Primary navigation is a full-width sticky top bar, superseding the
+bottom dock.** The same destinations and active white pill remain, with five labelled
+items plus the account avatar on phones and Favourites in the mobile account menu. The
+account menu opens downwards. *Rejected:* keeping the floating bottom dock; squeezing
+Favourites into the phone bar.
 
 **2026-10-11 — Local and live are distinguished by an ignored environment switch.**
 `WORKNEST_LOCAL=1` in Git-ignored `app/.env.local` displays a full-page tint/frame and
@@ -720,6 +726,8 @@ is done on the real rendered app.
 ## Changelog
 
 `YYYY-MM-DD — what changed — key files`
+
+- 2026-10-14 — Moved the authenticated nav from the bottom dock to a full-width sticky top bar and added direct editing for a ticket's number, title and project with per-user duplicate-number protection — `components/shell/{app-nav,app-shell}.tsx`, `components/tickets/ticket-board.tsx`, `actions/tickets.ts`, `lib/{tickets,validation}.ts`, `app/globals.css`, docs
 
 - 2026-10-11 — Added an unmistakable full-page local tint/frame and large environment ribbon; its switch and actual colours live only in Git-ignored `app/.env.local` and remain absent from Vercel — `app/src/app/layout.tsx`, `app/.env.local` (ignored)
 - 2026-10-11 — Added GSAP route-family page-load choreography (editorial, library, console, workflow and document variants), kept Work Logs' bespoke calendar sequence, scrolling static and reduced-motion safe — `app/package.json`, `app/package-lock.json`, `components/shell/{page-motion,app-shell}.tsx`, `components/shell/scroll-reveal.tsx` (deleted), `app/globals.css`

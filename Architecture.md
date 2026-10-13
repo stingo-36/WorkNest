@@ -4,7 +4,7 @@
 > delete a module, route, model or script, update the relevant section in the same
 > change.
 >
-> Last synced with the codebase: **2026-10-11**
+> Last synced with the codebase: **2026-10-14**
 
 ---
 
@@ -73,7 +73,7 @@ authenticated shell.
 | `/work-logs` | `(app)/work-logs/page.tsx` | current-sprint deck (`components/work-log/sprint-deck.tsx`; `?day=`); Tracker entries per day via `listTrackerForRange` (actions/lib `follow-ups.ts`) |
 | `/work-logs/[workLogId]` | `.../page.tsx` | read-only detail + Copy as text; side rail begins with that day's Tracker to-dos |
 | `/work-logs/[workLogId]/edit` | `.../edit/page.tsx` | `WorkLogEditor` |
-| `/tickets` | `(app)/tickets/page.tsx` | `TicketBoard` (`PageHead`, underline status tabs, list + open ticket); redirects to `/work-logs` if tickets disabled |
+| `/tickets` | `(app)/tickets/page.tsx` | `TicketBoard` (`PageHead`, underline status tabs, list + open ticket with editable number/title/project); redirects to `/work-logs` if tickets disabled |
 | `/tracker` | `(app)/tracker/page.tsx` | `TrackerBoard` — layout "F" (`.tk-focus`): summary column + numbered queue per tab (To-do / Follow-ups / Notes), entries open in a dialog; default landing after login; `?view=todo\|followups\|notes` picks the tab |
 | `/notes`, `/notes/new`, `/notes/[noteId]`, `/notes/[noteId]/edit` | `(app)/notes/**` | notebooks; the list is `NoteLibrary` (layout "F": header, summary column, bookshelf) |
 | `/resources` | `(app)/resources/page.tsx` | `ResourceLibrary` |
@@ -98,9 +98,9 @@ authenticated shell.
 `MuiProvider` + `AppShell`, and passes `ticketsEnabled` and `isAdmin` to the nav. `AppShell` mounts
 `QuickLogProvider` (the Quick log dialog) inside `.app-shell`. Its content well is
 wrapped by `shell/page-motion.tsx`, which assigns a GSAP motion family by route and
-replays major regions when the pathname changes (see Design-System §7). Its fixed dock has five labelled
-destinations on phones (Favourites moves to the account menu), six on larger screens,
-and `--dock-clearance` reserves content and device safe-area space beneath it.
+replays major regions when the pathname changes (see Design-System §7). Its sticky,
+full-width top bar has five labelled destinations on phones (Favourites moves to the
+account menu) and six on larger screens; the account menu opens below the bar.
 
 The root `Providers` mounts `PwaProvider`, which registers `/sw.js`, captures the
 Chromium install prompt, and exposes install state. `pwa/install-app.tsx` adds the
