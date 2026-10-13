@@ -159,12 +159,14 @@ update.*
 - Ticket keys are free text in the user's own scheme, **unique per user**, not
   globally. No Jira sync.
 - `/tickets` (redesigned 2026-10-11 in the shared page style): the **Tickets** title,
-  "N tickets · your own key scheme" and a stacked bar by status, a search pill (⌘K);
+  "N tickets · your own key scheme" and a stacked bar by status, a **New ticket** button
+  for standalone creation, and a search pill (⌘K);
   then **underline status tabs** (All · In Progress · Sent to QA · Ready for production ·
   Released · Done, with counts; In Progress by default) replacing the status dropdown;
   then the **ticket list** (key chip, status, title, project, log count; the selected row
   gets an ink bar) beside the **open ticket** card (key, status, title, project; then
-  the journey, add-update form and history). From lg the list sticks while the ticket
+  a compact journey, newest-update summary, add-update form and newest-first history).
+  From lg the list sticks while the ticket
   scrolls with the page; on phones and tablets the list comes first and tapping a
   ticket scrolls to it. The first ticket in the list is open by default.
 - Edit the ticket's current **ticket number**, **title**, **status** and **project/site**

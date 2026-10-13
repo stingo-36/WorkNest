@@ -73,7 +73,7 @@ authenticated shell.
 | `/work-logs` | `(app)/work-logs/page.tsx` | current-sprint deck (`components/work-log/sprint-deck.tsx`; `?day=`); Tracker entries per day via `listTrackerForRange` (actions/lib `follow-ups.ts`) |
 | `/work-logs/[workLogId]` | `.../page.tsx` | read-only detail + Copy as text; side rail begins with that day's Tracker to-dos |
 | `/work-logs/[workLogId]/edit` | `.../edit/page.tsx` | `WorkLogEditor` |
-| `/tickets` | `(app)/tickets/page.tsx` | `TicketBoard` (`PageHead`, underline status tabs, list + open ticket with editable number/title/project); redirects to `/work-logs` if tickets disabled |
+| `/tickets` | `(app)/tickets/page.tsx` | `TicketBoard` (`PageHead`, direct New ticket form, underline status tabs, list + open ticket with editable number/title/project, compact journey and latest update); redirects to `/work-logs` if tickets disabled |
 | `/tracker` | `(app)/tracker/page.tsx` | `TrackerBoard` — layout "F" (`.tk-focus`): summary column + numbered queue per tab (To-do / Follow-ups / Notes), entries open in a dialog; default landing after login; `?view=todo\|followups\|notes` picks the tab |
 | `/notes`, `/notes/new`, `/notes/[noteId]`, `/notes/[noteId]/edit` | `(app)/notes/**` | notebooks; the list is `NoteLibrary` (layout "F": header, summary column, bookshelf) |
 | `/resources` | `(app)/resources/page.tsx` | `ResourceLibrary` |
@@ -181,7 +181,7 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `actions/auth.ts` | `register`, role-aware `login` (`Admin` → `/admin`, `User` → `/tracker`; safe callback may override), `logout` (→ `/login`) |
 | `actions/admin.ts` | Admin-only password reset, whole-workspace record erasure and account deletion; Zod → `lib/admin.ts` → `/admin` revalidation |
 | `actions/worklog.ts` | open today/by date, get, adjacent, list, update, delete, meetings CRUD, learning notes, link attachments, delete attachment |
-| `actions/tickets.ts` | find, upsert-for-work-log, save work update, detach, get, list, projects, active, update, append/delete history entry, delete ticket |
+| `actions/tickets.ts` | create standalone, find, upsert-for-work-log, save work update, detach, get, list, projects, active, update, append/delete history entry, delete ticket |
 | `actions/follow-ups.ts` | create, add update, pin, status, reschedule, `setFollowUpTags`, `listTodosForDay`, delete, list, people |
 | `actions/notes.ts` | create, update, delete (trash), restore, toggle favourite |
 | `actions/content.ts` | tasks, links, resources CRUD + `toggleResourceFavorite` |

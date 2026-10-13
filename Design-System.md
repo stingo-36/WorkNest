@@ -141,7 +141,7 @@ components"); keep them distinct when adding to a page:
 | Work Logs | split hero (form + slate sprint card with ring) → **vertical timeline** per sprint |
 | Work-log editor | action strip → **one document** (`.wl-doc` turns section cards into ruled chapters) + margin outline |
 | Work-log detail | **slate details panel** (`.wl-hero` tokens) + bento of cards |
-| Tickets | `PageHead` (status ratio bar) + search → **underline status tabs** → open ticket list (sticky from lg, ink bar on the selected row) beside the **open ticket** card; list first on phones |
+| Tickets | `PageHead` (status ratio bar) + New ticket + search → **underline status tabs** → open ticket list (sticky from lg, teal selected row) beside the **open ticket** card; its journey is compact and latest update is surfaced first; list first on phones |
 | Favourites | `PageHead` → **underline tabs** (All · Important · Notes · Resources, `?show=`) → Important as a two-column section, then Notes and Resources side by side; items = disc + meta + big title |
 | Notes | layout "F": title + search + New note → **summary column** (notebook count, cover-colour bars, sections/pages/starred) + **bookshelf** of accent-coloured covers |
 | Note reader | **three-column docs** (contents · page · on this page at xl) |
@@ -548,7 +548,7 @@ in the `(app)` layout only.
    control's `border-radius`.
 5. Icons: **Lucide** in the app (`iconLibrary: "lucide"`), react-icons for note icons
    only.
-6. Minimal modals. Prefer inline creation (tickets are created inside the log).
+6. Minimal modals. Prefer inline creation (including the standalone New ticket form).
 7. Nothing implies history can be rewritten: no edit/delete affordance on
    `TicketWorkUpdate` or `FollowUpUpdate` rows.
 8. Check every new screen at 375, 768, 1024 and 1440 — nav on one line, no clipped

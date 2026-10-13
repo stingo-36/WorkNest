@@ -1,11 +1,11 @@
 "use client";
 
 import { format } from "date-fns";
-import { ArrowRight, Building2, CalendarDays, History, Loader2, Pencil, Search, ShieldCheck, Ticket as TicketIcon, Trash2 } from "lucide-react";
+import { ArrowRight, Building2, CalendarDays, History, Loader2, Pencil, Plus, Search, ShieldCheck, Ticket as TicketIcon, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import { appendTicketHistoryEntry, deleteTicketHistoryEntry, getTicket, updateTicket } from "@/actions/tickets";
+import { appendTicketHistoryEntry, createTicket, deleteTicketHistoryEntry, getTicket, updateTicket } from "@/actions/tickets";
 import { cn } from "@/components/cn";
 import { PageHead, SearchPill, UnderlineTabs } from "@/components/shell/page-head";
 import { MarkdownContent, MarkdownEditor } from "@/components/work-log/markdown-editor";
@@ -54,6 +54,12 @@ export function TicketBoard({ initialTickets, loadError, daysOff = [] }: { initi
   const [selectedId, setSelectedId] = useState("");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusFilter>("InProgress");
+  const [creating, setCreating] = useState(false);
+  const [newKey, setNewKey] = useState("");
+  const [newTitle, setNewTitle] = useState("");
+  const [newProject, setNewProject] = useState("");
+  const [createError, setCreateError] = useState("");
+  const [createSaving, setCreateSaving] = useState(false);
 
   const visibleTickets = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -85,6 +91,39 @@ export function TicketBoard({ initialTickets, loadError, daysOff = [] }: { initi
     }
   }
 
+  async function saveNewTicket() {
+    if (createSaving) return;
+    if (!newKey.trim() || !newTitle.trim()) {
+      setCreateError(!newKey.trim() ? "Enter a ticket number." : "Enter a ticket title.");
+      return;
+    }
+    setCreateSaving(true);
+    setCreateError("");
+    const result = await createTicket({ ticketKey: newKey, title: newTitle, projectName: newProject || null, status: "InProgress" });
+    setCreateSaving(false);
+    if (!result.ok) {
+      setCreateError(result.error.message);
+      return;
+    }
+    const created: TicketBoardItem = {
+      id: result.data.id,
+      ticketId: result.data.ticketId,
+      title: result.data.title,
+      projectName: result.data.projectName,
+      status: result.data.status,
+      createdAt: result.data.createdAt.toISOString(),
+      updatedAt: result.data.updatedAt.toISOString(),
+      workLogCount: 0,
+      latestUpdate: null,
+    };
+    setTickets((current) => [created, ...current]);
+    setSelectedId(created.id);
+    setStatus("InProgress");
+    setQuery("");
+    setNewKey(""); setNewTitle(""); setNewProject(""); setCreating(false);
+    toast.success("Ticket created");
+  }
+
 
   const statusTabs = [
     { key: "All", label: "All", count: tickets.length },
@@ -98,7 +137,7 @@ export function TicketBoard({ initialTickets, loadError, daysOff = [] }: { initi
       <PageHead
         title="Tickets"
         description={`${tickets.length} ${tickets.length === 1 ? "ticket" : "tickets"} · your own key scheme`}
-        actions={<SearchPill id="ticket-search" label="Search tickets" value={query} placeholder="Search key, title, project" onChange={setQuery} shortcut className="w-full md:w-80" />}
+        actions={<><Button size="lg" onClick={() => setCreating(true)}><Plus aria-hidden="true" />New ticket</Button><SearchPill id="ticket-search" label="Search tickets" value={query} placeholder="Search key, title, project" onChange={setQuery} shortcut className="w-full md:w-80" /></>}
       >
         {tickets.length ? (
           <div className="flex h-2.5 w-full max-w-md gap-1 overflow-hidden rounded-full" aria-hidden="true">
@@ -106,6 +145,18 @@ export function TicketBoard({ initialTickets, loadError, daysOff = [] }: { initi
           </div>
         ) : null}
       </PageHead>
+
+      {creating ? (
+        <section aria-labelledby="new-ticket-heading" className="rounded-2xl border border-border bg-surface p-4 md:p-5">
+          <div className="flex items-center justify-between gap-3"><h2 id="new-ticket-heading" className="text-xl font-bold text-text">New ticket</h2><Button variant="ghost" onClick={() => setCreating(false)} disabled={createSaving}>Cancel</Button></div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <Field label="Ticket number" htmlFor="new-ticket-key"><Input id="new-ticket-key" value={newKey} maxLength={64} autoFocus disabled={createSaving} onChange={(event) => { setNewKey(event.target.value); setCreateError(""); }} /></Field>
+            <Field label="Title" htmlFor="new-ticket-title"><Input id="new-ticket-title" value={newTitle} maxLength={300} disabled={createSaving} onChange={(event) => { setNewTitle(event.target.value); setCreateError(""); }} /></Field>
+            <Field label="Project / site" htmlFor="new-ticket-project" className="md:col-span-2"><ProjectInput id="new-ticket-project" value={newProject} disabled={createSaving} onValueChange={(value) => { setNewProject(value); setCreateError(""); }} /></Field>
+          </div>
+          <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><p role="alert" className="text-sm font-medium text-danger">{createError}</p><Button loading={createSaving} onClick={() => void saveNewTicket()}>Create ticket</Button></div>
+        </section>
+      ) : null}
 
       {tickets.length ? <UnderlineTabs label="Filter by status" items={statusTabs} current={status} onSelect={(key) => setStatus(key as StatusFilter)} /> : null}
 
@@ -363,6 +414,15 @@ function TicketDetailPanel({ ticket, daysOff, onChange }: {
       {journey ? <TicketJourney journey={journey} /> : null}
 
       <div className="flex min-w-0 flex-col gap-8 p-5 md:p-8">
+        {timeline[0] ? (
+          <section aria-labelledby={`latest-update-heading-${ticket.id}`} className="rounded-xl border border-primary/30 bg-primary-subtle p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2"><History className="size-4 text-accent-text" aria-hidden="true" /><h3 id={`latest-update-heading-${ticket.id}`} className="text-md font-bold text-text">Latest update</h3><TicketStatusBadge status={timeline[0].status} /></div>
+              <time dateTime={timeline[0].createdAt} className="text-sm text-text-muted">{formatTimelineDate(timeline[0].createdAt)}</time>
+            </div>
+            {timeline[0].body.trim() ? <MarkdownContent value={timeline[0].body} className="mt-2 text-md leading-6 text-text" /> : <p className="mt-2 text-sm italic text-text-muted">No written update.</p>}
+          </section>
+        ) : null}
         <section aria-labelledby={`add-update-heading-${ticket.id}`}>
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
@@ -543,10 +603,10 @@ function ticketJourney(ticket: TicketBoardItem, detail: TicketDetail, daysOff: S
 function TicketJourney({ journey }: { journey: Journey }) {
   const reachedIndex = journey.stages.reduce((last, stage, index) => (stage.date ? index : last), 0);
   return (
-    <section aria-label="Ticket timeline" className="mx-5 mt-5 mb-1 rounded-2xl border border-border p-4 md:mx-8 md:p-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+    <section aria-label="Ticket timeline" className="mx-5 mt-4 rounded-xl border border-border px-3 py-2.5 md:mx-8 md:px-4">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-md font-semibold text-text"><CalendarDays className="size-4 text-accent-text" aria-hidden="true" />Ticket timeline</h3>
-        <span className={cn("rounded-full px-3 py-1 text-xs font-semibold", journey.done ? "bg-status-completed-bg text-status-completed-fg ring-1 ring-inset ring-status-completed/50" : "bg-status-progress-bg text-status-progress-fg ring-1 ring-inset ring-status-progress/40")}>
+        <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", journey.done ? "bg-status-completed-bg text-status-completed-fg ring-1 ring-inset ring-status-completed/50" : "bg-status-progress-bg text-status-progress-fg ring-1 ring-inset ring-status-progress/40")}>
           {journey.done ? "Done in" : "Open for"} {journey.workingDays} {journey.workingDays === 1 ? "day" : "days"}
         </span>
       </div>
@@ -555,15 +615,15 @@ function TicketJourney({ journey }: { journey: Journey }) {
           const reached = stage.date !== null;
           return (
             <li key={stage.status} className="relative flex min-w-0 flex-col items-center text-center">
-              {index > 0 ? <span aria-hidden="true" className={cn("absolute top-2 right-1/2 h-0.5 w-full -translate-y-1/2", index <= reachedIndex ? "bg-primary" : "bg-border")} /> : null}
-              <span aria-hidden="true" className={cn("relative z-10 size-4 rounded-full border-2", reached ? cn("border-transparent", TICKET_STATUS_DOT[stage.status]) : "border-border-strong bg-surface")} />
-              <span className={cn("mt-2 text-xs font-semibold leading-tight", reached ? "text-text" : "text-text-subtle")}>{TICKET_STATUS_LABELS[stage.status]}</span>
-              <span className="mt-0.5 text-xs text-text-muted tabular-nums">{stage.date ? format(stage.date, "d MMM") : "—"}</span>
+              {index > 0 ? <span aria-hidden="true" className={cn("absolute top-1.5 right-1/2 h-px w-full", index <= reachedIndex ? "bg-primary" : "bg-border")} /> : null}
+              <span aria-hidden="true" className={cn("relative z-10 size-3 rounded-full border", reached ? cn("border-transparent", TICKET_STATUS_DOT[stage.status]) : "border-border-strong bg-surface")} />
+              <span className={cn("mt-1 text-xs font-semibold leading-tight", reached ? "text-text" : "text-text-subtle")}>{TICKET_STATUS_LABELS[stage.status]}</span>
+              <span className="text-xs text-text-muted tabular-nums">{stage.date ? format(stage.date, "d MMM") : "—"}</span>
             </li>
           );
         })}
       </ol>
-      <p className="mt-3 text-sm text-text-muted">
+      <p className="mt-1.5 text-xs text-text-muted">
         Started {format(journey.start, "EEE d MMM")} {journey.done ? `· Done ${format(journey.end, "EEE d MMM")}` : "· not done yet"}
         {journey.daysOffSkipped > 0 ? ` · ${journey.daysOffSkipped} holiday/leave ${journey.daysOffSkipped === 1 ? "day" : "days"} not counted` : ""}
       </p>

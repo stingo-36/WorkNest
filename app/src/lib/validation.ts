@@ -260,6 +260,13 @@ export const upsertTicketForWorkLogSchema = z.object({
   status: ticketStatusSchema.optional(),
 });
 
+export const createTicketSchema = z.object({
+  ticketKey: ticketKeySchema,
+  title: cleanLine(300),
+  projectName: optionalCleanLine(160),
+  status: ticketStatusSchema.optional(),
+});
+
 export const saveTicketWorkUpdateSchema = z.object({
   workLogId: idSchema,
   /** Ticket.id (cuid), not the human key. */
