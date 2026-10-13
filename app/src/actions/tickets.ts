@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { requireUserId } from "@/lib/session";
 import { listProjectSuggestions } from "@/lib/user-lists";
-import { notFound, ok, parseOrFail } from "@/lib/result";
+import { fail, notFound, ok, parseOrFail } from "@/lib/result";
 import {
   addTicketWorkUpdate,
   appendTicketHistoryEntry as appendTicketHistoryEntryRow,
@@ -174,8 +174,9 @@ export async function listActiveTickets(take = 10) {
 }
 
 /**
- * Edit a ticket directly (spec 13). Input: { ticketId, title?, status? }
- * Deliberately writes NO history row — a title fix is not logged work.
+ * Edit a ticket directly. `ticketId` is the opaque row id; `ticketKey` is the
+ * editable human ticket number. Deliberately writes no history row because a
+ * metadata correction is not logged work.
  */
 export async function updateTicket(input: unknown) {
   const userId = await requireUserId();
@@ -184,6 +185,11 @@ export async function updateTicket(input: unknown) {
 
   const { ticketId, ...data } = parsed.data;
   const ticket = await updateTicketRow(userId, ticketId, data);
+  if (ticket === "ticket_key_conflict") {
+    return fail("CONFLICT", "That ticket number is already in use", {
+      ticketKey: "Use a different ticket number",
+    });
+  }
   if (!ticket) return notFound("Ticket not found");
 
   revalidateTickets(ticketId);

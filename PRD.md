@@ -4,7 +4,7 @@
 > changes scope, or is retired, update the matching section here (see
 > `AGENTS.md → Keeping the docs current`).
 >
-> Last synced with the codebase: **2026-10-11**
+> Last synced with the codebase: **2026-10-14**
 
 ---
 
@@ -69,14 +69,12 @@ placeholder page) · **Retired** (redirects).
 | Dashboard | `/dashboard` | **Retired 2026-09-25** | Redirects to `/tracker`. |
 | Tasks, Links, Settings | `/tasks`, `/links`, `/settings` | Coming soon | Shared `ComingSoonPage`. `Task`/`Link` tables and actions exist but have no UI. |
 
-Primary nav (2026-10-09): a **floating dock at the bottom** of every screen — Work Logs ·
+Primary nav (2026-10-14): a **full-width sticky bar at the top** of every screen — Work Logs ·
 Tickets (only if enabled) · Tracker · Notes · Resources · Favourites, then the account
 avatar (Profile & settings, Reports, Achievements, Install WorkNest when available,
-Log out; opens upwards). There is no top
-bar. On phones the avatar floats top-right, the dock is limited to five labelled items,
+Log out; opens downwards). On phones the bar is limited to five labelled items,
 and Favourites moves into the account menu so navigation never has to squeeze or overflow.
-The shell reserves bottom safe-area space so the dock cannot cover page content. Quick log
-lives on the Work Logs page.
+Quick log lives on the Work Logs page.
 
 ## 5. Features in detail
 
@@ -169,7 +167,8 @@ update.*
   the journey, add-update form and history). From lg the list sticks while the ticket
   scrolls with the page; on phones and tablets the list comes first and tapping a
   ticket scrolls to it. The first ticket in the list is open by default.
-- Edit the ticket's current **title**, **status** and **project/site** directly.
+- Edit the ticket's current **ticket number**, **title**, **status** and **project/site**
+  directly. Ticket numbers remain unique within the signed-in user's workspace.
 - **Standalone updates** written on this page are `TicketHistoryEntry` rows. They can
   be deleted (with confirmation). Work-log updates (`TicketWorkUpdate`) are shown in
   the same newest-first timeline, labelled by source, and can **never** be edited or

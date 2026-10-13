@@ -446,7 +446,7 @@ export async function detachTicketFromWorkLog(
 // ---------------------------------------------------------------------------
 
 /**
- * Edit a ticket's title and/or status outside a work log.
+ * Edit a ticket's human key, title, project and/or status outside a work log.
  *
  * Note: this deliberately does NOT write a TicketWorkUpdate. History rows
  * represent work logged on a day; a title fix is not that.
@@ -454,18 +454,27 @@ export async function detachTicketFromWorkLog(
 export async function updateTicket(
   userId: string,
   ticketId: string,
-  data: { title?: string; projectName?: string | null; status?: WorkflowStatus },
+  data: { ticketKey?: string; title?: string; projectName?: string | null; status?: WorkflowStatus },
 ) {
-  const result = await prisma.ticket.updateMany({
-    where: { id: ticketId, userId },
-    data: {
-      ...(data.title !== undefined ? { title: data.title } : {}),
-      ...(data.projectName !== undefined ? { projectName: data.projectName } : {}),
-      ...(data.status !== undefined
-        ? { status: toStoredTicketStatus(data.status) }
-        : {}),
-    },
-  });
+  let result;
+  try {
+    result = await prisma.ticket.updateMany({
+      where: { id: ticketId, userId },
+      data: {
+        ...(data.ticketKey !== undefined ? { ticketId: data.ticketKey } : {}),
+        ...(data.title !== undefined ? { title: data.title } : {}),
+        ...(data.projectName !== undefined ? { projectName: data.projectName } : {}),
+        ...(data.status !== undefined
+          ? { status: toStoredTicketStatus(data.status) }
+          : {}),
+      },
+    });
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+      return "ticket_key_conflict" as const;
+    }
+    throw error;
+  }
   if (result.count === 0) return null;
   return getTicketWithHistory(userId, ticketId);
 }

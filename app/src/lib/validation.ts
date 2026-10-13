@@ -286,6 +286,7 @@ export const detachTicketFromWorkLogSchema = z.object({
 
 export const updateTicketSchema = z.object({
   ticketId: idSchema,
+  ticketKey: cleanLine(80).optional(),
   title: cleanLine(300).optional(),
   projectName: optionalCleanLine(160),
   status: ticketStatusSchema.optional(),
