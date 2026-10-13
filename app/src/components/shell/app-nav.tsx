@@ -27,8 +27,8 @@ export function AppNav({ user }: { user: ShellUser }) {
 
   return (
     <nav id="app-dock" aria-label="Sections" className="app-dock">
-      <div className="mx-auto flex w-full max-w-[85rem] items-center gap-1 px-1 md:px-4 lg:px-8">
-        <ul className="flex min-w-0 flex-1 items-center md:gap-1">
+      <div className="relative mx-auto flex w-full max-w-[85rem] items-center gap-1 px-1 md:justify-center md:px-4 lg:px-8">
+        <ul className="flex min-w-0 flex-1 items-center md:flex-none md:gap-1">
           {sections.map((item) => {
             const active = isActivePath(pathname, item);
             return (
@@ -37,10 +37,10 @@ export function AppNav({ user }: { user: ShellUser }) {
                   href={item.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "app-dock-link flex h-14 min-w-0 flex-col items-center justify-center gap-0.5 rounded-full px-0.5 whitespace-nowrap md:h-12 md:flex-row md:gap-2 md:px-4 md:text-md",
+                    "app-dock-link relative flex h-14 min-w-0 flex-col items-center justify-center gap-0.5 rounded-full px-0.5 whitespace-nowrap md:h-12 md:flex-row md:gap-2 md:px-4 md:text-md",
                     "transition-[background-color,color,transform] duration-200 ease-smooth-out active:scale-[0.97]",
                     active
-                      ? "bg-sidebar-accent-bg font-semibold text-sidebar-accent"
+                      ? "font-semibold text-sidebar-fg after:absolute after:bottom-1 after:left-1/2 after:h-0.5 after:w-8 after:-translate-x-1/2 after:rounded-full after:bg-white md:after:bottom-0.5"
                       : "font-medium text-sidebar-muted hover:bg-sidebar-2 hover:text-sidebar-fg",
                   )}
                 >
@@ -51,8 +51,8 @@ export function AppNav({ user }: { user: ShellUser }) {
             );
           })}
         </ul>
-        <span aria-hidden="true" className="h-7 w-px shrink-0 bg-sidebar-border" />
-        <AccountMenu user={user} side="bottom" />
+        <span aria-hidden="true" className="h-7 w-px shrink-0 bg-sidebar-border md:absolute md:right-16 lg:right-20" />
+        <div className="shrink-0 md:absolute md:right-3 lg:right-7"><AccountMenu user={user} side="bottom" /></div>
       </div>
     </nav>
   );

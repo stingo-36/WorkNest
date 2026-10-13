@@ -28,10 +28,11 @@
 Format: **date — decision.** Why. *Rejected:* alternatives.
 
 **2026-10-14 — Primary navigation is a full-width sticky top bar, superseding the
-bottom dock.** The same destinations and active white pill remain, with five labelled
-items plus the account avatar on phones and Favourites in the mobile account menu. The
-account menu opens downwards. *Rejected:* keeping the floating bottom dock; squeezing
-Favourites into the phone bar.
+bottom dock.** Section links are centred on desktop and use one dark-bar treatment; the
+current page is a white underline instead of a white pill. Five labelled items plus the
+account avatar fit on phones, with Favourites in the mobile account menu. The account
+menu opens downwards. *Rejected:* keeping the floating bottom dock; an active white pill;
+squeezing Favourites into the phone bar.
 
 **2026-10-11 — Local and live are distinguished by an ignored environment switch.**
 `WORKNEST_LOCAL=1` in Git-ignored `app/.env.local` displays a full-page tint/frame and
@@ -727,7 +728,7 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
-- 2026-10-14 — Moved the authenticated nav from the bottom dock to a full-width sticky top bar and added direct editing for a ticket's number, title and project with per-user duplicate-number protection — `components/shell/{app-nav,app-shell}.tsx`, `components/tickets/ticket-board.tsx`, `actions/tickets.ts`, `lib/{tickets,validation}.ts`, `app/globals.css`, docs
+- 2026-10-14 — Moved the authenticated nav from the bottom dock to a centred full-width top bar with a white active underline, added direct editing for a ticket's number/title/project with duplicate-number protection, gave the selected ticket row a teal highlight, and fixed long Work Log to-do titles so they wrap inside their card — `components/shell/{app-nav,app-shell}.tsx`, `components/tickets/ticket-board.tsx`, `components/work-log/day-todos.tsx`, `actions/tickets.ts`, `lib/{tickets,validation}.ts`, `app/globals.css`, docs
 
 - 2026-10-11 — Added an unmistakable full-page local tint/frame and large environment ribbon; its switch and actual colours live only in Git-ignored `app/.env.local` and remain absent from Vercel — `app/src/app/layout.tsx`, `app/.env.local` (ignored)
 - 2026-10-11 — Added GSAP route-family page-load choreography (editorial, library, console, workflow and document variants), kept Work Logs' bespoke calendar sequence, scrolling static and reduced-motion safe — `app/package.json`, `app/package-lock.json`, `components/shell/{page-motion,app-shell}.tsx`, `components/shell/scroll-reveal.tsx` (deleted), `app/globals.css`
