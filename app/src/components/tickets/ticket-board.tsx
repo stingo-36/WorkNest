@@ -147,7 +147,7 @@ export function TicketBoard({ initialTickets, loadError, daysOff = [] }: { initi
                       onClick={() => select(ticket.id)}
                       className={cn(
                         "relative flex w-full cursor-pointer flex-col gap-2 py-4 pr-3 pl-4 text-left transition-colors duration-150",
-                        selected ? "bg-surface before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-text" : "hover:bg-surface",
+                        selected ? "bg-primary-subtle before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-primary" : "hover:bg-surface",
                       )}
                     >
                       <span className="flex flex-wrap items-center gap-2">

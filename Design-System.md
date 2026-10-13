@@ -341,7 +341,7 @@ off-palette hues except semantic red/green, orange stars, and real brand logos:
 |---|---|---|
 | Nav | — | active link: 600 weight + 3px blue rule, no tinted column |
 | Work Logs | "today" panel | unchanged |
-| Tickets | list header band + open ticket header band | first ticket opens by default |
+| Tickets | list header band + open ticket header band | first ticket opens by default; selected row uses a teal tint + teal leading rule |
 | Tracker | active tab, focus lists' toned edge | |
 | Notes | stats band (notes · favourites · sections) with the white "New note" CTA | Favourites / All notes groups |
 | Resources | selected type (solid ink) + panel header band | every type uses the accent (`TYPE_ACCENT`); icons tell types apart |
@@ -390,7 +390,8 @@ What the eye should hit, in order — one step per level, never two the same siz
 - **Breakpoints — exactly four:** `xs` 360 · `md` 768 · `lg` 1024 · `xl` 1440.
   **`sm:` and `2xl:` do not exist** (reset on purpose).
 - **Shell (2026-10-14):** no sidebar — a sticky, edge-to-edge **top bar** (`.app-dock`,
-  slate chrome, active section a white pill, account avatar at the end). Phones show a
+  slate chrome, centred section links, active section marked by a white underline,
+  account avatar at the end). Phones show a
   maximum five icon + label destinations and move Favourites into the account menu;
   larger screens show all six destinations. The account menu opens downwards.
   The bar is **white** (2026-10-03 values): `.app-header` re-points the `--c-sidebar-*`
