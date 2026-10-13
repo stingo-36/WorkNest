@@ -728,6 +728,8 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-14 — Repacked Work Log detail into independent columns with To-dos first on the right while preserving Ticket history, and restored Blocked as a selectable/filterable ticket status — `work-logs/[workLogId]/page.tsx`, `components/{tickets/ticket-board,ui/ticket-status-badge}.tsx`, `lib/workflow-status.ts`, docs
+
 - 2026-10-14 — Added standalone ticket creation at the top of Tickets, compressed the ticket journey, and surfaced the newest history item above the update form — `components/tickets/ticket-board.tsx`, `actions/tickets.ts`, `lib/{tickets,validation}.ts`, docs
 
 - 2026-10-14 — Moved the authenticated nav from the bottom dock to a centred full-width top bar with a white active underline, added direct editing for a ticket's number/title/project with duplicate-number protection, gave the selected ticket row a teal highlight, and fixed long Work Log to-do titles so they wrap inside their card — `components/shell/{app-nav,app-shell}.tsx`, `components/tickets/ticket-board.tsx`, `components/work-log/day-todos.tsx`, `actions/tickets.ts`, `lib/{tickets,validation}.ts`, `app/globals.css`, docs

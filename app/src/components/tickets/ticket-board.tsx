@@ -610,7 +610,7 @@ function TicketJourney({ journey }: { journey: Journey }) {
           {journey.done ? "Done in" : "Open for"} {journey.workingDays} {journey.workingDays === 1 ? "day" : "days"}
         </span>
       </div>
-      <ol className="grid grid-cols-5 gap-1">
+      <ol className="grid grid-cols-6 gap-1">
         {journey.stages.map((stage, index) => {
           const reached = stage.date !== null;
           return (

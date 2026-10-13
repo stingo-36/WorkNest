@@ -233,7 +233,7 @@ User ─┬─ WorkLog ─┬─ Meeting
 | `Task`, `Link` | exist with actions; no UI yet |
 | `UserList` | PK `(userId, kind)`; `values[]` (ordered options, or saved-ahead names for Project/NoteTag/ResourceTag), `hidden[]` (Project: in-use names no longer suggested), `icons Json` (ResourceType: value → `"library:Name"`). No row = built-in defaults; a row whose values equal the defaults isn't "customised" (it may exist only for icons). |
 
-**Enums:** `UserRole`, `DayType`, `AttachmentKind`, `TicketStatus` (11 values, 5 used for new
+**Enums:** `UserRole`, `DayType`, `AttachmentKind`, `TicketStatus` (11 values, 6 used for new
 writes), `TaskPriority`, `TaskStatus`, `FollowUpStatus`, `EntryKind`,
 `UserListKind`, `AchievementStatus`. (`FollowUpChannel` and `ResourceType` became free-text columns on
 2026-10-01 — their options live in `UserList`.)

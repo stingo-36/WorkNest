@@ -130,8 +130,9 @@ update.*
   on the left (prev/next, big date, day type, counts — tickets / meetings / to-dos done —
   Edit log, **Copy as text** — the whole log as plain text for stand-ups, chat or email —
   attachments & links, activity) and a **bento of cards** on the right: the **Summary**
-  full width, Ticket work beside Ticket history, Meeting notes beside Work done, then the
-  day's **To-dos** from the Tracker.
+  full width, then independent columns that use their height efficiently — Ticket work
+  and Meeting notes on the left; the day's **To-dos**, Ticket history and Work done
+  stacked from the top on the right.
 - **AI summary and title in the background (2026-10-09):** leaving a log's editor
   (navigating away, closing or reloading the tab) refreshes the AI summary in the
   background — and the **title**, while it's still the default "Daily Work Log" or was
@@ -176,9 +177,9 @@ update.*
   the same newest-first timeline, labelled by source, and can **never** be edited or
   deleted from here.
 - A ticket "journey" view accounts for holiday/leave days.
-- **Workflow statuses (UI):** In Progress → Sent to QA → Ready for Production →
-  Released → Done. Legacy stored values (Open, Blocked, Waiting, Testing, Completed,
-  Closed) are normalised into these five.
+- **Workflow statuses (UI):** In Progress → Blocked → Sent to QA → Ready for Production →
+  Released → Done. Legacy stored values (Open, Waiting, Testing, Completed, Closed) are
+  normalised into these six.
 - **Project / site** lives on the ticket (moved from the work log on 2026-09-25) and
   autocompletes from names already used.
 - If *Tickets* is switched off in Profile, the nav item disappears, `/tickets`

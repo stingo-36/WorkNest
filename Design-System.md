@@ -486,8 +486,9 @@ icon + label from xl).
 
 ### Feature components
 `work-log/*` (editor, sections, ticket search/card/history, save status, attachments,
-learning, day type/stamp, copy button). On work-log detail, the compact single-column
-To-dos card is the first item in the right rail, immediately before Attachments.
+learning, day type/stamp, copy button). On work-log detail, To-dos is the first card in
+the right content column, followed by Ticket history and Work done; Ticket work and
+Meeting notes stack independently on the left.
 Other feature components: `tickets/ticket-board`, `tracker/tracker-board`
 (all per-kind wording lives in `KIND_META`), `notes/*` (TipTap editors, icon picker,
 viewer, TOC), `resources/resource-library`, `profile/profile-form`, `auth/*`,
