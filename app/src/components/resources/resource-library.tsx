@@ -217,12 +217,9 @@ export function ResourceLibrary({
 
           {/* The selected type. */}
           {active ? (
-            <section aria-labelledby="resources-panel-title" className="flex min-w-0 flex-col gap-9">
+            <section aria-label={`${typeMeta(active).plural} resources`} className="flex min-w-0 flex-col gap-9">
               <header className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
-                  <h2 id="resources-panel-title" className="tk-section">{typeMeta(active).plural}</h2>
-                  <p className="text-lg text-text-muted">{items.length} {items.length === 1 ? "resource" : "resources"}{query ? " match" : ""}</p>
-                </div>
+                <p className="text-lg text-text-muted">{items.length} {items.length === 1 ? "resource" : "resources"}{query ? " match" : ""}</p>
                 <button type="button" onClick={() => setComposer({ type: active })} className={outlinePill}>
                   <Plus strokeWidth={2} aria-hidden="true" />
                   Add {typeMeta(active).label.toLowerCase()}

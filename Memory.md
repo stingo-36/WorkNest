@@ -34,6 +34,14 @@ account avatar fit on phones, with Favourites in the mobile account menu. The ac
 menu opens downwards. *Rejected:* keeping the floating bottom dock; an active white pill;
 squeezing Favourites into the phone bar.
 
+**2026-10-12 — Tracker prioritises the actual record over dashboard-style counts.**
+The decorative summary column was removed, leaving one readable full-width queue. Latest
+notes/updates stay visible on rows, and finished entries remain visible in completion-date
+groups; completed to-dos sit before future work. Resources uses its selected type tab as
+the only type heading, and Work Log to-do titles wrap instead of truncating. *Rejected:*
+hiding completed work behind a count at the page foot; repeating the selected resource
+type as a second heading; requiring a dialog merely to read the latest note.
+
 **2026-10-11 — Local and live are distinguished by an ignored environment switch.**
 `WORKNEST_LOCAL=1` in Git-ignored `app/.env.local` displays a full-page tint/frame and
 large `LOCAL DEVELOPMENT` ribbon on every React route. The actual tint and accent
@@ -728,6 +736,8 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-14 — Aligned Tracker tabs with Tickets, removed oversized row indices, labelled the latest follow-up reply inline, defaulted new follow-ups to Slack and today's reminder date, clarified that the date means when to follow up again, and replaced the Who datalist with a searchable free-text autocomplete — `components/tracker/tracker-board.tsx`, docs
+
 - 2026-10-14 — Changed the full-width navbar from slate to a darker deep teal while retaining its white active underline and high-contrast labels — `app/globals.css`, `Design-System.md`
 
 - 2026-10-14 — Repacked Work Log detail into independent columns with To-dos first on the right while preserving Ticket history, and restored Blocked as a selectable/filterable ticket status — `work-logs/[workLogId]/page.tsx`, `components/{tickets/ticket-board,ui/ticket-status-badge}.tsx`, `lib/workflow-status.ts`, docs
@@ -735,6 +745,8 @@ is done on the real rendered app.
 - 2026-10-14 — Added standalone ticket creation at the top of Tickets, compressed the ticket journey, and surfaced the newest history item above the update form — `components/tickets/ticket-board.tsx`, `actions/tickets.ts`, `lib/{tickets,validation}.ts`, docs
 
 - 2026-10-14 — Moved the authenticated nav from the bottom dock to a centred full-width top bar with a white active underline, added direct editing for a ticket's number/title/project with duplicate-number protection, gave the selected ticket row a teal highlight, and fixed long Work Log to-do titles so they wrap inside their card — `components/shell/{app-nav,app-shell}.tsx`, `components/tickets/ticket-board.tsx`, `components/work-log/day-todos.tsx`, `actions/tickets.ts`, `lib/{tickets,validation}.ts`, `app/globals.css`, docs
+
+- 2026-10-12 — Rebuilt Tracker as a full-width grouped record: removed the decorative stats column, surfaced latest notes, kept completed/closed/archived items visible by date, removed the repeated Resources type heading, and let Work Log to-do titles wrap — `components/tracker/tracker-board.tsx`, `components/resources/resource-library.tsx`, `components/work-log/day-todos.tsx`, docs
 
 - 2026-10-11 — Added an unmistakable full-page local tint/frame and large environment ribbon; its switch and actual colours live only in Git-ignored `app/.env.local` and remain absent from Vercel — `app/src/app/layout.tsx`, `app/.env.local` (ignored)
 - 2026-10-11 — Added GSAP route-family page-load choreography (editorial, library, console, workflow and document variants), kept Work Logs' bespoke calendar sequence, scrolling static and reduced-motion safe — `app/package.json`, `app/package-lock.json`, `components/shell/{page-motion,app-shell}.tsx`, `components/shell/scroll-reveal.tsx` (deleted), `app/globals.css`
