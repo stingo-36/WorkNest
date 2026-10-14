@@ -74,11 +74,11 @@ checked against ui-ux-pro-max and the responsive-design skill. Sizes run 375px �
 | Class | Size | Use |
 |---|---|---|
 | `.page-title` (and `.wl-title`) | `clamp(2rem, 1.4rem + 2.35vw, 3.5rem)` — 32→56px, 800 | the page's h1 (via `PageHead`) |
-| `.tk-section` | 22→32px, 700 | section headings (Resources type, Favourites groups, a ticket's title) |
+| `.tk-section` | 22→32px, 700 | section headings (Favourites groups, a ticket's title) |
 | `.tk-card-title` | 19→26px, 700 | card / item titles (Resources, Favourites) |
 | `.tk-row-title` | 16→20px, 600 | numbered queue rows (Tracker) |
-| `.tk-hero` / `.tk-hero-line` | 80→208px / 24→36px | the summary column's display count and its line |
-| `.tk-stat` / `.tk-index` | 28→40px / 32→48px | summary counts / row numbers |
+| `.tk-hero` / `.tk-hero-line` | 80→208px / 24→36px | Notes' summary display count and its line |
+| `.tk-stat` / `.tk-index` | 28→40px / 32→48px | Notes summary counts / Tracker row numbers |
 | `.tk-eyebrow` / `.tk-label` | 13px / 12px uppercase | group labels, dates / stat labels |
 | body | `text-lg` 16px for descriptions; `text-md` 15 / `text-base` 14 for meta | |
 
@@ -99,18 +99,20 @@ grows by animating `flex-grow` (600ms smooth-out), its sections fade up in seque
 (`.wl-reveal`). The page fits between the top of the screen and the dock from lg.
 All motion stops under `prefers-reduced-motion`.
 
-### Tracker & Notes "F" layout (2026-10-10)
+### Tracker queue and Notes "F" layout (2026-10-12)
 
-`/tracker` and `/notes` follow layout "F" from the owner's redesign canvas. The wrapper
+`/tracker` and `/notes` share the owner's teal-and-ink visual family. The wrapper
 `.tk-focus` (now on every list page, see Page header) adds
 `--c-border-strong #a9b5b3` (dashed add-pill edge) and `--c-tk-rule #c7d2cf` (summary rules,
 outline pill edges). Header: `PageHead` with the date as `meta`, then 48px pills
 (active tab / primary button = ink `bg-sidebar`, idle = white with `--c-border`) and a
-`SearchPill` (⌘K). Left column: `.tk-eyebrow`, `.tk-hero` count, `.tk-hero-line`, `.tk-bar` per item (`[data-needs]` = dashed
-amber on `--c-warning-subtle`), `.tk-stat` + `.tk-label` counts. Tracker queue: `.tk-add`
-dashed pill, uppercase group headings, rows with a `.tk-index` number (`[data-needs]` →
-`--c-wl-dash`), `.tk-row-title`, first row of a group under a 2px rule (dashed
+`SearchPill` (⌘K). Notes retains layout F's left summary column (`.tk-hero`, `.tk-bar`,
+`.tk-stat`) beside its bookshelf. Tracker instead uses one centred full-width queue:
+`.tk-add` dashed pill, ticket-style underline tabs, uppercase group headings, and rows
+without decorative indices. `.tk-row-title` and the first row of a group use a 2px rule (dashed
 amber when it needs you, ink otherwise), 44px action pills (ink or `--c-tk-rule` outline).
+The latest update appears under the row title. Completed/closed/archived entries are
+always present under dated group headings; to-do completion groups precede Coming up.
 The `.tk-*` type classes are scoped under `.tk-focus` so they beat `.app-shell main hN`.
 Sizes: see Type scale.
 
@@ -137,7 +139,7 @@ components"); keep them distinct when adding to a page:
 
 | Page | Pattern |
 |---|---|
-| Tracker | layout "F": title + tab pills + search → **summary column** (huge count, bars, four counts) + **numbered queue** (add pill, grouped rows); entry opens in a dialog |
+| Tracker | title + tab pills + search → **full-width numbered queue** (add pill, grouped rows, latest update inline); finished entries are always visible in date groups; entry opens in a dialog |
 | Work Logs | split hero (form + slate sprint card with ring) → **vertical timeline** per sprint |
 | Work-log editor | action strip → **one document** (`.wl-doc` turns section cards into ruled chapters) + margin outline |
 | Work-log detail | **slate details panel** (`.wl-hero` tokens) + bento of cards |
@@ -145,7 +147,7 @@ components"); keep them distinct when adding to a page:
 | Favourites | `PageHead` → **underline tabs** (All · Important · Notes · Resources, `?show=`) → Important as a two-column section, then Notes and Resources side by side; items = disc + meta + big title |
 | Notes | layout "F": title + search + New note → **summary column** (notebook count, cover-colour bars, sections/pages/starred) + **bookshelf** of accent-coloured covers |
 | Note reader | **three-column docs** (contents · page · on this page at xl) |
-| Resources | display title + search + Add → **underline type tabs** + All types menu → tag row → type section with **open two-column cards** (initials disc, big title ↗) |
+| Resources | display title + search + Add → **underline type tabs** + All types menu → tag row → count + Add action → **open two-column cards** (the selected tab is the only type heading) |
 | Profile | identity header → **section select on phone/tablet, wrapped tab bar from `lg`** → label/control rows |
 | Achievements | totals strip → **centred rail, alternating cards** from lg |
 | Reports | **sprint card rail** → paper on a desk |
@@ -498,10 +500,11 @@ tick box + label pill (new = success-subtle, update = primary-subtle, needs you 
 warning-subtle) + inline editor). Dialogs must render inside `.app-shell` or they fall
 back to the old default palette.
 
-Tracker's **Needs you** (2026-10-10) is the amber group at the top of the To-do queue
-plus the huge count in the summary column — see "Tracker & Notes F layout". It shows
+Tracker's **Needs you** is the amber group at the top of the To-do queue. It shows
 actual subjects, acts in place (Mark done / Mark nudged), and an empty group says so in
-one calm line.
+one calm line. Follow-up creation uses a searchable, free-text people autocomplete;
+the reminder date is labelled **Remind me on** and includes a plain-language hint so it
+cannot be mistaken for the date the follow-up was added or an expected reply date.
 
 ### CSS recipes in `globals.css`
 `.wl-card` / `.wl-card-head` (work-log card), `.wl-hero` (ink header that re-points

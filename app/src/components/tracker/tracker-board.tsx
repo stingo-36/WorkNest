@@ -1,5 +1,7 @@
 "use client";
 
+import Autocomplete from "@mui/material/Autocomplete";
+import TextField from "@mui/material/TextField";
 import {
   ArrowRight,
   CalendarDays,
@@ -27,7 +29,7 @@ import {
   setFollowUpTags,
 } from "@/actions/follow-ups";
 import { cn } from "@/components/cn";
-import { PageHead, SearchPill } from "@/components/shell/page-head";
+import { PageHead, SearchPill, UnderlineTabs } from "@/components/shell/page-head";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { Field, FormError } from "@/components/ui/field";
@@ -107,6 +109,38 @@ function ChannelSelect({ id, value, onChange, className }: { id: string; value: 
   );
 }
 
+/** Search saved people as the user types, while still allowing a new name. */
+function PersonAutocomplete({ id, value, options, onChange }: { id: string; value: string; options: string[]; onChange: (value: string) => void }) {
+  return (
+    <Autocomplete<string, false, false, true>
+      id={id}
+      freeSolo
+      autoHighlight
+      openOnFocus
+      value={null}
+      inputValue={value}
+      options={options.filter((option) => option.toLowerCase() !== value.trim().toLowerCase())}
+      onInputChange={(_event, next, reason) => {
+        if (reason !== "reset") onChange(next);
+      }}
+      onChange={(_event, next) => {
+        if (typeof next === "string") onChange(next);
+      }}
+      noOptionsText={value.trim() ? "No saved name matches — keep typing to add it" : "No saved names yet — type a new one"}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          placeholder="Type a name"
+          slotProps={{
+            ...params.slotProps,
+            htmlInput: { ...params.slotProps.htmlInput, maxLength: 120 },
+          }}
+        />
+      )}
+    />
+  );
+}
+
 /** Sets `--tone` for the tinted recipes below (tokens in globals.css). */
 function tone(value: string) {
   return { "--tone": value } as React.CSSProperties;
@@ -116,6 +150,11 @@ function todayIso() {
   // Local calendar day, not UTC: "today" means the user's today.
   const now = new Date();
   return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+}
+
+/** Prefer Slack regardless of the order saved in Profile. */
+function defaultChannel(channels: string[]) {
+  return channels.find((channel) => channel.toLowerCase() === "slack") ?? channels[0] ?? "Slack";
 }
 
 /** The clock never notifies us; a re-render is close enough for a date. */
@@ -219,12 +258,10 @@ function fromToday(iso: string, today: string, past: "late" | "ago") {
 // --- board -------------------------------------------------------------------
 
 /**
- * Layout "F" (2026-10-10, from the owner's Tracker redesign canvas): the page
- * title with the tab pills and search on one row; then a summary column — one
- * huge count, a bar per item, four small counts — beside a numbered queue with
- * an add pill on top. Amber (dashed) marks what needs you. The teal-and-ink
- * palette is the Work Logs deck's, scoped by `.tk-focus`. An entry opens in a
- * dialog at every width.
+ * The page title, tab pills and search sit above one readable full-width queue.
+ * Latest updates stay on the rows; finished records remain visible in date
+ * groups instead of hiding behind summary counts. Amber (dashed) marks what
+ * needs you. An entry opens in a dialog at every width.
  */
 export function TrackerBoard({
   entries,
@@ -248,7 +285,6 @@ export function TrackerBoard({
   const [view, setView] = useState<TrackerView>(initialView);
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
-  const [showDone, setShowDone] = useState(false);
   const today = useSyncExternalStore(subscribeNever, todayIso, () => serverToday);
   const needle = query.trim().toLowerCase();
 
@@ -273,21 +309,9 @@ export function TrackerBoard({
     setView(next);
     setQuery("");
     setOpenId(null);
-    setShowDone(false);
     // Shallow URL update so a refresh or a link lands on the same tab, without
     // a server round-trip on every switch.
     window.history.replaceState(null, "", next === "todo" ? "/tracker" : `/tracker?view=${next}`);
-  }
-
-  function toggleDone() {
-    const next = !showDone;
-    setShowDone(next);
-    if (!next) return;
-    // The finished list renders at the foot of the queue; bring it into view.
-    requestAnimationFrame(() => {
-      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      document.getElementById("tracker-done")?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
-    });
   }
 
   function onTabKey(event: React.KeyboardEvent) {
@@ -296,7 +320,6 @@ export function TrackerBoard({
     const index = VIEWS.findIndex((v) => v.id === view);
     const next = VIEWS[(index + (event.key === "ArrowRight" ? 1 : VIEWS.length - 1)) % VIEWS.length];
     choose(next.id);
-    document.getElementById(`tracker-tab-${next.id}`)?.focus();
   }
 
   return (
@@ -305,51 +328,30 @@ export function TrackerBoard({
       <PageHead
         title="Tracker"
         meta={format(parseISO(today), "EEEE d MMM yyyy")}
-        actions={
-          <>
-            <div role="tablist" aria-label="Tracker lists" onKeyDown={onTabKey} className="flex flex-wrap gap-2 md:gap-2.5">
-              {VIEWS.map((item) => {
-                const active = view === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    id={`tracker-tab-${item.id}`}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    aria-controls="tracker-panel"
-                    tabIndex={active ? 0 : -1}
-                    onClick={() => choose(item.id)}
-                    className={cn(
-                      "inline-flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-full border px-4 text-md font-semibold whitespace-nowrap transition-colors duration-150 md:h-12 md:gap-2.5 md:px-5.5 md:text-lg",
-                      active ? "border-sidebar bg-sidebar text-sidebar-fg" : "border-border bg-surface text-text hover:border-text",
-                    )}
-                  >
-                    {item.label}
-                    <span className={cn("min-w-6 rounded-full px-1.75 py-px text-center text-sm font-bold tabular-nums", active ? "bg-surface text-text" : "bg-surface-2 text-text")}>{badge[item.id]}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <SearchPill id="tracker-search" label="Search this list" value={query} placeholder="Search, or #tag" onChange={setQuery} shortcut className="w-full md:w-72" />
-          </>
-        }
+        actions={<SearchPill id="tracker-search" label="Search this list" value={query} placeholder="Search, or #tag" onChange={setQuery} shortcut className="w-full md:w-72" />}
       />
+
+      <div onKeyDown={onTabKey}>
+        <UnderlineTabs
+          label="Tracker lists"
+          items={VIEWS.map((item) => ({ key: item.id, label: item.label, count: badge[item.id] }))}
+          current={view}
+          onSelect={(key) => choose(key as TrackerView)}
+        />
+      </div>
 
       {loadError ? <FormError>{loadError}</FormError> : null}
 
-      <div className="flex flex-wrap items-start gap-x-12 gap-y-11 xl:gap-x-20">
-        <Summary view={view} entries={entries} today={today} showDone={showDone} onToggleDone={toggleDone} />
-
+      <div>
         <section
           id="tracker-panel"
           role="tabpanel"
-          aria-labelledby={`tracker-tab-${view}`}
-          className="tk-queue flex min-w-0 flex-[999_1_33rem] flex-col"
+          aria-label={`${VIEWS.find((item) => item.id === view)?.label ?? "Tracker"} list`}
+          className="tk-queue mx-auto flex w-full min-w-0 max-w-6xl flex-col"
         >
-          {view === "todo" ? <TodoQueue entries={entries} today={today} needle={needle} showDone={showDone} onOpen={openEntry} /> : null}
-          {view === "followups" ? <FollowUpQueue entries={byKind.FollowUp} people={people} today={today} needle={needle} showDone={showDone} onOpen={openEntry} /> : null}
-          {view === "notes" ? <NoteQueue entries={byKind.Note} suggestions={tagSuggestions} today={today} needle={needle} showDone={showDone} onOpen={openEntry} onTag={(tag) => setQuery(`#${tag}`)} /> : null}
+          {view === "todo" ? <TodoQueue entries={entries} today={today} needle={needle} onOpen={openEntry} /> : null}
+          {view === "followups" ? <FollowUpQueue entries={byKind.FollowUp} people={people} today={today} needle={needle} onOpen={openEntry} /> : null}
+          {view === "notes" ? <NoteQueue entries={byKind.Note} suggestions={tagSuggestions} today={today} needle={needle} onOpen={openEntry} onTag={(tag) => setQuery(`#${tag}`)} /> : null}
         </section>
       </div>
 
@@ -499,7 +501,23 @@ function Summary({ view, entries, today, showDone, onToggleDone }: { view: Track
 
 // --- queue parts ---------------------------------------------------------------
 
-/** An uppercase group label over numbered rows; an empty group keeps its rule and says so. */
+// Kept temporarily for compatibility with the previous layout while the queue
+// owns the visible information architecture.
+void Summary;
+
+/** Finished entries are always visible and grouped by the day they were finished. */
+function finishedByDay(entries: TrackerEntry[]) {
+  const days = new Map<string, TrackerEntry[]>();
+  for (const entry of entries) {
+    const key = (entry.completedAt ?? entry.updatedAt).slice(0, 10);
+    days.set(key, [...(days.get(key) ?? []), entry]);
+  }
+  return [...days.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([key, items]) => ({ key, label: format(parseISO(key), "EEEE d MMM"), items }));
+}
+
+/** An uppercase group label over rows; an empty group keeps its rule and says so. */
 function Group({ id, label, count, needs = false, first = false, empty, children }: { id?: string; label: string; count: number; needs?: boolean; first?: boolean; empty: string; children?: React.ReactNode }) {
   return (
     <section id={id} aria-label={label} className="scroll-mt-6">
@@ -516,13 +534,12 @@ function Group({ id, label, count, needs = false, first = false, empty, children
 }
 
 /**
- * One numbered row: big index, title (opens the entry), a meta line, actions.
+ * One compact row: title (opens the entry), a meta line, actions.
  * The first row of a group carries the heavy rule — dashed amber when it needs you.
  */
-function Row({ index, needs, first, muted = false, title, meta, actions, onOpen }: { index: number; needs: boolean; first: boolean; muted?: boolean; title: string; meta: React.ReactNode; actions: React.ReactNode; onOpen: () => void }) {
+function Row({ needs, first, muted = false, title, meta, actions, onOpen }: { index?: number; needs: boolean; first: boolean; muted?: boolean; title: string; meta: React.ReactNode; actions: React.ReactNode; onOpen: () => void }) {
   return (
     <li className={cn("flex flex-wrap items-center gap-x-6 gap-y-3 py-5.5", first ? (needs ? "border-t-2 border-dashed border-[var(--c-wl-dash)]" : "border-t-2 border-text") : "border-t border-border")}>
-      <span className="tk-index" data-needs={needs ? "" : undefined} aria-hidden="true">{String(index).padStart(2, "0")}</span>
       <div className="flex min-w-0 flex-[1_1_12rem] flex-col gap-1.5 md:flex-[1_1_18.75rem]">
         <button type="button" onClick={onOpen} className={cn("tk-row-title min-h-7 w-fit max-w-full cursor-pointer py-0.5 text-left [overflow-wrap:anywhere] decoration-2 underline-offset-4 hover:underline", muted && "text-text-muted line-through")}>
           {title}
@@ -596,7 +613,7 @@ const markOpen = (entry: TrackerEntry) => () => setFollowUpStatus({ followUpId: 
 function useNudge(entry: TrackerEntry) {
   const { channels } = useContext(ListsContext);
   return async () => {
-    const recorded = await addFollowUpUpdate({ followUpId: entry.id, note: "Nudged", channel: entry.updates[0]?.channel ?? channels[0] ?? "Slack", fromThem: false });
+    const recorded = await addFollowUpUpdate({ followUpId: entry.id, note: "Nudged", channel: defaultChannel(channels), fromThem: false });
     if (!recorded.ok) return recorded;
     return rescheduleFollowUp({ followUpId: entry.id, dueDate: null });
   };
@@ -700,10 +717,10 @@ function PillPanel({ label, onClose, children }: { label: string; onClose: () =>
 }
 
 /** Shared date panel for due / nudge dates. */
-function DatePanel({ id, label, value, onChange, onClose }: { id: string; label: string; value: string; onChange: (value: string) => void; onClose: () => void }) {
+function DatePanel({ id, label, hint, value, onChange, onClose }: { id: string; label: string; hint?: string; value: string; onChange: (value: string) => void; onClose: () => void }) {
   return (
     <PillPanel label={label} onClose={onClose}>
-      <Field label={label} htmlFor={id}>
+      <Field label={label} htmlFor={id} hint={hint}>
         <Input id={id} type="date" value={value} onChange={(event) => onChange(event.target.value)} />
       </Field>
       {value ? <button type="button" onClick={() => onChange("")} className="w-fit cursor-pointer text-sm font-semibold text-accent-text hover:underline">Clear date</button> : null}
@@ -758,9 +775,9 @@ function useCreate(onSaved: () => void) {
 
 /**
  * Needs you (overdue / due-today to-dos, plus follow-ups whose nudge is due or
- * who replied) → Coming up (later and undated to-dos) → Completed on request.
+ * who replied) → Completed by date → Coming up (later and undated to-dos).
  */
-function TodoQueue({ entries, today, needle, showDone, onOpen }: { entries: TrackerEntry[]; today: string; needle: string; showDone: boolean; onOpen: (entry: TrackerEntry) => void }) {
+function TodoQueue({ entries, today, needle, onOpen }: { entries: TrackerEntry[]; today: string; needle: string; onOpen: (entry: TrackerEntry) => void }) {
   const { needs, coming, done } = useMemo(() => {
     const groups = { needs: [] as TrackerEntry[], coming: [] as TrackerEntry[], done: [] as TrackerEntry[] };
     for (const entry of entries) {
@@ -777,34 +794,35 @@ function TodoQueue({ entries, today, needle, showDone, onOpen }: { entries: Trac
   }, [entries, today, needle]);
 
   const nothing = needle ? "Nothing matches." : undefined;
+  const completedDays = finishedByDay(done);
   let index = 0;
 
   return (
     <>
-      <AddTodo />
+      <AddTodo today={today} />
       <Group label="Needs you" count={needs.length} needs first empty={nothing ?? "Nothing overdue, due today or waiting on you."}>
         {needs.map((entry, i) => entry.kind === "Task"
           ? <TodoRow key={entry.id} index={++index} entry={entry} today={today} needs first={i === 0} onOpen={() => onOpen(entry)} />
           : <FollowUpRow key={entry.id} index={++index} entry={entry} today={today} needs first={i === 0} inTodo onOpen={() => onOpen(entry)} />)}
       </Group>
+      {completedDays.map((day) => (
+        <Group key={day.key} label={`Completed · ${day.label}`} count={day.items.length} empty="">
+          {day.items.map((entry, i) => <TodoRow key={entry.id} index={++index} entry={entry} today={today} needs={false} first={i === 0} onOpen={() => onOpen(entry)} />)}
+        </Group>
+      ))}
       <Group label="Coming up" count={coming.length} empty={nothing ?? "Nothing else on the list. Add a to-do above."}>
         {coming.map((entry, i) => <TodoRow key={entry.id} index={++index} entry={entry} today={today} needs={false} first={i === 0} onOpen={() => onOpen(entry)} />)}
       </Group>
-      {showDone && done.length ? (
-        <Group id="tracker-done" label="Completed" count={done.length} empty="">
-          {done.map((entry, i) => <TodoRow key={entry.id} index={++index} entry={entry} today={today} needs={false} first={i === 0} onOpen={() => onOpen(entry)} />)}
-        </Group>
-      ) : null}
     </>
   );
 }
 
-function AddTodo() {
+function AddTodo({ today }: { today: string }) {
   const [subject, setSubject] = useState("");
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(today);
   const [pinned, setPinned] = useState(false);
   const [panel, setPanel] = useState(false);
-  const { create, pending, error, setError } = useCreate(() => { setSubject(""); setDate(""); setPinned(false); setPanel(false); });
+  const { create, pending, error, setError } = useCreate(() => { setSubject(""); setDate(today); setPinned(false); setPanel(false); });
 
   function save() {
     if (pending) return;
@@ -846,6 +864,7 @@ function todoMeta(entry: TrackerEntry, today: string) {
 function TodoRow({ index, entry, today, needs, first, onOpen }: { index: number; entry: TrackerEntry; today: string; needs: boolean; first: boolean; onOpen: () => void }) {
   const done = !isOpen(entry);
   const notes = entry.updates.length;
+  const latestNote = entry.updates[0]?.note.trim();
   return (
     <Row
       index={index}
@@ -855,9 +874,12 @@ function TodoRow({ index, entry, today, needs, first, onOpen }: { index: number;
       title={entry.subject}
       onOpen={onOpen}
       meta={
-        <p className={cn("text-base font-medium", needs ? "text-warning" : "text-text-muted")} suppressHydrationWarning>
-          {todoMeta(entry, today)}{notes ? ` · ${notes} ${plural(notes, "note")}` : ""}
-        </p>
+        <>
+          {latestNote ? <p className="line-clamp-2 text-md text-text-muted [overflow-wrap:anywhere]">{latestNote}</p> : null}
+          <p className={cn("text-base font-medium", needs ? "text-warning" : "text-text-muted")} suppressHydrationWarning>
+            {todoMeta(entry, today)}{notes ? ` · ${notes} ${plural(notes, "note")}` : ""}
+          </p>
+        </>
       }
       actions={
         <>
@@ -877,7 +899,7 @@ function TodoRow({ index, entry, today, needs, first, onOpen }: { index: number;
  * Your turn (they replied) → Nudge due → Waiting, not due yet → Closed on
  * request. "Got it" closes a follow-up; "Mark nudged" records a nudge.
  */
-function FollowUpQueue({ entries, people, today, needle, showDone, onOpen }: { entries: TrackerEntry[]; people: string[]; today: string; needle: string; showDone: boolean; onOpen: (entry: TrackerEntry) => void }) {
+function FollowUpQueue({ entries, people, today, needle, onOpen }: { entries: TrackerEntry[]; people: string[]; today: string; needle: string; onOpen: (entry: TrackerEntry) => void }) {
   const groups = useMemo(() => {
     const next = { replied: [] as TrackerEntry[], due: [] as TrackerEntry[], waiting: [] as TrackerEntry[], closed: [] as TrackerEntry[] };
     for (const entry of entries) {
@@ -897,12 +919,13 @@ function FollowUpQueue({ entries, people, today, needle, showDone, onOpen }: { e
   }, [entries, today, needle]);
 
   const nothing = needle ? "Nothing matches." : undefined;
+  const closedDays = finishedByDay(groups.closed);
   let index = 0;
   const hasReplies = groups.replied.length > 0;
 
   return (
     <>
-      <AddFollowUp people={people} />
+      <AddFollowUp people={people} today={today} />
       {hasReplies ? (
         <Group label="Your turn" count={groups.replied.length} needs first empty="">
           {groups.replied.map((entry, i) => <FollowUpRow key={entry.id} index={++index} entry={entry} today={today} needs first={i === 0} onOpen={() => onOpen(entry)} />)}
@@ -914,24 +937,24 @@ function FollowUpQueue({ entries, people, today, needle, showDone, onOpen }: { e
       <Group label="Waiting, not due yet" count={groups.waiting.length} empty={nothing ?? "Nothing else is waiting on anyone."}>
         {groups.waiting.map((entry, i) => <FollowUpRow key={entry.id} index={++index} entry={entry} today={today} needs={false} first={i === 0} onOpen={() => onOpen(entry)} />)}
       </Group>
-      {showDone && groups.closed.length ? (
-        <Group id="tracker-done" label="Closed" count={groups.closed.length} empty="">
-          {groups.closed.map((entry, i) => <FollowUpRow key={entry.id} index={++index} entry={entry} today={today} needs={false} first={i === 0} onOpen={() => onOpen(entry)} />)}
+      {closedDays.map((day) => (
+        <Group key={day.key} label={`Closed · ${day.label}`} count={day.items.length} empty="">
+          {day.items.map((entry, i) => <FollowUpRow key={entry.id} index={++index} entry={entry} today={today} needs={false} first={i === 0} onOpen={() => onOpen(entry)} />)}
         </Group>
-      ) : null}
+      ))}
     </>
   );
 }
 
-function AddFollowUp({ people }: { people: string[] }) {
+function AddFollowUp({ people, today }: { people: string[]; today: string }) {
   const { channels } = useContext(ListsContext);
   const [subject, setSubject] = useState("");
   const [person, setPerson] = useState("");
-  const [channel, setChannel] = useState(channels[0] ?? "Slack");
-  const [date, setDate] = useState("");
+  const [channel, setChannel] = useState(defaultChannel(channels));
+  const [date, setDate] = useState(today);
   const [pinned, setPinned] = useState(false);
   const [panel, setPanel] = useState<"who" | "date" | null>(null);
-  const { create, pending, error, setError } = useCreate(() => { setSubject(""); setPerson(""); setDate(""); setPinned(false); setPanel(null); });
+  const { create, pending, error, setError } = useCreate(() => { setSubject(""); setPerson(""); setDate(today); setPinned(false); setPanel(null); });
 
   function save() {
     if (pending) return;
@@ -967,22 +990,28 @@ function AddFollowUp({ people }: { people: string[] }) {
           <ToolButton label={person ? `Waiting on ${person}` : "Choose who you are waiting on"} expanded={panel === "who"} onClick={() => setPanel(panel === "who" ? null : "who")}>
             {person ? <Avatar name={person} /> : <UserRound className="size-5" strokeWidth={1.8} aria-hidden="true" />}
           </ToolButton>
-          <DateTool label="Set nudge date" value={date} expanded={panel === "date"} onClick={() => setPanel(panel === "date" ? null : "date")} />
+          <DateTool label="Set follow-up reminder" value={date} expanded={panel === "date"} onClick={() => setPanel(panel === "date" ? null : "date")} />
         </>
       }
       panel={
         panel === "who" ? (
           <PillPanel label="Who and where" onClose={() => setPanel(null)}>
-            <Field label="Who" htmlFor="add-fu-person" required>
-              <Input id="add-fu-person" value={person} list="add-fu-people" placeholder="e.g. Ashwini" maxLength={120} onChange={(event) => { setPerson(event.target.value); setError(undefined); }} />
-              <datalist id="add-fu-people">{people.map((name) => <option key={name} value={name} />)}</datalist>
+            <Field label="Who" htmlFor="add-fu-person" hint="Start typing to search saved names, or enter a new one." required>
+              <PersonAutocomplete id="add-fu-person" value={person} options={people} onChange={(next) => { setPerson(next); setError(undefined); }} />
             </Field>
             <Field label="Where" htmlFor="add-fu-channel">
               <ChannelSelect id="add-fu-channel" value={channel} onChange={setChannel} />
             </Field>
           </PillPanel>
         ) : panel === "date" ? (
-          <DatePanel id="add-fu-date" label="Nudge on" value={date} onChange={setDate} onClose={() => setPanel(null)} />
+          <DatePanel
+            id="add-fu-date"
+            label="Remind me on"
+            hint="Choose when you want to follow up again if they have not replied."
+            value={date}
+            onChange={setDate}
+            onClose={() => setPanel(null)}
+          />
         ) : null
       }
     />
@@ -1003,6 +1032,8 @@ function followMeta(entry: TrackerEntry, today: string) {
 function FollowUpRow({ index, entry, today, needs, first, inTodo = false, onOpen }: { index: number; entry: TrackerEntry; today: string; needs: boolean; first: boolean; inTodo?: boolean; onOpen: () => void }) {
   const state = followStateOf(entry);
   const person = entry.person ?? "Someone";
+  const latestReply = entry.updates.find((update) => update.fromThem)?.note.trim();
+  const latestNote = entry.updates[0]?.note.trim();
   return (
     <Row
       index={index}
@@ -1015,11 +1046,14 @@ function FollowUpRow({ index, entry, today, needs, first, inTodo = false, onOpen
         inTodo ? (
           <p className="text-base font-medium text-warning" suppressHydrationWarning>Follow-up · {person} · {followMeta(entry, today)}</p>
         ) : (
-          <p className={cn("flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-base font-medium", needs ? "text-warning" : "text-text-muted")}>
-            <Avatar name={person} />
-            <span className="font-semibold text-text">{person}</span>
-            <span suppressHydrationWarning>· {followMeta(entry, today)}</span>
-          </p>
+          <>
+            {latestReply ? <p className="line-clamp-2 text-md font-medium text-text [overflow-wrap:anywhere]"><span className="text-text-muted">Latest reply:</span> {latestReply}</p> : latestNote ? <p className="line-clamp-2 text-md text-text-muted [overflow-wrap:anywhere]">{latestNote}</p> : null}
+            <p className={cn("flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-base font-medium", needs ? "text-warning" : "text-text-muted")}>
+              <Avatar name={person} />
+              <span className="font-semibold text-text">{person}</span>
+              <span suppressHydrationWarning>· {followMeta(entry, today)}</span>
+            </p>
+          </>
         )
       }
       actions={
@@ -1060,8 +1094,8 @@ function noteTags(entries: TrackerEntry[]) {
   return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 }
 
-/** All notes (favourites first, then recently updated) → Archived on request. A tag chip searches for it. */
-function NoteQueue({ entries, suggestions, today, needle, showDone, onOpen, onTag }: { entries: TrackerEntry[]; suggestions: string[]; today: string; needle: string; showDone: boolean; onOpen: (entry: TrackerEntry) => void; onTag: (tag: string) => void }) {
+/** All notes (favourites first, then recently updated) → archived date groups. A tag chip searches for it. */
+function NoteQueue({ entries, suggestions, today, needle, onOpen, onTag }: { entries: TrackerEntry[]; suggestions: string[]; today: string; needle: string; onOpen: (entry: TrackerEntry) => void; onTag: (tag: string) => void }) {
   const { live, archived } = useMemo(() => {
     const next = { live: [] as TrackerEntry[], archived: [] as TrackerEntry[] };
     for (const entry of entries) {
@@ -1074,6 +1108,7 @@ function NoteQueue({ entries, suggestions, today, needle, showDone, onOpen, onTa
   }, [entries, needle]);
 
   let index = 0;
+  const archivedDays = finishedByDay(archived);
 
   return (
     <>
@@ -1081,11 +1116,11 @@ function NoteQueue({ entries, suggestions, today, needle, showDone, onOpen, onTa
       <Group label="All notes" count={live.length} first empty={needle ? "Nothing matches." : "No notes yet. Write one above."}>
         {live.map((entry, i) => <NoteRow key={entry.id} index={++index} entry={entry} today={today} first={i === 0} onOpen={() => onOpen(entry)} onTag={onTag} />)}
       </Group>
-      {showDone && archived.length ? (
-        <Group id="tracker-done" label="Archived" count={archived.length} empty="">
-          {archived.map((entry, i) => <NoteRow key={entry.id} index={++index} entry={entry} today={today} first={i === 0} onOpen={() => onOpen(entry)} onTag={onTag} />)}
+      {archivedDays.map((day) => (
+        <Group key={day.key} label={`Archived · ${day.label}`} count={day.items.length} empty="">
+          {day.items.map((entry, i) => <NoteRow key={entry.id} index={++index} entry={entry} today={today} first={i === 0} onOpen={() => onOpen(entry)} onTag={onTag} />)}
         </Group>
-      ) : null}
+      ))}
     </>
   );
 }
@@ -1148,7 +1183,7 @@ function NoteRow({ index, entry, today, first, onOpen, onTag }: { index: number;
       onOpen={onOpen}
       meta={
         <>
-          {firstLine ? <p className="line-clamp-1 text-md text-text-muted [overflow-wrap:anywhere]">{firstLine}</p> : null}
+          {firstLine ? <p className="line-clamp-2 text-md text-text-muted [overflow-wrap:anywhere]">{firstLine}</p> : null}
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-base font-medium text-text-muted">
             {entry.tags.map((tag) => (
               <button key={tag} type="button" onClick={() => onTag(tag)} title={`Show notes tagged #${tag}`} className="cursor-pointer rounded-full bg-primary-subtle px-2.5 py-0.5 font-semibold text-accent-text hover:underline">
@@ -1219,7 +1254,7 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
         </dl>
         {kind !== "Note" && !isDone ? (
           <div className="min-w-0">
-            <label htmlFor={`due-${entry.id}`} className="block text-xs text-text-subtle">{kind === "Task" ? "Due" : "Nudge on"}</label>
+            <label htmlFor={`due-${entry.id}`} className="block text-xs text-text-subtle">{kind === "Task" ? "Due" : "Remind me on"}</label>
             <Input
               id={`due-${entry.id}`}
               type="date"
@@ -1309,7 +1344,7 @@ function AddUpdateForm({ entry }: { entry: TrackerEntry }) {
   const [fromThem, setFromThem] = useState(isFollowUp && followStateOf(entry) === "waiting");
   const [note, setNote] = useState("");
   const { channels } = useContext(ListsContext);
-  const [channel, setChannel] = useState(entry.updates[0]?.channel ?? (isFollowUp ? (channels[0] ?? "Slack") : "Other"));
+  const [channel, setChannel] = useState(isFollowUp ? defaultChannel(channels) : "Other");
   const person = entry.person ?? "They";
 
   const label = isFollowUp ? (fromThem ? `What did ${person} say?` : "What did you tell them?") : entry.kind === "Task" ? "Add a note" : "Add an update";

@@ -56,7 +56,7 @@ placeholder page) · **Retired** (redirects).
 | Auth | `/login`, `/register` | Live (public) | Email + password. Direct admin sign-ins land on `/admin`; regular users land on `/tracker`. |
 | Work Logs | `/work-logs`, `/work-logs/[id]`, `/work-logs/[id]/edit` | Live | The core workflow — see §5.1. |
 | Tickets | `/tickets` | Live · hidden when *Tickets* is off in Profile | Master-detail ticket manager — see §5.2. |
-| Tracker | `/tracker` | Live — **post-login landing page** | To-do · Follow-ups · Notes tabs (`?view=`), layout "F" (2026-10-10) — see §5.3. |
+| Tracker | `/tracker` | Live — **post-login landing page** | To-do · Follow-ups · Notes tabs (`?view=`), full-width grouped record (2026-10-12) — see §5.3. |
 | Notes | `/notes`, `/notes/new`, `/notes/[id]`, `/notes/[id]/edit` | Live | Notebooks: note → sections → pages — see §5.4. |
 | Resources | `/resources` | Live | Typed personal library — see §5.5. |
 | Favourites | `/favourites` | Live | Everything starred in one place — see §5.6. |
@@ -187,26 +187,25 @@ update.*
 
 ### 5.3 Tracker
 
-Three tabs (`?view=todo|followups|notes`), rebuilt **2026-10-10 as layout "F"** from the
-owner's Tracker redesign canvas (page palette = the Work Logs deck's teal and ink, page
-tint `#f3f6f5`, ink dock). No header band: the title **Tracker** + today's date, then the
-three tab pills (open counts) and a search pill (⌘K / Ctrl+K focuses it; matches text and
-`#tag`). Below, two columns (stacked below ~lg):
-
-- **Summary (left, sticky from lg):** an eyebrow, **one huge count** with a line under it,
-  a sub-line, **a bar per item** (dashed amber = needs you, teal = the rest), the four
-  counts (open to-dos, due this week, waiting on others, notes) between rules, and an
-  "**N completed / closed / archived →**" button that shows the finished items at the
-  foot of the queue.
-- **Queue (right):** a dashed **add pill** (Enter or *Add* saves; tool buttons open small
-  panels under it), then **numbered rows** (01, 02 … big index, title, meta line,
-  actions) in groups. Amber dashed rule + amber numbers = needs you.
+Three tabs (`?view=todo|followups|notes`) in the Work Logs teal-and-ink palette. The title
+**Tracker** + today's date and search are followed by ticket-style underline tabs (open counts)
+pill (⌘K / Ctrl+K focuses it; matches text and `#tag`). The full-width queue starts with
+a dashed **add pill** (Enter or *Add* saves; tool buttons open small panels), then numbered
+rows grouped by status, without oversized row numbers. The old decorative summary/count
+column was removed on 2026-10-12.
+The latest saved note/update appears under each item title, so routine context is visible
+without opening the dialog. Finished items are always visible and grouped by completion
+date; completed to-dos sit between **Needs you** and **Coming up** instead of at the page foot.
+Follow-up rows label the latest reply explicitly. New reminder dates default to today,
+Slack is the default channel, and the required **Who** field filters saved names as the
+user types while still accepting a new name. Reminder copy explains that the selected
+date is when WorkNest should prompt the user to follow up again if nobody has replied.
 
 | Tab (`EntryKind`) | Summary count | Add pill | Groups | Row actions |
 |---|---|---|---|---|
-| **To-do** (`Task`) | *Needs you today* — overdue/due-today to-dos + follow-ups that need you | title · due date · ★ | **Needs you** (incl. follow-ups: nudge due / replied) → **Coming up** (later + undated) → Completed (on request) | Mark done (ink when it needs you) · ★ |
-| **Follow-ups** (`FollowUp`) | *Waiting on others* — replies + nudges due | title · who + where (channel) · nudge date | **Your turn** (they replied; only when any) → **Nudge due** → **Waiting, not due yet** → Closed (on request) | Mark nudged · Got it (= close); replied: Got it · Open |
-| **Notes** (`Note`) | *Notes* — open notes | title · tags · ★ | **All notes** (favourites first, then recently updated) → Archived (on request) | Open · ★ |
+| **To-do** (`Task`) | overdue/due-today to-dos + follow-ups that need you | title · due date · ★ | **Needs you** (incl. follow-ups: nudge due / replied) → **Completed · date** → **Coming up** (later + undated) | Mark done (ink when it needs you) · ★ |
+| **Follow-ups** (`FollowUp`) | replies + nudges due | title · who + where (channel) · nudge date | **Your turn** → **Nudge due** → **Waiting, not due yet** → **Closed · date** | Mark nudged · Got it (= close); replied: Got it · Open |
+| **Notes** (`Note`) | open notes | title · tags · ★ | **All notes** (favourites first, then recently updated) → **Archived · date** | Open · ★ |
 
 - **Mark nudged** appends an "I followed up" update ("Nudged", last channel) and clears
   the nudge date, so the row moves to *Waiting, not due yet*.
@@ -223,8 +222,8 @@ three tab pills (open counts) and a search pill (⌘K / Ctrl+K focuses it; match
   (`FollowUpUpdate.fromThem`) it is *their reply → your turn*, otherwise waiting.
 - Updates are **append-only** (`note` + channel + `occurredAt`). There is no action to
   edit or delete a single update. A whole entry can be deleted.
-- Empty groups keep their heading and say so ("No nudges due."). Search narrows the
-  queue only; the summary always counts everything. "Today" is the browser's local day.
+- Empty active groups keep their heading and say so ("No nudges due."). Search narrows
+  the queue. "Today" is the browser's local day.
   People previously used are suggested.
 
 > Naming: the models are still `FollowUp` / `FollowUpUpdate` and the files
@@ -293,8 +292,8 @@ three tab pills (open counts) and a search pill (⌘K / Ctrl+K focuses it; match
   one-line description; a search pill and an ink **Add resource** button on the right.
   Below, the types as **underline tabs** with counts (scroll sideways when there are
   many) plus an **All types** menu, then a row of **tag facets** (`#tag count`, most-used
-  first; a click searches `#tag`, again clears). The selected type follows as a section —
-  heading, count, an outline **Add <type>** button — with its resources as open cards in
+  first; a click searches `#tag`, again clears). The selected tab is the sole type heading;
+  below it are the resource count and an outline **Add <type>** button, then open cards in
   two columns: initials disc + site, star (edit/delete appear on hover from md), a big
   title that opens the URL (↗), description, tags. Commands/snippets keep the code row with Copy.
   Icons still pick the type in the dropdown and the All types menu.

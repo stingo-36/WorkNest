@@ -74,7 +74,7 @@ authenticated shell.
 | `/work-logs/[workLogId]` | `.../page.tsx` | read-only detail + Copy as text; side rail begins with that day's Tracker to-dos |
 | `/work-logs/[workLogId]/edit` | `.../edit/page.tsx` | `WorkLogEditor` |
 | `/tickets` | `(app)/tickets/page.tsx` | `TicketBoard` (`PageHead`, direct New ticket form, underline status tabs, list + open ticket with editable number/title/project, compact journey and latest update); redirects to `/work-logs` if tickets disabled |
-| `/tracker` | `(app)/tracker/page.tsx` | `TrackerBoard` — layout "F" (`.tk-focus`): summary column + numbered queue per tab (To-do / Follow-ups / Notes), entries open in a dialog; default landing after login; `?view=todo\|followups\|notes` picks the tab |
+| `/tracker` | `(app)/tracker/page.tsx` | `TrackerBoard` — full-width grouped queue per tab (To-do / Follow-ups / Notes), latest update inline, finished entries always visible by date; entries open in a dialog; default landing after login; `?view=todo\|followups\|notes` picks the tab |
 | `/notes`, `/notes/new`, `/notes/[noteId]`, `/notes/[noteId]/edit` | `(app)/notes/**` | notebooks; the list is `NoteLibrary` (layout "F": header, summary column, bookshelf) |
 | `/resources` | `(app)/resources/page.tsx` | `ResourceLibrary` |
 | `/favourites` | `(app)/favourites/page.tsx` | reads Prisma directly; `?show=important\|notes\|resources` picks the tab |
