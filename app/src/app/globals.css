@@ -1659,16 +1659,16 @@ span.wl-face { cursor: default; }
 .app-shell .app-dock,
 .app-shell .app-account,
 .app-shell .wl-band {
-  /* Slate & Sky (2026-10-08): dark slate bar, the current section is a white pill.
+  /* Deep teal chrome (2026-10-14): a darker shade of the app's teal-and-ink anchor.
      The Work Logs band shares these exact tokens so it reads as part of the nav. */
-  --c-sidebar: #1e293b;
+  --c-sidebar: #092120;
   --c-sidebar-2: rgba(255, 255, 255, 0.08);   /* hover */
   --c-sidebar-3: rgba(255, 255, 255, 0.14);   /* pressed */
   --c-sidebar-fg: #ffffff;
-  --c-sidebar-muted: #cbd5e1;    /* idle labels, 11.9:1 on slate */
+  --c-sidebar-muted: #d3dddb;    /* idle labels, high contrast on deep teal */
   --c-sidebar-subtle: #64748b;   /* menu button edge */
   --c-sidebar-border: rgba(255, 255, 255, 0.14);
-  --c-sidebar-accent: #1e293b;   /* text inside the active pill */
+  --c-sidebar-accent: #092120;
   --c-sidebar-accent-bg: #ffffff; /* the active pill */
   background: var(--c-sidebar);
   border-bottom-color: var(--c-sidebar);

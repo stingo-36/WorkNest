@@ -130,8 +130,9 @@ update.*
   on the left (prev/next, big date, day type, counts — tickets / meetings / to-dos done —
   Edit log, **Copy as text** — the whole log as plain text for stand-ups, chat or email —
   attachments & links, activity) and a **bento of cards** on the right: the **Summary**
-  full width, Ticket work beside Ticket history, Meeting notes beside Work done, then the
-  day's **To-dos** from the Tracker.
+  full width, then independent columns that use their height efficiently — Ticket work
+  and Meeting notes on the left; the day's **To-dos**, Ticket history and Work done
+  stacked from the top on the right.
 - **AI summary and title in the background (2026-10-09):** leaving a log's editor
   (navigating away, closing or reloading the tab) refreshes the AI summary in the
   background — and the **title**, while it's still the default "Daily Work Log" or was
@@ -159,12 +160,14 @@ update.*
 - Ticket keys are free text in the user's own scheme, **unique per user**, not
   globally. No Jira sync.
 - `/tickets` (redesigned 2026-10-11 in the shared page style): the **Tickets** title,
-  "N tickets · your own key scheme" and a stacked bar by status, a search pill (⌘K);
+  "N tickets · your own key scheme" and a stacked bar by status, a **New ticket** button
+  for standalone creation, and a search pill (⌘K);
   then **underline status tabs** (All · In Progress · Sent to QA · Ready for production ·
   Released · Done, with counts; In Progress by default) replacing the status dropdown;
   then the **ticket list** (key chip, status, title, project, log count; the selected row
   gets an ink bar) beside the **open ticket** card (key, status, title, project; then
-  the journey, add-update form and history). From lg the list sticks while the ticket
+  a compact journey, newest-update summary, add-update form and newest-first history).
+  From lg the list sticks while the ticket
   scrolls with the page; on phones and tablets the list comes first and tapping a
   ticket scrolls to it. The first ticket in the list is open by default.
 - Edit the ticket's current **ticket number**, **title**, **status** and **project/site**
@@ -174,9 +177,9 @@ update.*
   the same newest-first timeline, labelled by source, and can **never** be edited or
   deleted from here.
 - A ticket "journey" view accounts for holiday/leave days.
-- **Workflow statuses (UI):** In Progress → Sent to QA → Ready for Production →
-  Released → Done. Legacy stored values (Open, Blocked, Waiting, Testing, Completed,
-  Closed) are normalised into these five.
+- **Workflow statuses (UI):** In Progress → Blocked → Sent to QA → Ready for Production →
+  Released → Done. Legacy stored values (Open, Waiting, Testing, Completed, Closed) are
+  normalised into these six.
 - **Project / site** lives on the ticket (moved from the work log on 2026-09-25) and
   autocompletes from names already used.
 - If *Tickets* is switched off in Profile, the nav item disappears, `/tickets`

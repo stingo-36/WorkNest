@@ -128,6 +128,30 @@ export type ListTicketsOptions = {
   skip?: number;
 };
 
+/** Create a standalone ticket without inventing a work-log history row. */
+export async function createTicket(
+  userId: string,
+  data: { ticketKey: string; title: string; projectName?: string | null; status?: WorkflowStatus },
+) {
+  try {
+    const ticket = await prisma.ticket.create({
+      data: {
+        userId,
+        ticketId: data.ticketKey,
+        title: data.title,
+        projectName: data.projectName?.trim() || null,
+        status: toStoredTicketStatus(data.status ?? "InProgress"),
+      },
+    });
+    return normalizeTicketRecord(ticket);
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+      return "ticket_key_conflict" as const;
+    }
+    throw error;
+  }
+}
+
 /** Tickets table: id, title, status, latest update, last updated, # work logs. */
 export async function listTickets(
   userId: string,

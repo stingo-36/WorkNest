@@ -2,6 +2,7 @@ import type { TicketStatus as StoredTicketStatus } from "@/generated/prisma/enum
 
 export const WORKFLOW_STATUS_ORDER = [
   "InProgress",
+  "Blocked",
   "SentToQA",
   "ReadyForProduction",
   "Released",
@@ -11,7 +12,7 @@ export const WORKFLOW_STATUS_ORDER = [
 export type WorkflowStatus = (typeof WORKFLOW_STATUS_ORDER)[number];
 
 /**
- * Preserve legacy database rows while presenting one consistent five-stage
+ * Preserve legacy database rows while presenting one consistent six-stage
  * workflow throughout the UI.
  */
 export function normalizeTicketStatus(
@@ -22,6 +23,7 @@ export function normalizeTicketStatus(
     case "InProgress":
       return "InProgress";
     case "Blocked":
+      return "Blocked";
     case "Waiting":
     case "SentToQA":
       return "SentToQA";

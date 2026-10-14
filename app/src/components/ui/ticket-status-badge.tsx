@@ -10,7 +10,7 @@ import {
  * Ticket status badge — design.md §4.
  *
  * Status is always rendered as a labelled badge plus a semantic colour. The
- * five workflow stages are intentionally compact: In Progress → Sent to QA →
+ * six workflow stages are intentionally compact: In Progress → Blocked → Sent to QA →
  * Ready for production → Released → Done.
  *
  * The label is always rendered — never signal state by colour alone (§12).
@@ -21,6 +21,7 @@ import {
 
 export const TICKET_STATUS_LABELS: Record<WorkflowStatus, string> = {
   InProgress: "In Progress",
+  Blocked: "Blocked",
   SentToQA: "Sent to QA",
   ReadyForProduction: "Ready for production",
   Released: "Released",
@@ -37,6 +38,7 @@ export const TICKET_STATUS_ORDER: WorkflowStatus[] = [...WORKFLOW_STATUS_ORDER];
  */
 const BADGE_CLASS: Record<WorkflowStatus, string> = {
   InProgress: "bg-status-progress-bg text-status-progress-fg ring-1 ring-inset ring-status-progress/40",
+  Blocked: "bg-danger-subtle text-danger ring-1 ring-inset ring-danger/40",
   SentToQA: "bg-status-testing-bg text-status-testing-fg ring-1 ring-inset ring-status-testing/60",
   ReadyForProduction: "bg-status-waiting-bg text-status-waiting-fg ring-1 ring-inset ring-status-waiting/60",
   Released: "bg-status-closed-bg text-status-closed-fg ring-1 ring-inset ring-status-closed/50",
@@ -46,6 +48,7 @@ const BADGE_CLASS: Record<WorkflowStatus, string> = {
 /** The bare accent token — dots, a card's 3px left rule, timeline markers. */
 export const TICKET_STATUS_DOT: Record<WorkflowStatus, string> = {
   InProgress: "bg-status-progress",
+  Blocked: "bg-danger",
   SentToQA: "bg-status-testing",
   ReadyForProduction: "bg-status-waiting",
   Released: "bg-status-closed",

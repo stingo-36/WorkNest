@@ -156,8 +156,8 @@ export default async function WorkLogViewPage({ params }: { params: Promise<{ wo
         </PanelList>
       </aside>
 
-      <div className="grid min-w-0 items-start gap-4 xl:grid-cols-6">
-        <div className="min-w-0 xl:col-span-6">
+      <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
+        <div className="min-w-0 xl:col-span-2">
           <WorkLogSummary
             workLogId={data.id}
             // Summaries without a model were built by code before AI-only (2026-10-02); not shown.
@@ -173,15 +173,16 @@ export default async function WorkLogViewPage({ params }: { params: Promise<{ wo
         </div>
 
         {!isWork ? (
-          <section className="wl-card wl-off flex flex-col items-start gap-2 p-6 md:p-8 xl:col-span-6">
+          <section className="wl-card wl-off flex flex-col items-start gap-2 p-6 md:p-8 xl:col-span-2">
             <span className="grid size-11 place-items-center rounded-xl bg-sidebar text-sidebar-fg" aria-hidden="true"><DayIcon className="size-5" /></span>
             <h2 className="mt-2 text-xl font-semibold text-text">This day was marked as {data.dayType === "Holiday" ? "a holiday" : "leave"}.</h2>
             <p className="text-sm text-text-muted">No meetings or ticket work were logged. Change the day type from “Edit log” if that’s wrong.</p>
           </section>
         ) : (
           <>
+            <div className="flex min-w-0 flex-col gap-4">
             {ticketsEnabled ? (
-            <Card id="tickets-heading" title="Ticket work" count={tickets.length} className={tickets.length ? "xl:col-span-4" : "xl:col-span-6"}>
+            <Card id="tickets-heading" title="Ticket work" count={tickets.length}>
               {tickets.length === 0 ? (
                 <Empty>No tickets in this log.</Empty>
               ) : (
@@ -208,11 +209,7 @@ export default async function WorkLogViewPage({ params }: { params: Promise<{ wo
             </Card>
             ) : null}
 
-            {ticketsEnabled && tickets.length ? (
-              <div className="min-w-0 xl:col-span-2"><WorkLogGlance workLogId={data.id} tickets={tickets} /></div>
-            ) : null}
-
-            <Card id="meetings-heading" title="Meeting notes" count={`${meetingsNoted} of ${meetings.length}`} className="xl:col-span-3">
+            <Card id="meetings-heading" title="Meeting notes" count={`${meetingsNoted} of ${meetings.length}`}>
               <ol className="divide-y divide-border">
                 {meetings.map((meeting) => {
                   const filled = Boolean(meeting.notes.trim());
@@ -228,17 +225,21 @@ export default async function WorkLogViewPage({ params }: { params: Promise<{ wo
                 })}
               </ol>
             </Card>
+            </div>
 
-            <Card id="learning-heading" title="Work done" className="xl:col-span-3">
+            <div className="flex min-w-0 flex-col gap-4">
+              <DayTodos date={dayIso} todos={dayTodos} compact />
+              {ticketsEnabled && tickets.length ? <WorkLogGlance workLogId={data.id} tickets={tickets} /> : null}
+            <Card id="learning-heading" title="Work done">
               <div className="px-4 py-4 md:px-5">
                 {learning ? <MarkdownContent value={data.learningNotes} className="text-text" /> : <p className="text-sm text-text-muted">Nothing added for this day.</p>}
               </div>
             </Card>
+            </div>
           </>
         )}
 
-        {/* From the Tracker: what was ticked off, and what was still overdue, on this day. */}
-        <div className="min-w-0 xl:col-span-6"><DayTodos date={dayIso} todos={dayTodos} /></div>
+        {!isWork ? <div className="min-w-0 xl:col-span-2"><DayTodos date={dayIso} todos={dayTodos} /></div> : null}
       </div>
     </div>
   );

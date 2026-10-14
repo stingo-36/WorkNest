@@ -141,7 +141,7 @@ components"); keep them distinct when adding to a page:
 | Work Logs | split hero (form + slate sprint card with ring) → **vertical timeline** per sprint |
 | Work-log editor | action strip → **one document** (`.wl-doc` turns section cards into ruled chapters) + margin outline |
 | Work-log detail | **slate details panel** (`.wl-hero` tokens) + bento of cards |
-| Tickets | `PageHead` (status ratio bar) + search → **underline status tabs** → open ticket list (sticky from lg, ink bar on the selected row) beside the **open ticket** card; list first on phones |
+| Tickets | `PageHead` (status ratio bar) + New ticket + search → **underline status tabs** → open ticket list (sticky from lg, teal selected row) beside the **open ticket** card; its journey is compact and latest update is surfaced first; list first on phones |
 | Favourites | `PageHead` → **underline tabs** (All · Important · Notes · Resources, `?show=`) → Important as a two-column section, then Notes and Resources side by side; items = disc + meta + big title |
 | Notes | layout "F": title + search + New note → **summary column** (notebook count, cover-colour bars, sections/pages/starred) + **bookshelf** of accent-coloured covers |
 | Note reader | **three-column docs** (contents · page · on this page at xl) |
@@ -390,7 +390,7 @@ What the eye should hit, in order — one step per level, never two the same siz
 - **Breakpoints — exactly four:** `xs` 360 · `md` 768 · `lg` 1024 · `xl` 1440.
   **`sm:` and `2xl:` do not exist** (reset on purpose).
 - **Shell (2026-10-14):** no sidebar — a sticky, edge-to-edge **top bar** (`.app-dock`,
-  slate chrome, centred section links, active section marked by a white underline,
+  deep teal chrome (`#092120`), centred section links, active section marked by a white underline,
   account avatar at the end). Phones show a
   maximum five icon + label destinations and move Favourites into the account menu;
   larger screens show all six destinations. The account menu opens downwards.
@@ -486,8 +486,9 @@ icon + label from xl).
 
 ### Feature components
 `work-log/*` (editor, sections, ticket search/card/history, save status, attachments,
-learning, day type/stamp, copy button). On work-log detail, the compact single-column
-To-dos card is the first item in the right rail, immediately before Attachments.
+learning, day type/stamp, copy button). On work-log detail, To-dos is the first card in
+the right content column, followed by Ticket history and Work done; Ticket work and
+Meeting notes stack independently on the left.
 Other feature components: `tickets/ticket-board`, `tracker/tracker-board`
 (all per-kind wording lives in `KIND_META`), `notes/*` (TipTap editors, icon picker,
 viewer, TOC), `resources/resource-library`, `profile/profile-form`, `auth/*`,
@@ -548,7 +549,7 @@ in the `(app)` layout only.
    control's `border-radius`.
 5. Icons: **Lucide** in the app (`iconLibrary: "lucide"`), react-icons for note icons
    only.
-6. Minimal modals. Prefer inline creation (tickets are created inside the log).
+6. Minimal modals. Prefer inline creation (including the standalone New ticket form).
 7. Nothing implies history can be rewritten: no edit/delete affordance on
    `TicketWorkUpdate` or `FollowUpUpdate` rows.
 8. Check every new screen at 375, 768, 1024 and 1440 — nav on one line, no clipped

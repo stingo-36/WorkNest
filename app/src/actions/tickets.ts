@@ -8,6 +8,7 @@ import { fail, notFound, ok, parseOrFail } from "@/lib/result";
 import {
   addTicketWorkUpdate,
   appendTicketHistoryEntry as appendTicketHistoryEntryRow,
+  createTicket as createTicketRow,
   deleteTicket as deleteTicketRow,
   deleteTicketHistoryEntry as deleteTicketHistoryEntryRow,
   detachTicketFromWorkLog as detachTicketRow,
@@ -20,6 +21,7 @@ import {
 } from "@/lib/tickets";
 import {
   appendTicketHistoryEntrySchema,
+  createTicketSchema,
   deleteTicketHistoryEntrySchema,
   deleteTicketSchema,
   detachTicketFromWorkLogSchema,
@@ -42,6 +44,23 @@ function revalidateTickets(ticketId?: string, workLogId?: string) {
   revalidatePath("/tickets");
   if (ticketId) revalidatePath(`/tickets/${ticketId}`);
   if (workLogId) revalidatePath(`/work-logs/${workLogId}`);
+}
+
+/** Create a ticket directly from /tickets, without adding a work-log entry. */
+export async function createTicket(input: unknown) {
+  const userId = await requireUserId();
+  const parsed = parseOrFail(createTicketSchema, input);
+  if (!parsed.ok) return parsed;
+
+  const ticket = await createTicketRow(userId, parsed.data);
+  if (ticket === "ticket_key_conflict") {
+    return fail("CONFLICT", "That ticket number is already in use", {
+      ticketKey: "Use a different ticket number",
+    });
+  }
+
+  revalidateTickets(ticket.id);
+  return ok(ticket);
 }
 
 /**
