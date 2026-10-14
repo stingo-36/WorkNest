@@ -390,7 +390,7 @@ What the eye should hit, in order — one step per level, never two the same siz
 - **Breakpoints — exactly four:** `xs` 360 · `md` 768 · `lg` 1024 · `xl` 1440.
   **`sm:` and `2xl:` do not exist** (reset on purpose).
 - **Shell (2026-10-14):** no sidebar — a sticky, edge-to-edge **top bar** (`.app-dock`,
-  slate chrome, centred section links, active section marked by a white underline,
+  deep teal chrome (`#092120`), centred section links, active section marked by a white underline,
   account avatar at the end). Phones show a
   maximum five icon + label destinations and move Favourites into the account menu;
   larger screens show all six destinations. The account menu opens downwards.

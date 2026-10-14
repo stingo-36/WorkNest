@@ -728,6 +728,8 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-14 — Changed the full-width navbar from slate to a darker deep teal while retaining its white active underline and high-contrast labels — `app/globals.css`, `Design-System.md`
+
 - 2026-10-14 — Repacked Work Log detail into independent columns with To-dos first on the right while preserving Ticket history, and restored Blocked as a selectable/filterable ticket status — `work-logs/[workLogId]/page.tsx`, `components/{tickets/ticket-board,ui/ticket-status-badge}.tsx`, `lib/workflow-status.ts`, docs
 
 - 2026-10-14 — Added standalone ticket creation at the top of Tickets, compressed the ticket journey, and surfaced the newest history item above the update form — `components/tickets/ticket-board.tsx`, `actions/tickets.ts`, `lib/{tickets,validation}.ts`, docs
