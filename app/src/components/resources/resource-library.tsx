@@ -210,7 +210,8 @@ export function ResourceLibrary({
           <aside className="flex min-w-0 flex-col gap-7">
             <nav aria-label="Resource types" className="flex min-w-0 flex-col gap-2">
               <h2 className="tk-label text-text-muted">Type</h2>
-              <ul className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1.5 [scrollbar-width:none] lg:flex-col lg:overflow-visible">
+              {/* A dark panel behind the whole list (owner, 2026-10-15), the current type lifted on it. */}
+              <ul className="flex gap-1 overflow-x-auto rounded-xl bg-sidebar p-1.5 [scrollbar-width:none] lg:flex-col lg:overflow-visible">
                 {[ALL, ...types].map((type) => {
                   const on = active === type;
                   const count = (byType.get(type) ?? []).length;
@@ -222,12 +223,12 @@ export function ResourceLibrary({
                         onClick={() => setPicked(type)}
                         className={cn(
                           "flex min-h-11 w-full cursor-pointer items-center justify-between gap-6 rounded-lg px-3.5 text-md whitespace-nowrap transition-colors duration-150",
-                          on ? "bg-primary-subtle font-semibold text-accent-text" : "text-text-muted hover:bg-surface-2 hover:text-text",
+                          on ? "bg-sidebar-fg font-semibold text-sidebar" : "text-sidebar-fg hover:bg-sidebar-3",
                           Boolean(query) && !count && "opacity-50",
                         )}
                       >
                         {tabLabel(type)}
-                        <span className={cn("text-sm font-medium tabular-nums", on ? "text-accent-text" : "text-text-muted")}>{count}</span>
+                        <span className={cn("text-sm font-medium tabular-nums", on ? "text-sidebar" : "text-sidebar-fg/75")}>{count}</span>
                       </button>
                     </li>
                   );
@@ -250,9 +251,9 @@ export function ResourceLibrary({
                         onClick={() => { setSearch(on ? "" : `#${tag}`); if (!on) setPicked(ALL); }}
                         style={tagChipStyle(tag)}
                         // 36px tap target around a slim capsule; the selected tag gets a solid ring.
-                        className={cn(tagChipClass, "min-h-9 cursor-pointer transition-[filter,box-shadow] duration-150 hover:brightness-95", on && "ring-2 ring-[var(--tag)] ring-offset-1 ring-offset-[var(--c-wl-page)]")}
+                        className={cn(tagChipClass, "min-h-9 cursor-pointer transition-[filter,box-shadow] duration-150 hover:brightness-110", on && "ring-2 ring-text ring-offset-2 ring-offset-[var(--c-wl-page)]")}
                       >
-                        #{tag} <span className="tabular-nums opacity-70">{count}</span>
+                        #{tag} <span className="tabular-nums opacity-80">{count}</span>
                       </button>
                     );
                   })}

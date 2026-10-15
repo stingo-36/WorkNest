@@ -91,73 +91,48 @@ export default async function WorkLogViewPage({ params }: { params: Promise<{ wo
 
   const todosDone = dayTodos.filter((todo) => todo.completedAt?.slice(0, 10) === dayIso).length;
 
+  const heading = customTitle ?? format(date, "EEEE d MMMM");
+
   return (
-    // Redesigned 2026-10-08: a dark details panel on the left, the log as a bento of cards on the right.
-    <div className="work-logs-page work-log-detail-page grid items-start gap-5 lg:grid-cols-[20rem_minmax(0,1fr)] lg:gap-6">
-      <aside aria-label="Log details" className="wl-hero motion-page-enter flex min-w-0 flex-col gap-6 rounded-3xl p-5 md:p-6 lg:sticky lg:top-24">
-        <div className="flex items-center gap-2">
-          <nav aria-label="Other work logs" className="flex items-center gap-1.5">
-            <AdjacentLink log={adjacent.previous} direction="previous" />
-            <AdjacentLink log={adjacent.next} direction="next" />
-          </nav>
-          <Link href="/work-logs" className="tap-area ml-auto text-sm font-semibold text-text-muted hover:text-text">All work logs</Link>
-        </div>
+    // Redesigned 2026-10-15 from the owner's mockup: back link + ‹ › on top, a dark hero
+    // band (date, title, actions, three counts), then the log on the left and to-dos,
+    // ticket history and details on the right.
+    <div className="work-logs-page work-log-detail-page flex min-w-0 flex-col gap-5">
+      <nav aria-label="Work log navigation" className="flex items-center gap-2">
+        <Link href="/work-logs" className="tap-area inline-flex items-center gap-1.5 text-sm font-semibold text-text-muted hover:text-text">
+          <ChevronLeft className="size-4" aria-hidden="true" />All work logs
+        </Link>
+        <span className="ml-auto flex items-center gap-1.5">
+          <AdjacentLink log={adjacent.previous} direction="previous" />
+          <AdjacentLink log={adjacent.next} direction="next" />
+        </span>
+      </nav>
 
-        <div>
-          <p className="text-sm text-text-muted">{format(date, "EEEE")}</p>
-          <h1 className="mt-1 text-4xl font-semibold leading-none tracking-[-0.04em] text-text md:text-5xl">
-            <time dateTime={format(date, "yyyy-MM-dd")}>{format(date, "d MMM")}</time>
-          </h1>
-          <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-text-muted">
-            {format(date, "yyyy")}
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-0.5 text-text"><DayIcon className="size-3.5" aria-hidden="true" />{DAY_LABEL[data.dayType]}</span>
+      <header className="wl-hero motion-page-enter flex flex-wrap items-end justify-between gap-x-8 gap-y-6 rounded-3xl p-6 md:p-8">
+        <div className="flex min-w-0 max-w-3xl flex-col gap-4">
+          <p className="flex flex-wrap items-center gap-2 text-sm text-text-muted">
+            <time dateTime={format(date, "yyyy-MM-dd")}>{format(date, "EEEE, d MMM yyyy")}</time>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-0.5 text-xs font-semibold text-text"><DayIcon className="size-3.5" aria-hidden="true" />{DAY_LABEL[data.dayType]}</span>
           </p>
-          {customTitle ? <p className="mt-3 text-lg font-semibold text-text">{customTitle}</p> : null}
+          <h1 className="text-3xl leading-[1.05] font-bold tracking-[-0.035em] text-balance text-text md:text-4xl lg:text-5xl">{heading}</h1>
+          <div className="flex flex-wrap gap-2">
+            <Link href={`/work-logs/${data.id}/edit`} className="wl-solid inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-surface px-4 text-sm font-semibold text-text transition-colors duration-150 hover:bg-surface-2 md:h-10">
+              <Pencil className="size-4" aria-hidden="true" />Edit log
+            </Link>
+            <CopyLogButton text={copyText} />
+          </div>
         </div>
-
         {isWork ? (
-          <dl className="grid grid-cols-3 gap-2">
-            {ticketsEnabled ? <Fact label={tickets.length === 1 ? "ticket" : "tickets"} value={tickets.length} /> : null}
-            <Fact label={meetingsNoted === 1 ? "meeting" : "meetings"} value={meetingsNoted} />
-            <Fact label="to-dos done" value={todosDone} />
+          <dl className="flex gap-2">
+            {ticketsEnabled ? <Fact label={tickets.length === 1 ? "Ticket" : "Tickets"} value={tickets.length} /> : null}
+            <Fact label={meetingsNoted === 1 ? "Meeting" : "Meetings"} value={meetingsNoted} />
+            <Fact label="To-dos done" value={todosDone} />
           </dl>
         ) : null}
+      </header>
 
-        <div className="flex flex-wrap gap-2">
-          <Link href={`/work-logs/${data.id}/edit`} className="wl-solid inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-surface px-5 text-sm font-semibold text-text transition-colors duration-150 hover:bg-surface-2 md:h-10">
-            <Pencil className="size-4" aria-hidden="true" />Edit log
-          </Link>
-          <CopyLogButton text={copyText} />
-        </div>
-
-        <PanelList title="Attachments & links">
-          {attachments.length === 0 ? (
-            <li className="py-2 text-sm text-text-muted">No files or links.</li>
-          ) : (
-            attachments.map((item) => (
-              <li key={item.id}>
-                <a href={attachmentHref(item)} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2.5 py-2 text-sm">
-                  {item.kind === "Link" ? <Link2 className="size-4 shrink-0 text-text-muted" aria-hidden="true" /> : <FileText className="size-4 shrink-0 text-text-muted" aria-hidden="true" />}
-                  <span className="min-w-0 flex-1 truncate font-medium text-text underline-offset-2 group-hover:underline">{item.name}</span>
-                  <span className="shrink-0 text-xs text-text-muted">{item.kind === "Link" ? <ExternalLink className="size-3.5" aria-hidden="true" /> : formatBytes(item.size)}</span>
-                </a>
-              </li>
-            ))
-          )}
-        </PanelList>
-
-        <PanelList title="Activity">
-          <Activity label="Log edited" at={updatedAt} />
-          <Activity label="Log created" at={createdAt} />
-          <li className="flex items-center gap-2 py-2 text-xs text-text-muted">
-            <span className="grid size-5 place-items-center rounded-full bg-surface-2 text-2xs font-bold text-text" aria-hidden="true">{initials}</span>
-            {displayName}
-          </li>
-        </PanelList>
-      </aside>
-
-      <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
-        <div className="min-w-0 xl:col-span-2">
+      <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="flex min-w-0 flex-col gap-5">
           <WorkLogSummary
             workLogId={data.id}
             // Summaries without a model were built by code before AI-only (2026-10-02); not shown.
@@ -170,76 +145,107 @@ export default async function WorkLogViewPage({ params }: { params: Promise<{ wo
             todos={dayTodos}
             aiOn={ai.keySource !== null}
           />
+
+          {!isWork ? (
+            <section className="wl-card wl-off flex flex-col items-start gap-2 p-6 md:p-8">
+              <span className="grid size-11 place-items-center rounded-xl bg-sidebar text-sidebar-fg" aria-hidden="true"><DayIcon className="size-5" /></span>
+              <h2 className="mt-2 text-xl font-semibold text-text">This day was marked as {data.dayType === "Holiday" ? "a holiday" : "leave"}.</h2>
+              <p className="text-sm text-text-muted">No meetings or ticket work were logged. Change the day type from “Edit log” if that’s wrong.</p>
+            </section>
+          ) : (
+            <>
+              {ticketsEnabled ? (
+                <Card id="tickets-heading" title="Ticket work" count={tickets.length}>
+                  {tickets.length === 0 ? (
+                    <Empty>No tickets in this log.</Empty>
+                  ) : (
+                    <ol className="divide-y divide-border">
+                      {tickets.map((ticket) => (
+                        <li key={ticket.id} id={`ticket-card-${ticket.ticketKey}`} className="flex gap-4 px-4 py-5 md:px-5">
+                          <span className="h-fit shrink-0 rounded-lg bg-surface-2 px-2 py-1 font-mono text-xs font-semibold text-text">{ticket.ticketKey}</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="min-w-0 text-base font-semibold text-text">{ticket.title}</h3>
+                              <TicketStatusBadge status={ticket.draft.status} />
+                            </div>
+                            {ticket.projectName ? <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-text-muted"><FolderKanban className="size-3.5" aria-hidden="true" />{ticket.projectName}</p> : null}
+                            {ticket.draft.description.trim() ? (
+                              <MarkdownContent value={ticket.draft.description} className="mt-2 text-text" />
+                            ) : (
+                              <p className="mt-2 text-sm text-text-subtle">No update written for this ticket.</p>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </Card>
+              ) : null}
+
+              <Card id="meetings-heading" title="Meetings" count={`${meetingsNoted} of ${meetings.length} with notes`}>
+                {meetings.length === 0 ? (
+                  <Empty>No meetings on this day.</Empty>
+                ) : (
+                  <ol className="grid gap-3 p-4 md:grid-cols-2 md:p-5 xl:grid-cols-3">
+                    {meetings.map((meeting) => {
+                      const filled = Boolean(meeting.notes.trim());
+                      return (
+                        <li key={meeting.id} className="flex min-w-0 flex-col gap-1.5 rounded-xl bg-surface-2 p-4">
+                          <h3 className={cn("flex items-center gap-2 text-sm font-semibold", filled ? "text-text" : "text-text-subtle")}>
+                            {filled ? <Check className="size-4 shrink-0 text-primary" strokeWidth={2.5} aria-hidden="true" /> : null}
+                            {meeting.name}
+                          </h3>
+                          {filled ? <MarkdownContent value={meeting.notes} className="text-sm text-text" /> : <p className="text-sm text-text-subtle">No notes</p>}
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+              </Card>
+            </>
+          )}
         </div>
 
-        {!isWork ? (
-          <section className="wl-card wl-off flex flex-col items-start gap-2 p-6 md:p-8 xl:col-span-2">
-            <span className="grid size-11 place-items-center rounded-xl bg-sidebar text-sidebar-fg" aria-hidden="true"><DayIcon className="size-5" /></span>
-            <h2 className="mt-2 text-xl font-semibold text-text">This day was marked as {data.dayType === "Holiday" ? "a holiday" : "leave"}.</h2>
-            <p className="text-sm text-text-muted">No meetings or ticket work were logged. Change the day type from “Edit log” if that’s wrong.</p>
-          </section>
-        ) : (
-          <>
-            <div className="flex min-w-0 flex-col gap-4">
-            {ticketsEnabled ? (
-            <Card id="tickets-heading" title="Ticket work" count={tickets.length}>
-              {tickets.length === 0 ? (
-                <Empty>No tickets in this log.</Empty>
+        <aside aria-label="Log details" className="flex min-w-0 flex-col gap-5 lg:sticky lg:top-24">
+          <DayTodos date={dayIso} todos={dayTodos} compact />
+          {isWork && ticketsEnabled && tickets.length ? <WorkLogGlance workLogId={data.id} tickets={tickets} /> : null}
+
+          <section aria-labelledby="details-heading" data-reveal className="wl-card flex min-w-0 flex-col gap-5 p-4 md:p-5">
+            <h2 id="details-heading" className="text-lg font-semibold tracking-[-0.015em] text-text">Details</h2>
+            {isWork ? (
+              <DetailBlock title="Work done">
+                {learning ? <MarkdownContent value={data.learningNotes} className="text-text" /> : <p className="text-sm text-text-muted">Nothing added for this day.</p>}
+              </DetailBlock>
+            ) : null}
+            <DetailBlock title="Attachments & links">
+              {attachments.length === 0 ? (
+                <p className="text-sm text-text-muted">No files or links</p>
               ) : (
-                <ol className="divide-y divide-border">
-                  {tickets.map((ticket) => (
-                    <li key={ticket.id} id={`ticket-card-${ticket.ticketKey}`} className="flex gap-3 px-4 py-4 md:px-5">
-                      <span className="h-fit shrink-0 rounded-lg border border-border px-2 py-1 font-mono text-xs font-semibold text-text">{ticket.ticketKey}</span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="min-w-0 text-base font-semibold text-text">{ticket.title}</h3>
-                          <TicketStatusBadge status={ticket.draft.status} />
-                        </div>
-                        {ticket.projectName ? <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-text-muted"><FolderKanban className="size-3.5" aria-hidden="true" />{ticket.projectName}</p> : null}
-                        {ticket.draft.description.trim() ? (
-                          <MarkdownContent value={ticket.draft.description} className="mt-2 text-text-muted" />
-                        ) : (
-                          <p className="mt-2 text-sm text-text-subtle">No update written for this ticket.</p>
-                        )}
-                      </div>
+                <ul className="flex flex-col">
+                  {attachments.map((item) => (
+                    <li key={item.id}>
+                      <a href={attachmentHref(item)} target="_blank" rel="noopener noreferrer" className="group flex min-h-9 items-center gap-2.5 text-sm">
+                        {item.kind === "Link" ? <Link2 className="size-4 shrink-0 text-text-muted" aria-hidden="true" /> : <FileText className="size-4 shrink-0 text-text-muted" aria-hidden="true" />}
+                        <span className="min-w-0 flex-1 truncate font-medium text-text underline-offset-2 group-hover:underline">{item.name}</span>
+                        <span className="shrink-0 text-xs text-text-muted">{item.kind === "Link" ? <ExternalLink className="size-3.5" aria-hidden="true" /> : formatBytes(item.size)}</span>
+                      </a>
                     </li>
                   ))}
-                </ol>
+                </ul>
               )}
-            </Card>
-            ) : null}
-
-            <Card id="meetings-heading" title="Meeting notes" count={`${meetingsNoted} of ${meetings.length}`}>
-              <ol className="divide-y divide-border">
-                {meetings.map((meeting) => {
-                  const filled = Boolean(meeting.notes.trim());
-                  return (
-                    <li key={meeting.id} className="flex flex-col gap-1 px-4 py-3.5 md:px-5">
-                      <h3 className={cn("flex items-center gap-2 text-sm font-semibold", filled ? "text-text" : "text-text-subtle")}>
-                        {filled ? <Check className="size-4 text-primary" strokeWidth={2.5} aria-hidden="true" /> : null}
-                        {meeting.name}
-                      </h3>
-                      {filled ? <MarkdownContent value={meeting.notes} className="text-text-muted" /> : <p className="text-sm text-text-subtle">No notes</p>}
-                    </li>
-                  );
-                })}
-              </ol>
-            </Card>
-            </div>
-
-            <div className="flex min-w-0 flex-col gap-4">
-              <DayTodos date={dayIso} todos={dayTodos} compact />
-              {ticketsEnabled && tickets.length ? <WorkLogGlance workLogId={data.id} tickets={tickets} /> : null}
-            <Card id="learning-heading" title="Work done">
-              <div className="px-4 py-4 md:px-5">
-                {learning ? <MarkdownContent value={data.learningNotes} className="text-text" /> : <p className="text-sm text-text-muted">Nothing added for this day.</p>}
-              </div>
-            </Card>
-            </div>
-          </>
-        )}
-
-        {!isWork ? <div className="min-w-0 xl:col-span-2"><DayTodos date={dayIso} todos={dayTodos} /></div> : null}
+            </DetailBlock>
+            <DetailBlock title="Activity">
+              <ul className="flex flex-col gap-1.5">
+                <Activity label="Log edited" at={updatedAt} />
+                <Activity label="Log created" at={createdAt} />
+              </ul>
+              <p className="mt-2.5 flex items-center gap-2 text-sm text-text">
+                <span className="grid size-6 place-items-center rounded-full bg-primary text-2xs font-bold text-primary-fg" aria-hidden="true">{initials}</span>
+                {displayName}
+              </p>
+            </DetailBlock>
+          </section>
+        </aside>
       </div>
     </div>
   );
@@ -247,18 +253,18 @@ export default async function WorkLogViewPage({ params }: { params: Promise<{ wo
 
 function Fact({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex flex-col rounded-xl bg-surface p-3">
-      <dd className="text-xl font-semibold text-text tabular-nums">{value}</dd>
-      <dt className="order-last text-xs text-text-muted">{label}</dt>
+    <div className="wl-inset flex min-h-24 w-[4.75rem] flex-col justify-between rounded-xl p-3 md:w-20">
+      <dd className="text-2xl font-bold text-text tabular-nums">{value}</dd>
+      <dt className="order-last text-xs leading-tight text-text-muted">{label}</dt>
     </div>
   );
 }
 
-function PanelList({ title, children }: { title: string; children: ReactNode }) {
+function DetailBlock({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section aria-label={title}>
-      <h2 className="mb-1 text-2xs font-semibold tracking-[0.12em] text-text-muted uppercase">{title}</h2>
-      <ul className="divide-y divide-border border-t border-border">{children}</ul>
+    <section aria-label={title} className="flex min-w-0 flex-col gap-1.5">
+      <h3 className="text-2xs font-semibold tracking-[0.12em] text-text-muted uppercase">{title}</h3>
+      {children}
     </section>
   );
 }
@@ -279,9 +285,9 @@ function AdjacentLink({ log, direction }: { log: { id: string; date: Date } | nu
 function Card({ id, title, count, className, children }: { id: string; title: string; count?: number | string; className?: string; children: ReactNode }) {
   return (
     <section aria-labelledby={id} data-reveal className={cn("wl-card min-w-0 overflow-hidden", className)}>
-      <h2 id={id} className="flex items-center gap-2 px-4 pt-4 pb-1 text-xs font-semibold tracking-[0.1em] text-text-muted uppercase md:px-5">
+      <h2 id={id} className="flex items-center gap-2.5 border-b border-border px-4 py-4 text-lg font-semibold tracking-[-0.015em] text-text md:px-5">
         {title}
-        {count !== undefined ? <span className="rounded-full bg-surface-3 px-2 py-0.5 text-xs font-semibold text-accent-text tabular-nums">{count}</span> : null}
+        {count !== undefined ? <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-xs font-semibold text-text-muted tabular-nums">{count}</span> : null}
       </h2>
       {children}
     </section>
@@ -294,9 +300,9 @@ function Empty({ children }: { children: ReactNode }) {
 
 function Activity({ label, at }: { label: string; at: Date }) {
   return (
-    <li className="flex items-baseline gap-3 py-2 text-sm">
-      <time dateTime={at.toISOString()} className="shrink-0 font-mono text-xs text-text-muted">{format(at, "d MMM, HH:mm")}</time>
+    <li className="flex items-baseline justify-between gap-3 text-sm">
       <span className="text-text">{label}</span>
+      <time dateTime={at.toISOString()} className="shrink-0 font-mono text-xs text-text-muted">{format(at, "d MMM, HH:mm")}</time>
     </li>
   );
 }

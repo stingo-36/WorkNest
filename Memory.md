@@ -804,6 +804,10 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-15 — Work log detail redesigned from the owner's mockup (dark hero band with title + counts, log left, to-dos/history/details right); Resources type list on a dark panel and solid tag capsules (owner: no pastels) — `app/(app)/work-logs/[workLogId]/page.tsx`, `components/resources/resource-library.tsx`, `components/ui/tag-chip.tsx`, `lib/tag-colors.ts`, docs
+
+- 2026-10-15 — Live /tracker 500 after deploy: `tracker_rich_updates` hadn't been applied to Neon; ran `db:hosted` (migrate deploy). Reminder: hosted migration before merging schema changes (skills.md §11 step 6) — Neon
+
 - 2026-10-15 — Full editor (links, image/file upload, Markdown paste) in every large text field: `MarkdownEditor` upgraded, Resource + Achievement descriptions switched to it and render formatted; Notes add buttons tinted — `components/work-log/markdown-editor.tsx`, `components/ui/editor-uploads.ts`, `components/resources/resource-library.tsx`, `components/achievements/achievements-board.tsx`, `app/(app)/favourites/page.tsx`, `lib/rich-text.ts`, `components/notes/NoteForm.tsx`, `components/notes/SectionEditor.tsx`, `app/globals.css`
 
 - 2026-10-15 — Delete on every Tracker row; header/composer popups no longer hidden under the columns (stacking fix, also fixes "Clear date"); coloured tag capsules (Resources sidebar + rows, Tracker notes); Resources type list on a card with a tinted current type — `components/tracker/tracker-board.tsx`, `components/resources/resource-library.tsx`, `components/ui/tag-chip.tsx`, `lib/tag-colors.ts`

@@ -145,7 +145,7 @@ components"); keep them distinct when adding to a page:
 | Tracker | date · tabs + search → title + add field → **two columns** (Today \| Upcoming, Needs you \| Waiting, composer \| notes); finished entries collapse under one *Show* line; entry opens in a two-column dialog |
 | Work Logs | split hero (form + slate sprint card with ring) → **vertical timeline** per sprint |
 | Work-log editor | action strip → **one document** (`.wl-doc` turns section cards into ruled chapters) + margin outline |
-| Work-log detail | **slate details panel** (`.wl-hero` tokens) + bento of cards |
+| Work-log detail | back link + ‹ › → full-width **`.wl-hero` band** (title, white Edit log `.wl-solid`, outline Copy, `.wl-inset` count tiles) → main column (summary, ticket work, meeting tiles) + 18–20rem right column (to-dos, ticket history, details) |
 | Tickets | `PageHead` (status ratio bar) + New ticket + search → **underline status tabs** → open ticket list (sticky from lg, teal selected row) beside the **open ticket** card; its journey is compact and latest update is surfaced first; list first on phones |
 | Favourites | `PageHead` → **underline tabs** (All · Important · Notes · Resources, `?show=`) → Important as a two-column section, then Notes and Resources side by side; items = disc + meta + big title |
 | Notes | layout "F": title + search + New note → **summary column** (notebook count, cover-colour bars, sections/pages/starred) + **bookshelf** of accent-coloured covers |
@@ -349,7 +349,7 @@ off-palette hues except semantic red/green, orange stars, and real brand logos:
 | Tickets | list header band + open ticket header band | first ticket opens by default; selected row uses a teal tint + teal leading rule |
 | Tracker | active tab, focus lists' toned edge | |
 | Notes | stats band (notes · favourites · sections) with the white "New note" CTA | Favourites / All notes groups |
-| Resources | current type: ink left bar (bottom bar under lg) | initials tiles in ink / teal / amber; type icons remain in the type picker |
+| Resources | type list on a dark `bg-sidebar` panel; current type = light pill (`bg-sidebar-fg`, ink text) | initials tiles in ink / teal / amber; solid tag capsules |
 | Favourites | summary band of three count tiles (jump links) | |
 | Profile | open section header band, active menu item | |
 
@@ -476,7 +476,7 @@ All under `app/src/components/`. Use these before writing new markup.
 | `Badge`, `TicketId` | Generic badge; `TicketId` is mandatory for ticket keys. |
 | `TicketStatusBadge`, `TICKET_STATUS_DOT` | Status colours + labels + order (all tinted badges). |
 | `ProjectInput` | MUI Autocomplete (freeSolo) of the user's project names; loads on open, no module cache. |
-| `TagChip`, `tagChipClass`, `tagChipStyle` | Tag capsule: `--tag` from `lib/tag-colors.ts` mixed into a 14% fill, 35% edge and 40%-into-text label (mono, `rounded-full`). The brand/fallback hexes there are **data, not UI tokens** — the only raw colours allowed, and never used unmixed. |
+| `TagChip`, `tagChipClass`, `tagChipStyle` | Tag capsule: **solid** `--tag` fill from `lib/tag-colors.ts` with a white or ink label (`tagTextTone`, whichever contrasts more), mono, `rounded-full`. The brand/fallback hexes there are **data, not UI tokens** — the only raw colours allowed. |
 | `TagInput`, `normalizeTag` | MUI Autocomplete (multiple + freeSolo) chip field over existing tags. Click or ↓+Enter picks a suggestion; Enter/comma adds typed text; blur keeps typed text. Tags normalised (lowercase, no `#`, spaces → `-`), max 25. No `autoHighlight` — in MUI 9 freeSolo, Enter commits typed text, so a pre-highlight would mislead. |
 | `Modal` | Native `<dialog>`: header (eyebrow + title + close), scrolling body, optional footer; `md`/`lg`/`xl` (xl = max-w-5xl, the Tracker entry dialog). Backdrop close only when the press **and** the click are both on the backdrop. |
 | `ConfirmationDialog` | Native `<dialog>`; `destructive` uses the danger button; async `onConfirm`. |
@@ -492,9 +492,10 @@ icon + label from xl).
 
 ### Feature components
 `work-log/*` (editor, sections, ticket search/card/history, save status, attachments,
-learning, day type/stamp, copy button). On work-log detail, To-dos is the first card in
-the right content column, followed by Ticket history and Work done; Ticket work and
-Meeting notes stack independently on the left.
+learning, day type/stamp, copy button). On work-log detail the right column is To-dos,
+Ticket history, then Details (Work done, attachments, activity); the left is the AI
+summary, Ticket work and Meetings. Card headers: title-case 18px semibold + count chip
+over a hairline.
 Other feature components: `tickets/ticket-board`, `tracker/tracker-board`
 (all per-kind wording lives in `KIND_META`), `notes/*` (TipTap editors, icon picker,
 viewer, TOC), `resources/resource-library`, `profile/profile-form`, `auth/*`,

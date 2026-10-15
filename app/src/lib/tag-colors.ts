@@ -77,3 +77,15 @@ export function tagColor(tag: string): string {
   for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   return FALLBACK[hash % FALLBACK.length];
 }
+
+/** Light or dark label for a solid capsule: whichever contrasts more with the fill (WCAG luminance). */
+export function tagTextTone(hex: string): "light" | "dark" {
+  const channel = (value: number) => {
+    const c = value / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const n = Number.parseInt(hex.replace("#", ""), 16);
+  const lum = 0.2126 * channel((n >> 16) & 255) + 0.7152 * channel((n >> 8) & 255) + 0.0722 * channel(n & 255);
+  // Contrast against white (1.0) vs the app's ink text (~0.017).
+  return (1.05) / (lum + 0.05) >= (lum + 0.05) / 0.067 ? "light" : "dark";
+}
