@@ -7,6 +7,7 @@ import { NoteIcon } from "@/components/notes/NoteIcon";
 import { PageHead, UnderlineTabs, outlinePill } from "@/components/shell/page-head";
 import { isLightColor, noteAccent } from "@/lib/note-colors";
 import { prisma } from "@/lib/prisma";
+import { markdownPreview } from "@/lib/rich-text";
 import { requireUserId } from "@/lib/session";
 
 export const metadata = { title: "Favourites" };
@@ -100,7 +101,7 @@ export default async function FavouritesPage({ searchParams }: { searchParams: P
         disc={<span className="grid size-10.5 shrink-0 place-items-center rounded-full bg-sidebar text-base font-bold text-sidebar-fg">{initials(resource.title)}</span>}
         meta={external ? host(resource.url!) : resource.type}
         title={resource.title}
-        description={code ? null : resource.description}
+        description={code ? null : markdownPreview(resource.description)}
         code={code ? resource.content : null}
       />
     );

@@ -4,7 +4,7 @@
 > delete a module, route, model or script, update the relevant section in the same
 > change.
 >
-> Last synced with the codebase: **2026-10-14**
+> Last synced with the codebase: **2026-10-15**
 
 ---
 
@@ -74,7 +74,7 @@ authenticated shell.
 | `/work-logs/[workLogId]` | `.../page.tsx` | read-only detail + Copy as text; side rail begins with that day's Tracker to-dos |
 | `/work-logs/[workLogId]/edit` | `.../edit/page.tsx` | `WorkLogEditor` |
 | `/tickets` | `(app)/tickets/page.tsx` | `TicketBoard` (`PageHead`, direct New ticket form, underline status tabs, list + open ticket with editable number/title/project, compact journey and latest update); redirects to `/work-logs` if tickets disabled |
-| `/tracker` | `(app)/tracker/page.tsx` | `TrackerBoard` — two-column queue per tab (To-do: Today | Upcoming; Follow-ups: Needs you | Waiting; Notes: composer | notes), latest update inline, finished entries in a collapsed group; entries open in a two-column dialog; update text formatting in `components/tracker/note-text.tsx`; default landing after login; `?view=todo\|followups\|notes` picks the tab |
+| `/tracker` | `(app)/tracker/page.tsx` | `TrackerBoard` — two-column queue per tab (To-do: Today | Upcoming; Follow-ups: Needs you | Waiting; Notes: composer | notes), latest update inline, finished entries in a collapsed group; entries open in a two-column dialog; rich editor + read-only renderer in `components/tracker/update-editor.tsx` (Notes TipTap schema + upload-only images), legacy plain-text rendering in `note-text.tsx`; default landing after login; `?view=todo\|followups\|notes` picks the tab |
 | `/notes`, `/notes/new`, `/notes/[noteId]`, `/notes/[noteId]/edit` | `(app)/notes/**` | notebooks; the list is `NoteLibrary` (layout "F": header, summary column, bookshelf) |
 | `/resources` | `(app)/resources/page.tsx` | `ResourceLibrary` |
 | `/favourites` | `(app)/favourites/page.tsx` | reads Prisma directly; `?show=important\|notes\|resources` picks the tab |
@@ -89,6 +89,8 @@ authenticated shell.
 | `/tasks`, `/links`, `/settings` | `(app)/*/page.tsx` | `ComingSoonPage` |
 | `GET/POST /api/auth/[...nextauth]` | route handler | NextAuth |
 | `POST /api/work-logs/[workLogId]/attachments` | route handler | multipart upload (field `files`) |
+| `POST /api/tracker-files` | route handler | editor uploads for every rich field — Tracker updates, Work Log / Ticket Markdown fields, Resource and Achievement descriptions (field `files`, ≤5 × 4 MB) → `{ files: [{ id, name, mimeType, size, url }] }` |
+| `GET /api/tracker-files/[fileId]` | route handler | owner-only download; images/PDF/text inline, everything else as attachment, `nosniff` |
 | `POST /api/work-logs/[workLogId]/ai-refresh` | route handler | leave-the-editor beacon: 202 now, then `after()` regenerates the AI summary/title if the content changed |
 | `GET /api/attachments/[attachmentId]` | route handler | owner-only download |
 | `POST /api/achievements/[achievementId]/files` | route handler | certificate upload (field `files`) |
@@ -165,6 +167,9 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `components/shell/page-motion.tsx` | GSAP route-family choreography for authenticated page regions; reduced-motion safe, load-only and intentionally unrelated to scrolling |
 | `components/shell/page-band.tsx`, `components/ui/band-sx.ts` | leftovers: `bandField` (Quick log's band button) and the MUI `tone="band"` field styling |
 | `lib/sprint.ts` | **the only** sprint arithmetic (`getSprint`) — local calendar days |
+| `lib/rich-text.ts` | shared (client + server): `docToText` (TipTap JSON → plain text with "- " lists), `docFileIds`, `markdownPreview` (Markdown → one plain line), `TRACKER_FILE_PATH`, `MAX_TRACKER_FILE_BYTES` |
+| `components/ui/editor-uploads.ts` | client: `TrackerImage` (TipTap image node, upload-only sources), `uploadFiles`, `insertUploads` — shared by `tracker/update-editor.tsx` and `work-log/markdown-editor.tsx` |
+| `lib/tag-colors.ts` | shared: `tagColor(tag)` — brand colour for known tech tags, else a stable hue (no network call) |
 | `lib/resource-types.ts` | shared (client + server): built-in type labels/plurals (`typeMeta`) and `resourceTypeKey` — types with the same on-screen name are one type |
 | `lib/user-lists.ts` | Profile-editable lists: `DEFAULT_LISTS`, ordered lists, project options/suggestions, tag usage + rename/delete (raw SQL, user-scoped) |
 | `lib/reports.ts` | sprint list, report data per sprint, AI-only "5-15 Report" (`generateSprintReport` → ok or failure reason; `normalizeReportBody` tolerates bold/other-level section headings and `*`/`•` bullets), staleness; model-less (old code-built) reports ignored |
@@ -209,6 +214,7 @@ User ─┬─ WorkLog ─┬─ Meeting
       │           ├─ TicketHistoryEntry     (standalone, deletable)
       │           └─ Task (optional FK)
       ├─ FollowUp ── FollowUpUpdate          (Tracker; append-only)
+      │      └─ FollowUpFile                 (editor uploads; followUpId null until saved)
       ├─ Note ── NoteSection ── NotePage     (TipTap JSON)
       ├─ Achievement ── AchievementFile      (certificate bytes)
       ├─ Resource   ├─ Link   ├─ Task
@@ -225,7 +231,8 @@ User ─┬─ WorkLog ─┬─ Meeting
 | `TicketWorkUpdate` | one per (ticket, work log): `description`, `status` snapshot. **Append-only history.** |
 | `TicketHistoryEntry` | `body`, `status` snapshot; written from `/tickets`; may be deleted |
 | `FollowUp` | `kind` (FollowUp/Task/Note — `Idea` folded into Note 2026-10-01), `tags String[]` (notes), `person?` (FollowUp only), `subject`, `ticketKey?` (free text, not FK), `status` Open/Done, `pinned`, `dueDate?` |
-| `FollowUpUpdate` | `note`, `channel` (free text from the user's list), `occurredAt`, `fromThem` (their reply vs. what you said — drives Waiting/Replied). **Never updated in place.** |
+| `FollowUpUpdate` | `note`, `doc Json?` (TipTap JSON from the rich editor; `note` is then its plain text, derived server-side), `channel` (free text from the user's list), `occurredAt`, `fromThem` (their reply vs. what you said — drives Waiting/Replied). **Never updated in place.** |
+| `FollowUpFile` | `userId`, `followUpId?` (set when the update that references it is saved), `name`, `mimeType`, `size`, `data Bytes` (≤4 MB). Uploaded while writing; deleted with the entry or account. |
 | `Note` / `NoteSection` / `NotePage` | icon (`iconName`, `iconLibrary` si/lu/fa6), `favorite`, `deletedAt` (trash); sections & pages ordered by `order`; page `content Json` |
 | `Resource` | `type` (free text from the user's list; was an enum), `url?`, `content`, `tags[]`, `favorite` |
 | `SprintReport` | one per `(userId, sprintStart)` (`@db.Date`, UTC midnight like `WorkLog.date`); `content` (Markdown), `model?` (null = built), `generatedAt` |

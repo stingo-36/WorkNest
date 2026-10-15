@@ -5,7 +5,7 @@
 > and `app/src/app/(auth)/auth-motion.css` (login / register). This file explains the system and the rules. If you change a token,
 > update the table here in the same change.
 >
-> Last synced with the codebase: **2026-10-14**
+> Last synced with the codebase: **2026-10-15**
 
 ---
 
@@ -476,6 +476,7 @@ All under `app/src/components/`. Use these before writing new markup.
 | `Badge`, `TicketId` | Generic badge; `TicketId` is mandatory for ticket keys. |
 | `TicketStatusBadge`, `TICKET_STATUS_DOT` | Status colours + labels + order (all tinted badges). |
 | `ProjectInput` | MUI Autocomplete (freeSolo) of the user's project names; loads on open, no module cache. |
+| `TagChip`, `tagChipClass`, `tagChipStyle` | Tag capsule: `--tag` from `lib/tag-colors.ts` mixed into a 14% fill, 35% edge and 40%-into-text label (mono, `rounded-full`). The brand/fallback hexes there are **data, not UI tokens** — the only raw colours allowed, and never used unmixed. |
 | `TagInput`, `normalizeTag` | MUI Autocomplete (multiple + freeSolo) chip field over existing tags. Click or ↓+Enter picks a suggestion; Enter/comma adds typed text; blur keeps typed text. Tags normalised (lowercase, no `#`, spaces → `-`), max 25. No `autoHighlight` — in MUI 9 freeSolo, Enter commits typed text, so a pre-highlight would mislead. |
 | `Modal` | Native `<dialog>`: header (eyebrow + title + close), scrolling body, optional footer; `md`/`lg`/`xl` (xl = max-w-5xl, the Tracker entry dialog). Backdrop close only when the press **and** the click are both on the backdrop. |
 | `ConfirmationDialog` | Native `<dialog>`; `destructive` uses the danger button; async `onConfirm`. |

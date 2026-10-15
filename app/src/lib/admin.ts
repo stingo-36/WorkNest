@@ -246,6 +246,8 @@ export async function deleteAccountRecords(
     prisma.link.deleteMany({ where: { userId } }),
     prisma.task.deleteMany({ where: { userId } }),
     prisma.followUp.deleteMany({ where: { userId } }),
+    // Uploads not yet in a saved update have no entry to cascade from.
+    prisma.followUpFile.deleteMany({ where: { userId } }),
     prisma.note.deleteMany({ where: { userId } }),
     prisma.ticket.deleteMany({ where: { userId } }),
     prisma.workLog.deleteMany({ where: { userId } }),

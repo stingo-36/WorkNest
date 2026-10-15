@@ -666,6 +666,11 @@ span.wl-face { cursor: default; }
 }
 
 .worklog-prose strong { font-weight: 700; }
+/* Links and uploaded images in Markdown fields (2026-10-15). */
+.worklog-prose a { color: var(--c-primary-strong); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: color-mix(in srgb, var(--c-primary-strong) 35%, transparent); }
+.worklog-prose a:hover { text-decoration-color: var(--c-primary-strong); }
+.worklog-prose img { display: block; max-width: 100%; height: auto; border: 1px solid var(--c-border); border-radius: var(--radius-md); }
+.worklog-prose img.ProseMirror-selectednode { outline: 2px solid var(--c-ring); outline-offset: 2px; }
 .worklog-prose em { font-style: italic; }
 .worklog-prose s { color: var(--c-text-muted); }
 .worklog-prose h1,
@@ -1318,6 +1323,17 @@ span.wl-face { cursor: default; }
 .note-prose a:hover {
   text-decoration-color: var(--c-primary-strong);
 }
+
+/* Tracker updates: uploaded images (only `/api/tracker-files/…` sources render). */
+.note-prose img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-block: 0.5rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+}
+.note-prose img.ProseMirror-selectednode { outline: 2px solid var(--c-ring); outline-offset: 2px; }
 
 .note-prose mark {
   background-color: var(--c-surface-2);

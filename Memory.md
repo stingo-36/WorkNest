@@ -4,7 +4,7 @@
 > (with the *why*), gotchas that cost time before, and a changelog. Newest first in
 > every section. Update rules are in `AGENTS.md` §2.
 >
-> Last synced with the codebase: **2026-10-14**
+> Last synced with the codebase: **2026-10-15**
 
 ---
 
@@ -26,6 +26,33 @@
 ## Decisions
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
+
+**2026-10-15 — All large text fields get the full editor, still stored as Markdown.**
+Owner: "all big description fields" should allow images, links and files. Work Log / Ticket
+fields already used `MarkdownEditor`; it gained the toolbar, links, uploads and Markdown
+paste, and Resource + Achievement descriptions switched to it. Keeping Markdown in the
+existing text columns avoided a migration and kept AI summaries/reports readable.
+Uploads from these fields use the Tracker upload table but never get a `followUpId` (see
+the orphan gotcha). Notes notebooks already had their own editor. *Rejected:* TipTap JSON
+columns on every model; the Quick log review boxes (AI draft text, short-lived).
+Notes "Add page/section" buttons are tinted instead of white.
+
+**2026-10-15 — Tag capsule colours come from a local brand table, not an API.** Owner asked
+for tag colours "related to the tag, use some API". An external lookup would send every
+tag name to a third party and miss made-up tags (`vibe-coding`), so `lib/tag-colors.ts`
+holds Simple-Icons-style brand colours for common tech tags plus a hashed fallback; the
+capsule mixes the colour so contrast holds. *Rejected:* Simple Icons CDN at runtime; one
+accent for every tag.
+
+**2026-10-15 — Tracker updates are rich text, with uploads in Postgres.** Owner wanted
+paste-with-formatting, a full toolbar and image/file uploads. Reused the Notes TipTap
+schema and stored `doc` JSON beside a server-derived plain-text `note`, so every existing
+reader keeps working. Uploads follow the work-log attachment pattern (Postgres bytes,
+owner-only route, inline only for script-free types) but cap at 4 MB for Vercel's ~4.5 MB
+request limit. Images render only from `/api/tracker-files/`, so pasted web images
+(hotlinks, tracking pixels) are dropped. Today lists to-dos before follow-ups.
+*Rejected:* Vercel Blob (new service + env config; owner didn't choose when asked);
+storing HTML (would need sanitising on every render); replacing `note` with the doc.
 
 **2026-10-14 — Resources follows the owner's list mockup.** Tabs + two-column cards gave
 way to a Type/Tags side column and one list of rows with initials tiles, a sort menu and
@@ -620,6 +647,14 @@ is done on the real rendered app.
 
 ## Gotchas
 
+- **2026-10-15 — Editor uploads can be orphaned.** Files upload while you write (before
+  the entry/update exists), so a draft that's never saved — and every upload from a
+  Markdown field (Work Logs, Tickets, Resources, Achievements), which is never linked —
+  stays a `FollowUpFile` row with `followUpId = null`. Removing it from the text doesn't
+  delete the file. They're owner-only and removed with the account (and by the admin
+  record erasure), but nothing sweeps them sooner. Linking happens server-side from the
+  ids in the saved doc (`docFileIds`), scoped to the user.
+
 - **2026-10-09 — Vercel Preview builds have no `DATABASE_URL`.** `env("DATABASE_URL")` in
   `prisma.config.ts` threw during `postinstall` (`prisma generate`), and the Prisma client
   was created on import, so `next build` failed too. Now the config falls back to `""` and
@@ -768,6 +803,12 @@ is done on the real rendered app.
 ## Changelog
 
 `YYYY-MM-DD — what changed — key files`
+
+- 2026-10-15 — Full editor (links, image/file upload, Markdown paste) in every large text field: `MarkdownEditor` upgraded, Resource + Achievement descriptions switched to it and render formatted; Notes add buttons tinted — `components/work-log/markdown-editor.tsx`, `components/ui/editor-uploads.ts`, `components/resources/resource-library.tsx`, `components/achievements/achievements-board.tsx`, `app/(app)/favourites/page.tsx`, `lib/rich-text.ts`, `components/notes/NoteForm.tsx`, `components/notes/SectionEditor.tsx`, `app/globals.css`
+
+- 2026-10-15 — Delete on every Tracker row; header/composer popups no longer hidden under the columns (stacking fix, also fixes "Clear date"); coloured tag capsules (Resources sidebar + rows, Tracker notes); Resources type list on a card with a tinted current type — `components/tracker/tracker-board.tsx`, `components/resources/resource-library.tsx`, `components/ui/tag-chip.tsx`, `lib/tag-colors.ts`
+
+- 2026-10-15 — Tracker rich editor (full toolbar inside the field, formatted/Markdown paste, image + file uploads ≤4 MB), optional note date (default today), to-dos first in Today; migration `tracker_rich_updates` (`FollowUpUpdate.doc`, `FollowUpFile`) — `components/tracker/update-editor.tsx`, `lib/rich-text.ts`, `lib/follow-ups.ts`, `lib/validation.ts`, `lib/admin.ts`, `app/api/tracker-files/**`, `components/tracker/tracker-board.tsx`, `app/globals.css`, `prisma/schema.prisma`
 
 - 2026-10-14 — Resources redesigned from the owner's mockup: Type/Tags side column, one sortable list of rows with initials tiles, underline search; sanity pass (typecheck, lint, build) and stale doc lines fixed — `components/resources/resource-library.tsx`, `PRD.md`, `Design-System.md`, `Memory.md`
 

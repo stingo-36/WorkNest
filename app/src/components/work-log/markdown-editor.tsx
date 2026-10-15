@@ -7,16 +7,27 @@ import { Placeholder } from "@tiptap/extensions";
 import {
   Bold,
   Code,
+  FileUp,
+  Heading2,
+  Heading3,
+  ImageUp,
   Italic,
+  Link2,
   List,
   ListOrdered,
+  Loader2,
   Quote,
   Redo2,
+  SquareCode,
+  Strikethrough,
   Undo2,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { cn } from "@/components/cn";
+import { insertUploads, TrackerImage, uploadFiles } from "@/components/ui/editor-uploads";
+import { toast } from "@/components/ui/toast";
+import { TRACKER_FILE_PATH } from "@/lib/rich-text";
 
 type MarkdownEditorProps = {
   id: string;
@@ -39,7 +50,18 @@ function inlineMarkdown(value: string) {
     .replace(/__([^_]+)__/g, "<strong>$1</strong>")
     .replace(/~~([^~]+)~~/g, "<s>$1</s>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-    .replace(/_([^_]+)_/g, "<em>$1</em>");
+    .replace(/_([^_]+)_/g, "<em>$1</em>")
+    // Links: web addresses, or our own uploads (📎 files).
+    .replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/api\/tracker-files\/)[^\s)]+)\)/g, '<a href="$2">$1</a>')
+    .replace(/(^|[\s(])(https?:\/\/[^\s<]+)/g, '$1<a href="$2">$2</a>');
+}
+
+/** `![alt](/api/tracker-files/…)` on its own line — only our uploads become images. */
+const IMAGE_LINE = /^!\[([^\]]*)\]\((\/api\/tracker-files\/[^\s)]+)\)\s*$/;
+
+/** Plain text that's clearly Markdown — converted on paste instead of inserted literally. */
+function looksLikeMarkdown(text: string) {
+  return /^\s*([-*+]\s|\d+\.\s|#{1,3}\s|>\s|```)/m.test(text) || /\*\*[^*\n]+\*\*/.test(text);
 }
 
 /** Convert the stored Markdown string into the small schema used by this editor. */
@@ -63,6 +85,13 @@ function markdownToHtml(markdown: string) {
       while (index < lines.length && !/^```/.test(lines[index])) code.push(lines[index++]);
       index += 1;
       output.push(`<pre><code>${escapeHtml(code.join("\n"))}</code></pre>`);
+      continue;
+    }
+
+    const image = line.trim().match(IMAGE_LINE);
+    if (image) {
+      output.push(`<img src="${escapeHtml(image[2])}" alt="${escapeHtml(image[1]).replaceAll('"', "&quot;")}">`);
+      index += 1;
       continue;
     }
 
@@ -104,7 +133,7 @@ function markdownToHtml(markdown: string) {
     while (
       index < lines.length &&
       lines[index].trim() &&
-      !/^(#{1,3})\s+|^```|^>\s?|^\s*[-*+]\s+|^\s*\d+\.\s+/.test(lines[index])
+      !/^(#{1,3})\s+|^```|^>\s?|^\s*[-*+]\s+|^\s*\d+\.\s+|^!\[/.test(lines[index])
     ) {
       paragraph.push(lines[index++]);
     }
@@ -125,6 +154,8 @@ function renderInline(node: JSONContent): string {
     if (mark.type === "strike") value = `~~${value}~~`;
     if (mark.type === "code") value = `\`${value}\``;
   }
+  const link = node.marks?.find((mark) => mark.type === "link");
+  if (link?.attrs?.href) value = `[${value}](${String(link.attrs.href)})`;
   return value;
 }
 
@@ -155,6 +186,8 @@ function nodeToMarkdown(node: JSONContent, depth = 0): string {
       return `\`\`\`\n${children.map(renderInline).join("")}\n\`\`\``;
     case "horizontalRule":
       return "---";
+    case "image":
+      return String(node.attrs?.src ?? "").startsWith(TRACKER_FILE_PATH) ? `![${String(node.attrs?.alt ?? "").replace(/[[\]]/g, "")}](${String(node.attrs?.src)})` : "";
     default:
       return children.map((child) => nodeToMarkdown(child, depth)).join("");
   }
@@ -193,33 +226,80 @@ function ToolButton({
   );
 }
 
-function Toolbar({ editor }: { editor: Editor }) {
+function Toolbar({ editor, uploading, onPick }: { editor: Editor; uploading: boolean; onPick: (kind: "image" | "file") => void }) {
   const state = useEditorState({
     editor,
     selector: ({ editor: current }) => ({
       bold: current.isActive("bold"),
       italic: current.isActive("italic"),
+      strike: current.isActive("strike"),
+      code: current.isActive("code"),
+      h2: current.isActive("heading", { level: 2 }),
+      h3: current.isActive("heading", { level: 3 }),
       bullet: current.isActive("bulletList"),
       ordered: current.isActive("orderedList"),
       quote: current.isActive("blockquote"),
-      code: current.isActive("code"),
+      codeBlock: current.isActive("codeBlock"),
+      link: current.isActive("link"),
       undo: current.can().undo(),
       redo: current.can().redo(),
     }),
   });
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [href, setHref] = useState("");
+  const linkId = useId();
+  const chain = () => editor.chain().focus();
+  const icon = "size-4";
+
+  function applyLink() {
+    const url = href.trim();
+    if (!url) chain().extendMarkRange("link").unsetLink().run();
+    else chain().extendMarkRange("link").setLink({ href: /^(https?:\/\/|\/api\/)/i.test(url) ? url : `https://${url}` }).run();
+    setLinkOpen(false);
+  }
 
   return (
-    <div className="flex min-h-11 flex-wrap items-center gap-0.5 border-b border-border bg-surface-2 px-2 py-1" role="toolbar" aria-label="Text formatting">
-      <ToolButton label="Bold (Ctrl+B)" active={state.bold} onClick={() => editor.chain().focus().toggleBold().run()}><Bold className="size-4" aria-hidden="true" /></ToolButton>
-      <ToolButton label="Italic (Ctrl+I)" active={state.italic} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="size-4" aria-hidden="true" /></ToolButton>
-      <ToolButton label="Bullet list" active={state.bullet} onClick={() => editor.chain().focus().toggleBulletList().run()}><List className="size-4" aria-hidden="true" /></ToolButton>
-      <ToolButton label="Numbered list" active={state.ordered} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered className="size-4" aria-hidden="true" /></ToolButton>
-      <ToolButton label="Quote" active={state.quote} onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quote className="size-4" aria-hidden="true" /></ToolButton>
-      <ToolButton label="Inline code" active={state.code} onClick={() => editor.chain().focus().toggleCode().run()}><Code className="size-4" aria-hidden="true" /></ToolButton>
-      <span aria-hidden="true" className="mx-1 h-5 w-px bg-border" />
-      <ToolButton label="Undo" disabled={!state.undo} onClick={() => editor.chain().focus().undo().run()}><Undo2 className="size-4" aria-hidden="true" /></ToolButton>
-      <ToolButton label="Redo" disabled={!state.redo} onClick={() => editor.chain().focus().redo().run()}><Redo2 className="size-4" aria-hidden="true" /></ToolButton>
-      <span className="ml-auto hidden px-2 text-2xs font-medium text-text-subtle md:inline">* + Space makes a list</span>
+    <div className="border-b border-border bg-surface-2">
+      <div className="flex min-h-11 flex-wrap items-center gap-0.5 px-2 py-1" role="toolbar" aria-label="Text formatting">
+        <ToolButton label="Bold (Ctrl+B)" active={state.bold} onClick={() => chain().toggleBold().run()}><Bold className={icon} aria-hidden="true" /></ToolButton>
+        <ToolButton label="Italic (Ctrl+I)" active={state.italic} onClick={() => chain().toggleItalic().run()}><Italic className={icon} aria-hidden="true" /></ToolButton>
+        <ToolButton label="Strikethrough" active={state.strike} onClick={() => chain().toggleStrike().run()}><Strikethrough className={icon} aria-hidden="true" /></ToolButton>
+        <ToolButton label="Inline code" active={state.code} onClick={() => chain().toggleCode().run()}><Code className={icon} aria-hidden="true" /></ToolButton>
+        <span aria-hidden="true" className="mx-1 h-5 w-px bg-border" />
+        <ToolButton label="Heading" active={state.h2} onClick={() => chain().toggleHeading({ level: 2 }).run()}><Heading2 className={icon} aria-hidden="true" /></ToolButton>
+        <ToolButton label="Subheading" active={state.h3} onClick={() => chain().toggleHeading({ level: 3 }).run()}><Heading3 className={icon} aria-hidden="true" /></ToolButton>
+        <ToolButton label="Bullet list" active={state.bullet} onClick={() => chain().toggleBulletList().run()}><List className={icon} aria-hidden="true" /></ToolButton>
+        <ToolButton label="Numbered list" active={state.ordered} onClick={() => chain().toggleOrderedList().run()}><ListOrdered className={icon} aria-hidden="true" /></ToolButton>
+        <ToolButton label="Quote" active={state.quote} onClick={() => chain().toggleBlockquote().run()}><Quote className={icon} aria-hidden="true" /></ToolButton>
+        <ToolButton label="Code block" active={state.codeBlock} onClick={() => chain().toggleCodeBlock().run()}><SquareCode className={icon} aria-hidden="true" /></ToolButton>
+        <span aria-hidden="true" className="mx-1 h-5 w-px bg-border" />
+        <ToolButton label="Link" active={state.link} onClick={() => { setHref(String(editor.getAttributes("link").href ?? "")); setLinkOpen(!linkOpen); }}><Link2 className={icon} aria-hidden="true" /></ToolButton>
+        <ToolButton label="Upload image" disabled={uploading} onClick={() => onPick("image")}><ImageUp className={icon} aria-hidden="true" /></ToolButton>
+        <ToolButton label="Attach file" disabled={uploading} onClick={() => onPick("file")}><FileUp className={icon} aria-hidden="true" /></ToolButton>
+        {uploading ? <Loader2 className="size-4 animate-spin text-text-muted motion-reduce:animate-none" aria-label="Uploading" /> : null}
+        <span className="ml-auto flex items-center">
+          <ToolButton label="Undo" disabled={!state.undo} onClick={() => chain().undo().run()}><Undo2 className={icon} aria-hidden="true" /></ToolButton>
+          <ToolButton label="Redo" disabled={!state.redo} onClick={() => chain().redo().run()}><Redo2 className={icon} aria-hidden="true" /></ToolButton>
+        </span>
+      </div>
+      {linkOpen ? (
+        <div className="flex items-center gap-2 border-t border-border px-3 py-1.5">
+          <label className="sr-only" htmlFor={linkId}>Link address</label>
+          <input
+            id={linkId}
+            autoFocus
+            value={href}
+            placeholder="Paste a link, then Enter (empty removes it)"
+            onChange={(event) => setHref(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") { event.preventDefault(); applyLink(); }
+              if (event.key === "Escape") { event.preventDefault(); setLinkOpen(false); editor.commands.focus(); }
+            }}
+            className="h-9 min-w-0 flex-1 bg-transparent text-sm text-text outline-none placeholder:text-text-muted"
+          />
+          <button type="button" onClick={applyLink} className="h-9 cursor-pointer rounded-md px-3 text-sm font-semibold text-accent-text hover:bg-surface-3">Apply</button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -227,7 +307,13 @@ function Toolbar({ editor }: { editor: Editor }) {
 function useMarkdownExtensions(placeholder?: string) {
   return useMemo(
     () => [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+        // Markdown has no underline; links are kept ([text](url)).
+        underline: false,
+        link: { openOnClick: false, autolink: true, defaultProtocol: "https", HTMLAttributes: { rel: "noopener noreferrer nofollow", target: "_blank" } },
+      }),
+      TrackerImage,
       ...(placeholder ? [Placeholder.configure({ placeholder })] : []),
     ],
     [placeholder],
@@ -248,6 +334,23 @@ export function MarkdownEditor({
   const onBlurRef = useRef(onBlur);
   const lastEmitted = useRef(value);
   const extensions = useMarkdownExtensions(placeholder);
+  const imageInput = useRef<HTMLInputElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<Editor | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function upload(files: File[]) {
+    const current = editorRef.current;
+    if (!files.length || !current) return;
+    setUploading(true);
+    try {
+      insertUploads(current, await uploadFiles(files));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
   useEffect(() => { onBlurRef.current = onBlur; }, [onBlur]);
@@ -264,6 +367,26 @@ export function MarkdownEditor({
         "aria-multiline": "true",
         "aria-label": ariaLabel ?? "Markdown editor",
       },
+      // Pasted images/files upload; pasted Markdown-looking text becomes formatting.
+      handlePaste: (_view, event) => {
+        const files = Array.from(event.clipboardData?.files ?? []);
+        if (files.length) { event.preventDefault(); void upload(files); return true; }
+        const html = event.clipboardData?.getData("text/html");
+        const text = event.clipboardData?.getData("text/plain") ?? "";
+        if (!html && looksLikeMarkdown(text) && editorRef.current) {
+          event.preventDefault();
+          editorRef.current.chain().focus().insertContent(markdownToHtml(text)).run();
+          return true;
+        }
+        return false;
+      },
+      handleDrop: (_view, event) => {
+        const files = Array.from((event as DragEvent).dataTransfer?.files ?? []);
+        if (!files.length) return false;
+        event.preventDefault();
+        void upload(files);
+        return true;
+      },
     },
     onUpdate: ({ editor: current }) => {
       const next = nodeToMarkdown(current.getJSON()).trimEnd();
@@ -272,6 +395,8 @@ export function MarkdownEditor({
     },
     onBlur: () => onBlurRef.current?.(),
   });
+
+  useEffect(() => { editorRef.current = editor; }, [editor]);
 
   useEffect(() => {
     if (!editor || value === lastEmitted.current) return;
@@ -282,8 +407,10 @@ export function MarkdownEditor({
 
   return (
     <div className={cn("overflow-hidden rounded-xl border border-border-strong bg-surface transition-[border-color,box-shadow] duration-150 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20", className)}>
-      {editor ? <Toolbar editor={editor} /> : <div className="h-11 border-b border-border" />}
+      {editor ? <Toolbar editor={editor} uploading={uploading} onPick={(kind) => (kind === "image" ? imageInput : fileInput).current?.click()} /> : <div className="h-11 border-b border-border" />}
       <EditorContent editor={editor} className="cursor-text bg-surface px-4 py-3" onClick={() => editor?.chain().focus().run()} />
+      <input ref={imageInput} type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden onChange={(event) => { void upload(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
+      <input ref={fileInput} type="file" multiple hidden onChange={(event) => { void upload(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
     </div>
   );
 }

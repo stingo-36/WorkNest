@@ -30,6 +30,8 @@ import { TagInput } from "@/components/ui/tag-input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { TypeIcon, TypeIconsProvider, type TypeIconMap } from "@/components/resources/type-icon";
+import { TagChip, tagChipClass, tagChipStyle } from "@/components/ui/tag-chip";
+import { MarkdownContent, MarkdownEditor } from "@/components/work-log/markdown-editor";
 import { resourceTypeKey, typeMeta } from "@/lib/resource-types";
 
 type ResourceItem = {
@@ -208,7 +210,7 @@ export function ResourceLibrary({
           <aside className="flex min-w-0 flex-col gap-7">
             <nav aria-label="Resource types" className="flex min-w-0 flex-col gap-2">
               <h2 className="tk-label text-text-muted">Type</h2>
-              <ul className="flex gap-1 overflow-x-auto [scrollbar-width:none] lg:flex-col lg:overflow-visible">
+              <ul className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1.5 [scrollbar-width:none] lg:flex-col lg:overflow-visible">
                 {[ALL, ...types].map((type) => {
                   const on = active === type;
                   const count = (byType.get(type) ?? []).length;
@@ -219,13 +221,13 @@ export function ResourceLibrary({
                         aria-current={on ? "page" : undefined}
                         onClick={() => setPicked(type)}
                         className={cn(
-                          "flex min-h-11 w-full cursor-pointer items-center justify-between gap-6 border-text px-3.5 text-md whitespace-nowrap transition-colors duration-150 max-lg:border-b-2 lg:border-l-2",
-                          on ? "font-semibold text-text" : "border-transparent text-text-muted hover:text-text",
+                          "flex min-h-11 w-full cursor-pointer items-center justify-between gap-6 rounded-lg px-3.5 text-md whitespace-nowrap transition-colors duration-150",
+                          on ? "bg-primary-subtle font-semibold text-accent-text" : "text-text-muted hover:bg-surface-2 hover:text-text",
                           Boolean(query) && !count && "opacity-50",
                         )}
                       >
                         {tabLabel(type)}
-                        <span className="text-sm font-medium text-text-muted tabular-nums">{count}</span>
+                        <span className={cn("text-sm font-medium tabular-nums", on ? "text-accent-text" : "text-text-muted")}>{count}</span>
                       </button>
                     </li>
                   );
@@ -237,7 +239,7 @@ export function ResourceLibrary({
             {usedTags.length ? (
               <div role="group" aria-labelledby="resource-tags-label" className="flex flex-col gap-2">
                 <h2 id="resource-tags-label" className="tk-label text-text-muted">Tags</h2>
-                <div className="flex flex-wrap gap-x-3.5 gap-y-1">
+                <div className="flex flex-wrap gap-2">
                   {usedTags.map(([tag, count]) => {
                     const on = query === `#${tag}`;
                     return (
@@ -246,9 +248,11 @@ export function ResourceLibrary({
                         type="button"
                         aria-pressed={on}
                         onClick={() => { setSearch(on ? "" : `#${tag}`); if (!on) setPicked(ALL); }}
-                        className={cn("min-h-9 cursor-pointer font-mono text-sm transition-colors duration-150 hover:text-text", on ? "font-semibold text-text underline decoration-2 underline-offset-4" : "text-text")}
+                        style={tagChipStyle(tag)}
+                        // 36px tap target around a slim capsule; the selected tag gets a solid ring.
+                        className={cn(tagChipClass, "min-h-9 cursor-pointer transition-[filter,box-shadow] duration-150 hover:brightness-95", on && "ring-2 ring-[var(--tag)] ring-offset-1 ring-offset-[var(--c-wl-page)]")}
                       >
-                        #{tag} <span className="text-text-subtle tabular-nums">{count}</span>
+                        #{tag} <span className="tabular-nums opacity-70">{count}</span>
                       </button>
                     );
                   })}
@@ -382,7 +386,7 @@ function ResourceComposer({ initialType, resource, knownTags, typeOptions, onClo
           </>
         ) : (
           <Field label="Description" htmlFor="resource-description">
-            <Textarea id="resource-description" value={description} onChange={(event) => setDescription(event.target.value)} rows={3} placeholder="What is this useful for? Any details worth remembering." />
+            <MarkdownEditor id="resource-description" ariaLabel="Description" value={description} onChange={setDescription} placeholder="What is this useful for? Any details worth remembering — links, images and files welcome." minHeight="min-h-28" />
           </Field>
         )}
 
@@ -543,7 +547,9 @@ function ResourceRow({ resource, onEdit }: { resource: ResourceItem; onEdit: () 
           )}
           <span className="font-mono text-sm text-text-muted">{host && !isCode ? host : typeMeta(resource.type).label.toLowerCase()}</span>
         </h3>
-        {resource.description ? <p className="line-clamp-2 text-md whitespace-pre-line text-text">{resource.description}</p> : null}
+        {/* Formatted (links, images, files); relative z-10 keeps its links clickable above the
+            row-wide title link; capped so one long description can't take over the list. */}
+        {resource.description ? <MarkdownContent value={resource.description} className="relative z-10 max-h-64 overflow-hidden text-md text-text" /> : null}
         {isCode && code ? (
           <div className="relative z-10 mt-1 flex min-w-0 items-start gap-2 rounded-lg border border-[var(--c-tk-rule)] bg-surface py-2 pr-2 pl-3.5">
             <pre className="min-w-0 flex-1 py-0.5 font-mono text-sm leading-relaxed break-words whitespace-pre-wrap text-text">{code}</pre>
@@ -551,8 +557,8 @@ function ResourceRow({ resource, onEdit }: { resource: ResourceItem; onEdit: () 
           </div>
         ) : null}
         {resource.tags.length ? (
-          <p className="flex flex-wrap gap-x-3 gap-y-1 pt-0.5 font-mono text-sm text-text-muted">
-            {resource.tags.map((tag) => <span key={tag}>#{tag}</span>)}
+          <p className="flex flex-wrap gap-1.5 pt-1">
+            {resource.tags.map((tag) => <TagChip key={tag} tag={tag} />)}
           </p>
         ) : null}
       </div>
