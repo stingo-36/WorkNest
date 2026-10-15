@@ -70,7 +70,7 @@ authenticated shell.
 |---|---|---|
 | `/` | `(marketing)/page.tsx` → `HomePage` (`components/home/*`: `home-page`, `feature-showcase`, `doodles`, `recap-avatar` (user's 3D character cut-out `public/home/recap-avatar.webp`; hidden while missing); `screen-motion` (replays each snapped screen's `[data-anim]` entrance on every arrival, direction-aware); styles `(marketing)/home.css` + `app/brand-art.css`) | public |
 | `/login`, `/register` | `(auth)/*/page.tsx` | public; direct sign-in redirects by persisted role (`Admin` → `/admin`, `User` → `/tracker`); an explicit safe callback still wins |
-| `/work-logs` | `(app)/work-logs/page.tsx` | current-sprint deck (`components/work-log/sprint-deck.tsx`; `?day=`); Tracker entries per day via `listTrackerForRange` (actions/lib `follow-ups.ts`) |
+| `/work-logs` | `(app)/work-logs/page.tsx` | sprint deck (`components/work-log/sprint-deck.tsx`; `?day=` picks the day and its sprint, ‹ › step between past sprints; logs loaded for that sprint's range only); Tracker entries per day via `listTrackerForRange` (actions/lib `follow-ups.ts`) |
 | `/work-logs/[workLogId]` | `.../page.tsx` | read-only detail + Copy as text; side rail begins with that day's Tracker to-dos |
 | `/work-logs/[workLogId]/edit` | `.../edit/page.tsx` | `WorkLogEditor` |
 | `/tickets` | `(app)/tickets/page.tsx` | `TicketBoard` (`PageHead`, direct New ticket form, underline status tabs, list + open ticket with editable number/title/project, compact journey and latest update); redirects to `/work-logs` if tickets disabled |

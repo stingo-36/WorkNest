@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { addDays, format, isWeekend, startOfDay } from "date-fns";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { listTrackerForRange } from "@/actions/follow-ups";
 import { getWorkLog, listWorkLogs } from "@/actions/worklog";
@@ -19,17 +21,28 @@ const AUTO_TITLES = new Set<string>(Object.values(DEFAULT_TITLE));
  * Work Logs (deck redesign, 2026-10-09): the current sprint as a row of day
  * columns; the selected day opens into its summary and that day's Tracker
  * to-dos, follow-ups and notes. `?day=YYYY-MM-DD` picks the open day (the deck
- * keeps it in sync). Earlier sprints aren't shown here (owner's call).
+ * keeps it in sync). `?day=` also picks the sprint: a day in an earlier sprint
+ * shows that sprint, and the ‹ › arrows step between sprints (owner, 2026-10-15).
  * The sprint calendar lives in `lib/sprint.ts` — do not re-derive it here.
  */
 export default async function WorkLogsPage({ searchParams }: { searchParams: Promise<{ day?: string }> }) {
-  const [{ day: dayParam }, result, settings] = await Promise.all([searchParams, listWorkLogs({ take: 50 }), requireUserId().then(getUserSettings)]);
+  const [{ day: dayParam }, settings] = await Promise.all([searchParams, requireUserId().then(getUserSettings)]);
   const config = settings.sprint;
-  const logs = result.ok ? result.data.items : [];
   // One `today` for the whole render, so "today" cannot land on two days at midnight.
   const today = startOfDay(new Date());
   const todayKey = format(today, "yyyy-MM-dd");
-  const sprint = getSprint(today, config);
+  const current = getSprint(today, config);
+  // The sprint holding `?day=`; future sprints fall back to the current one.
+  const requested = dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? new Date(`${dayParam}T00:00:00`) : null;
+  const picked = requested && !Number.isNaN(requested.getTime()) ? getSprint(requested, config) : current;
+  const sprint = picked.offset > current.offset ? current : picked;
+  const isCurrent = sprint.offset === current.offset;
+  // Each arrow lands on the other sprint's last day (the deck falls back to its latest openable day).
+  const prevHref = `/work-logs?day=${format(addDays(sprint.start, -1), "yyyy-MM-dd")}`;
+  const nextHref = sprint.offset + 1 === current.offset ? "/work-logs" : `/work-logs?day=${format(addDays(sprint.end, config.days), "yyyy-MM-dd")}`;
+
+  const result = await listWorkLogs({ from: format(sprint.start, "yyyy-MM-dd"), to: format(sprint.end, "yyyy-MM-dd"), take: config.days });
+  const logs = result.ok ? result.data.items : [];
   const allDays = Array.from({ length: config.days }, (_, index) => addDays(sprint.start, index));
   const weekdays = allDays.filter((day) => !isWeekend(day));
 
@@ -116,9 +129,18 @@ export default async function WorkLogsPage({ searchParams }: { searchParams: Pro
     <div className="wl-deck flex flex-col gap-6 xl:gap-7">
       <header className="wl-head relative z-20 flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
         <div className="min-w-0">
-          <p className="pr-16 text-sm font-semibold tracking-[0.12em] text-text-muted uppercase md:pr-0">
-            Sprint · {format(sprint.start, "d MMM")} – {format(sprint.end, "d MMM yyyy")} · Day {elapsed} of {weekdays.length}
-          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pr-16 md:pr-0">
+            <nav className="flex items-center gap-1.5" aria-label="Sprints">
+              <SprintArrow href={prevHref} direction="previous" />
+              <SprintArrow href={isCurrent ? null : nextHref} direction="next" />
+            </nav>
+            <p className="text-sm font-semibold tracking-[0.12em] text-text-muted uppercase">
+              Sprint · {format(sprint.start, "d MMM")} – {format(sprint.end, "d MMM yyyy")} · {isCurrent ? `Day ${elapsed} of ${weekdays.length}` : "Past sprint"}
+            </p>
+            {isCurrent ? null : (
+              <Link href="/work-logs" className="inline-flex min-h-9 items-center text-sm font-semibold text-accent-text underline-offset-4 hover:underline">Back to current sprint</Link>
+            )}
+          </div>
           <h1 className="wl-title mt-2 text-text">Work Logs</h1>
         </div>
         <div className="flex w-full flex-col items-start gap-2.5 pb-1 lg:w-auto lg:items-end">
@@ -131,7 +153,22 @@ export default async function WorkLogsPage({ searchParams }: { searchParams: Pro
         </div>
       </header>
 
-      <SprintDeck items={items} initialDay={initialDay} />
+      {/* Keyed by sprint so stepping between sprints resets the open day. */}
+      <SprintDeck key={format(sprint.start, "yyyy-MM-dd")} items={items} initialDay={initialDay} />
     </div>
+  );
+}
+
+/** ‹ / › to the neighbouring sprint; a dimmed circle when there is none (no future sprints). */
+function SprintArrow({ href, direction }: { href: string | null; direction: "previous" | "next" }) {
+  const Icon = direction === "previous" ? ChevronLeft : ChevronRight;
+  const box = "grid size-9 shrink-0 place-items-center rounded-full border bg-surface transition-colors duration-150";
+  if (!href) {
+    return <span className={`${box} border-border text-text-subtle opacity-50`} aria-hidden="true"><Icon className="size-4" /></span>;
+  }
+  return (
+    <Link href={href} aria-label={`${direction === "previous" ? "Previous" : "Next"} sprint`} title={`${direction === "previous" ? "Previous" : "Next"} sprint`} className={`${box} border-border-strong text-text hover:border-text-subtle hover:bg-surface-2`}>
+      <Icon className="size-4" aria-hidden="true" />
+    </Link>
   );
 }

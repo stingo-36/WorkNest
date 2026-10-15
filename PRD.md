@@ -88,8 +88,10 @@ update.*
 - **Day type:** `Work`, `Holiday` or `Leave`. Holiday/Leave days account for the day
   without meetings or ticket work; their default titles are "Holiday" / "Leave"
   (a work day defaults to "Daily Work Log"). Auto-generated titles are hidden in the UI.
-- **Listing (`/work-logs`, deck redesign 2026-10-09):** the **current sprint only**. An
-  eyebrow (sprint dates · day N of M), a large **Work Logs** title, a **Jump to a day or
+- **Listing (`/work-logs`, deck redesign 2026-10-09):** one sprint at a time — the current one by
+  default; **‹ › arrows** step to earlier sprints (no future ones; *Back to current sprint*
+  returns), and `?day=` in an earlier sprint opens that sprint. An
+  eyebrow (sprint dates · day N of M, or *Past sprint*), a large **Work Logs** title, a **Jump to a day or
   ticket** search (⌘K; matches this sprint's dates, titles and ticket keys/titles, and opens
   the picked day) and a legend. Below: the **sprint deck** — one column per weekday (logged · day off hatched · no log amber dashed with + ·
   today ink · upcoming / sprint ends), a *Weekend* spacer between weeks; clicking a column
@@ -101,7 +103,7 @@ update.*
   waiting / replied / closed) and **Notes** (created or added to that day), each with an
   Open link to its Tracker tab. Summary sits on the left; of the lists that exist (in the order to-dos, follow-ups, notes), the first goes on the right, the second under Summary on the left, the third back on the right. **Empty sections are hidden** (no "No X that day" rows), so whichever lists exist move up. `?day=` keeps the open day. From lg the page fits the screen
   above the dock (the card scrolls inside); below lg the columns become rows. Future days
-  inert. Earlier sprints aren't browsable here (the full log and Reports cover them).
+  inert.
 - **Editor (`/work-logs/[id]/edit`, redesigned 2026-10-08 as a document page):** an
   action strip (prev/next log arrows, All work logs, day type, save status, View log),
   then the log as **one white document** — large date, title field, and each section
