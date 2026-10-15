@@ -126,13 +126,13 @@ update.*
   4. **Attachments** — upload files (≤10 MB each, ≤10 per upload) or add links.
 - **Autosave** is debounced, shows a save-status indicator, never toasts, and never
   creates duplicate rows.
-- **Detail (`/work-logs/[id]`, redesigned 2026-10-08):** a **dark slate details panel**
-  on the left (prev/next, big date, day type, counts — tickets / meetings / to-dos done —
-  Edit log, **Copy as text** — the whole log as plain text for stand-ups, chat or email —
-  attachments & links, activity) and a **bento of cards** on the right: the **Summary**
-  full width, then independent columns that use their height efficiently — Ticket work
-  and Meeting notes on the left; the day's **To-dos**, Ticket history and Work done
-  stacked from the top on the right.
+- **Detail (`/work-logs/[id]`, redesigned 2026-10-15 from the owner's mockup):** "‹ All
+  work logs" with ‹ › to neighbouring logs on top; a full-width **dark hero** (date + day
+  type, the log's title — or the date — Edit log, **Copy as text**, and three counts:
+  tickets / meetings / to-dos done); then the log on the left — **AI summary**, **Ticket
+  work**, **Meetings** as note tiles (3 across on wide screens) — and a sticky right column:
+  the day's **To-dos**, **Ticket history**, and **Details** (Work done, attachments &
+  links, activity + who).
 - **AI summary and title in the background (2026-10-09):** leaving a log's editor
   (navigating away, closing or reloading the tab) refreshes the AI summary in the
   background — and the **title**, while it's still the default "Daily Work Log" or was
@@ -312,8 +312,8 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
 - Layout (owner's mockup, 2026-10-14): **Resources** title + one-line description on the
   left; an underline search (⌘K; text and `#tag`) and an ink **Add resource** button on
   the right; a rule. Below, a **Type / Tags** column (a sideways strip above the list under
-  lg): *All* (default) then each type with counts, on a white card with the current one
-  tinted; tags as **coloured capsules** with counts (brand colour for known tags such as
+  lg): *All* (default) then each type with counts, on a dark panel with the current one
+  as a light pill; tags as **solid coloured capsules** with counts (brand colour for known tags such as
   *android* or *github*, else a stable colour from the name; a click shows All filtered by
   `#tag`, again clears). Row tags and Tracker note tags use the same capsules. Beside it
   one list headed "ALL RESOURCES · 7" (or the type) with a sort menu (*Recently added* ·
