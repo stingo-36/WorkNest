@@ -39,7 +39,9 @@ import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { TagInput } from "@/components/ui/tag-input";
 import { toast } from "@/components/ui/toast";
-import { FormattedNote, useNoteFormatting } from "@/components/tracker/note-text";
+import { FormattedNote } from "@/components/tracker/note-text";
+import { UpdateDoc, UpdateEditor, type EditorValue } from "@/components/tracker/update-editor";
+import { tagChipClass, tagChipStyle } from "@/components/ui/tag-chip";
 import type {
   EntryKind,
   FollowUpStatus,
@@ -53,6 +55,8 @@ type TrackerUpdate = {
   occurredAt: string;
   /** Their reply, not something you said. Only meaningful on a follow-up. */
   fromThem: boolean;
+  /** Rich text (TipTap JSON) when written in the editor; `note` is its plain text. */
+  doc?: unknown;
   createdAt: string;
 };
 
@@ -334,7 +338,10 @@ export function TrackerBoard({
     <div className="tk-focus flex w-full min-w-0 flex-col gap-12">
       {/* Owner's mockup (2026-10-14, second pass): date eyebrow, then the title with the
           add field beside it; two columns below. Tabs (and search) sit on the top line. */}
-      <header className="flex flex-col gap-4">
+      {/* relative z-20: the page's entrance animation leaves each block in its own stacking
+          layer, so without this the columns below paint over (and swallow clicks on) the
+          add field's date / who panels. */}
+      <header className="relative z-20 flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <p className="tk-eyebrow text-text-muted" suppressHydrationWarning>{format(parseISO(today), "EEE d MMM yyyy")}</p>
           <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
@@ -623,7 +630,7 @@ function FinishedGroup({ verb, entries, today, needle, render }: { verb: string;
 /** One row: optional leading tick, a status eyebrow, the title (opens the entry), extra lines, actions. */
 function Row({ muted = false, needs = false, eyebrow, leading, title, meta, actions, onOpen }: { muted?: boolean; needs?: boolean; eyebrow?: React.ReactNode; leading?: React.ReactNode; title: string; meta?: React.ReactNode; actions?: React.ReactNode; onOpen: () => void }) {
   return (
-    <li className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-border py-4.5">
+    <li className="group flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-border py-4.5">
       <div className="flex min-w-0 flex-[1_1_14rem] items-start gap-3">
         {leading}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -690,6 +697,38 @@ function ActionPill({ ink = false, label, action, success }: { ink?: boolean; la
 
 function OpenPill({ ink = false, onOpen }: { ink?: boolean; onOpen: () => void }) {
   return <button type="button" onClick={onOpen} className={cn(PILL, ink ? PILL_INK : PILL_LINE)}>Open</button>;
+}
+
+/**
+ * Delete from the row (owner, 2026-10-15) — the dialog also has it. Asks first;
+ * removes the entry and everything recorded on it. Shows on hover/focus from md.
+ */
+function DeleteEntry({ entry }: { entry: TrackerEntry }) {
+  const { run, pending } = useRun();
+  const [asking, setAsking] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={`Delete: ${entry.subject}`}
+        title="Delete"
+        disabled={pending}
+        onClick={() => setAsking(true)}
+        className="grid size-11 shrink-0 cursor-pointer place-items-center rounded-full text-text-subtle transition-[color,background-color,opacity] duration-150 hover:bg-surface-2 hover:text-danger disabled:cursor-wait md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+      >
+        <Trash2 className="size-4.5" strokeWidth={1.8} aria-hidden="true" />
+      </button>
+      <ConfirmationDialog
+        open={asking}
+        title={`Delete “${entry.subject}”?`}
+        description="This removes it and everything recorded on it. It can't be undone."
+        confirmLabel="Delete"
+        destructive
+        onCancel={() => setAsking(false)}
+        onConfirm={() => { setAsking(false); run(() => deleteFollowUp({ followUpId: entry.id }), "Deleted"); }}
+      />
+    </>
+  );
 }
 
 /** The star on a row: favourite on/off (favourites sort first and show in Favourites). */
@@ -869,7 +908,7 @@ function useCreate(onSaved: () => void) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string>();
   function create(
-    input: { kind: EntryKind; subject: string; person?: string; note?: string; channel?: string; dueDate?: string | null; tags?: string[] },
+    input: { kind: EntryKind; subject: string; person?: string; note?: string; doc?: unknown; channel?: string; dueDate?: string | null; occurredAt?: string | null; tags?: string[] },
     pinned: boolean,
   ) {
     startTransition(async () => {
@@ -930,7 +969,8 @@ function TodoQueue({ entries, today, needle, onOpen }: { entries: TrackerEntry[]
       else if (!isOpen(entry)) { if (entry.kind === "Task") groups.done.push(entry); }
       else if (entry.kind === "Task" || entry.dueDate) groups.coming.push(entry);
     }
-    groups.needs.sort(byNeed);
+    // To-dos lead Today, then the follow-ups that need you (owner, 2026-10-15).
+    groups.needs.sort((a, b) => Number(a.kind !== "Task") - Number(b.kind !== "Task") || byNeed(a, b));
     groups.coming.sort(byDue);
     groups.done.sort(byCompleted);
     return groups;
@@ -1014,7 +1054,7 @@ function TodoRow({ entry, today, mode, onOpen }: { entry: TrackerEntry; today: s
       title={entry.subject}
       onOpen={onOpen}
       meta={<LatestLine entry={entry} />}
-      actions={<FavouriteToggle entry={entry} />}
+      actions={<><DeleteEntry entry={entry} /><FavouriteToggle entry={entry} /></>}
     />
   );
 }
@@ -1158,7 +1198,7 @@ function FollowUpRow({ entry, today, compact = false, onOpen }: { entry: Tracker
         title={entry.subject}
         onOpen={onOpen}
         meta={<LatestLine entry={entry} />}
-        actions={<span className="text-sm text-text-muted">{person}</span>}
+        actions={<><span className="text-sm text-text-muted">{person}</span><DeleteEntry entry={entry} /></>}
       />
     );
   }
@@ -1177,18 +1217,21 @@ function FollowUpRow({ entry, today, compact = false, onOpen }: { entry: Tracker
         </>
       }
       actions={
-        state === "closed" ? (
-          <ActionPill label="Reopen" action={markOpen(entry)} success="Reopened" />
-        ) : state === "replied" ? (
-          <ActionPill ink label="Got it" action={markDone(entry)} success="Closed" />
-        ) : needs ? (
-          <NudgePill entry={entry} ink />
-        ) : (
-          <>
-            <NudgePill entry={entry} ink={false} />
-            <ActionPill label="Got it" action={markDone(entry)} success="Closed" />
-          </>
-        )
+        <>
+          <DeleteEntry entry={entry} />
+          {state === "closed" ? (
+            <ActionPill label="Reopen" action={markOpen(entry)} success="Reopened" />
+          ) : state === "replied" ? (
+            <ActionPill ink label="Got it" action={markDone(entry)} success="Closed" />
+          ) : needs ? (
+            <NudgePill entry={entry} ink />
+          ) : (
+            <>
+              <NudgePill entry={entry} ink={false} />
+              <ActionPill label="Got it" action={markDone(entry)} success="Closed" />
+            </>
+          )}
+        </>
       }
     />
   );
@@ -1226,7 +1269,7 @@ function NoteQueue({ entries, suggestions, today, needle, onOpen, onTag }: { ent
   return (
     <Columns>
       <Column title="New note">
-        <div className="pt-5"><AddNote suggestions={suggestions} /></div>
+        <div className="relative z-10 pt-5"><AddNote suggestions={suggestions} today={today} /></div>
         <FinishedGroup verb="archived" entries={archived} today={today} needle={needle} render={row} />
       </Column>
       <Column title="Notes" count={live.length}>
@@ -1236,19 +1279,35 @@ function NoteQueue({ entries, suggestions, today, needle, onOpen, onTag }: { ent
   );
 }
 
-function AddNote({ suggestions }: { suggestions: string[] }) {
+function AddNote({ suggestions, today }: { suggestions: string[]; today: string }) {
   const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
+  const [body, setBody] = useState<EditorValue>({ doc: null, text: "", hasContent: false });
+  // Remounting the editor (new key) is how it clears after a save.
+  const [editorKey, setEditorKey] = useState(0);
+  const [date, setDate] = useState(today);
   const [tags, setTags] = useState<string[]>([]);
   const [pinned, setPinned] = useState(false);
-  const [panel, setPanel] = useState(false);
-  const { create, pending, error, setError } = useCreate(() => { setSubject(""); setBody(""); setTags([]); setPinned(false); setPanel(false); });
-  const { bar, formatKey } = useNoteFormatting("add-note-body", body, setBody);
+  const [panel, setPanel] = useState<"tags" | "date" | null>(null);
+  const { create, pending, error, setError } = useCreate(() => {
+    setSubject(""); setBody({ doc: null, text: "", hasContent: false }); setEditorKey((key) => key + 1);
+    setDate(today); setTags([]); setPinned(false); setPanel(null);
+  });
 
   function save() {
     if (pending) return;
     if (!subject.trim()) { setError("Give the note a title"); document.getElementById("add-note")?.focus(); return; }
-    create({ kind: "Note", subject: subject.trim().slice(0, 300), note: body.trim() || undefined, channel: "Other", tags }, pinned);
+    create(
+      {
+        kind: "Note",
+        subject: subject.trim().slice(0, 300),
+        ...(body.hasContent ? { doc: body.doc, note: body.text } : {}),
+        channel: "Other",
+        // The note's date: now when it's today, else midday of the chosen day (no timezone drift).
+        occurredAt: date && date !== today ? new Date(`${date}T12:00:00`).toISOString() : null,
+        tags,
+      },
+      pinned,
+    );
   }
 
   return (
@@ -1262,22 +1321,12 @@ function AddNote({ suggestions }: { suggestions: string[] }) {
           placeholder="Note title"
           aria-invalid={error ? true : undefined}
           onChange={(event) => { setSubject(event.target.value); setError(undefined); }}
-          className="min-w-0 bg-transparent px-5 pt-4 pb-3 text-lg font-semibold text-text outline-none placeholder:font-medium placeholder:text-text-muted"
+          className="min-w-0 border-b border-border bg-transparent px-5 pt-4 pb-3 text-lg font-semibold text-text outline-none placeholder:font-medium placeholder:text-text-muted"
         />
-        <div className="border-y border-border px-2">{bar}</div>
-        <label htmlFor="add-note-body" className="sr-only">Note</label>
-        <textarea
-          id="add-note-body"
-          value={body}
-          rows={5}
-          maxLength={10_000}
-          placeholder="Write the note…"
-          onChange={(event) => setBody(event.target.value)}
-          onKeyDown={(event) => { if (formatKey(event)) return; if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); save(); } }}
-          className="min-h-32 resize-y bg-transparent px-5 py-3 text-md leading-6 text-text outline-none placeholder:text-text-muted"
-        />
+        <UpdateEditor key={editorKey} id="add-note-body" label="Note" placeholder="Write the note… paste formatted text, images or files" minHeight="min-h-40" onChange={setBody} onSubmit={save} />
         <div className="flex flex-wrap items-center gap-1 border-t border-border py-1.5 pr-1.5 pl-2">
-          <ToolButton label={tags.length ? `Tags: ${tags.join(", ")}` : "Add a tag"} expanded={panel} onClick={() => setPanel(!panel)} className={tags.length ? "text-text" : undefined}>
+          <DateTool label="Note date" value={date} today={today} expanded={panel === "date"} onClick={() => setPanel(panel === "date" ? null : "date")} />
+          <ToolButton label={tags.length ? `Tags: ${tags.join(", ")}` : "Add a tag"} expanded={panel === "tags"} onClick={() => setPanel(panel === "tags" ? null : "tags")} className={tags.length ? "text-text" : undefined}>
             <Hash className="size-5" strokeWidth={1.8} aria-hidden="true" />
             {tags.length ? <span className="max-w-48 truncate">{tags.map((tag) => `#${tag}`).join(" ")}</span> : null}
           </ToolButton>
@@ -1288,12 +1337,14 @@ function AddNote({ suggestions }: { suggestions: string[] }) {
           </button>
         </div>
       </div>
-      {panel ? (
-        <PillPanel label="Tags" onClose={() => setPanel(false)}>
+      {panel === "tags" ? (
+        <PillPanel label="Tags" onClose={() => setPanel(null)}>
           <Field label="Tags" htmlFor="add-note-tags" hint="Enter or comma adds a tag.">
             <TagInput id="add-note-tags" value={tags} onChange={setTags} suggestions={suggestions} placeholder="e.g. drupal, deploy" />
           </Field>
         </PillPanel>
+      ) : panel === "date" ? (
+        <DatePanel id="add-note-date" label="Note date" hint="Optional — today unless you pick another day." value={date} onChange={setDate} onClose={() => setPanel(null)} />
       ) : null}
       {error ? <p className="mt-2 px-1 text-base font-medium text-danger" role="alert">{error}</p> : null}
     </form>
@@ -1311,7 +1362,7 @@ function NoteRow({ entry, today, onOpen, onTag }: { entry: TrackerEntry; today: 
         <>
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 pt-1 text-base font-medium text-text-muted">
             {entry.tags.map((tag) => (
-              <button key={tag} type="button" onClick={() => onTag(tag)} title={`Show notes tagged #${tag}`} className="cursor-pointer rounded-full bg-primary-subtle px-2.5 py-0.5 font-semibold text-accent-text hover:underline">
+              <button key={tag} type="button" onClick={() => onTag(tag)} title={`Show notes tagged #${tag}`} style={tagChipStyle(tag)} className={cn(tagChipClass, "cursor-pointer hover:brightness-95")}>
                 #{tag}
               </button>
             ))}
@@ -1323,6 +1374,7 @@ function NoteRow({ entry, today, onOpen, onTag }: { entry: TrackerEntry; today: 
       }
       actions={
         <>
+          <DeleteEntry entry={entry} />
           {archived ? <ActionPill label="Restore" action={markOpen(entry)} success="Restored" /> : <OpenPill onOpen={onOpen} />}
           <FavouriteToggle entry={entry} />
         </>
@@ -1471,19 +1523,18 @@ function AddUpdateForm({ entry }: { entry: TrackerEntry }) {
   const { run, pending } = useRun();
   const isFollowUp = entry.kind === "FollowUp";
   const [fromThem, setFromThem] = useState(isFollowUp && followStateOf(entry) === "waiting");
-  const [note, setNote] = useState("");
+  const [value, setValue] = useState<EditorValue>({ doc: null, text: "", hasContent: false });
   const { channels } = useContext(ListsContext);
   const [channel, setChannel] = useState(isFollowUp ? defaultChannel(channels) : "Other");
   const person = entry.person ?? "They";
 
   const label = isFollowUp ? (fromThem ? `What did ${person} say?` : "What did you tell them?") : entry.kind === "Task" ? "Add a note" : "Add to this note";
-  const canSave = fromThem || note.trim().length > 0;
-  const { bar, formatKey } = useNoteFormatting(`note-${entry.id}`, note, setNote);
+  const canSave = fromThem || value.hasContent;
 
   function save() {
     if (!canSave) return;
     run(
-      () => addFollowUpUpdate({ followUpId: entry.id, note, channel: isFollowUp ? channel : "Other", fromThem: isFollowUp ? fromThem : false }),
+      () => addFollowUpUpdate({ followUpId: entry.id, note: value.text, ...(value.hasContent ? { doc: value.doc } : {}), channel: isFollowUp ? channel : "Other", fromThem: isFollowUp ? fromThem : false }),
       isFollowUp ? (fromThem ? "Reply recorded" : "Message recorded") : "Added",
     );
   }
@@ -1516,22 +1567,10 @@ function AddUpdateForm({ entry }: { entry: TrackerEntry }) {
 
       {/* One field with its toolbar inside it (like CKEditor), not a separate row. */}
       <div className="flex flex-col gap-1.5">
-        <label htmlFor={`note-${entry.id}`} className="text-sm font-semibold text-text">{label}</label>
-        <div className="flex flex-col overflow-hidden rounded-xl border border-border-strong bg-surface transition-colors duration-150 focus-within:border-primary focus-within:shadow-[var(--sh-focus)]">
-          <div className="border-b border-border px-1">{bar}</div>
-          <textarea
-            id={`note-${entry.id}`}
-            aria-describedby={`note-${entry.id}-hint`}
-            // Notes are where the writing happens: give them room.
-            rows={entry.kind === "Note" ? 7 : 4}
-            maxLength={10_000}
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-            onKeyDown={(event) => { if (formatKey(event)) return; if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); save(); } }}
-            className="min-h-28 resize-y bg-transparent px-3.5 py-3 text-md leading-6 text-text outline-none"
-          />
-        </div>
-        <p id={`note-${entry.id}-hint`} className="text-sm text-text-muted">{isFollowUp && fromThem ? "Optional — leave blank to just mark it replied." : "⌘/Ctrl + Enter saves."}</p>
+        {/* The editor is a contenteditable (aria-label = this text), not a form field a <label> can target. */}
+        <p aria-hidden="true" className="text-sm font-semibold text-text">{label}</p>
+        <UpdateEditor boxed id={`note-${entry.id}`} label={label} placeholder="Write, or paste formatted text, images or files" minHeight={entry.kind === "Note" ? "min-h-44" : "min-h-28"} onChange={setValue} onSubmit={save} />
+        <p className="text-sm text-text-muted">{isFollowUp && fromThem ? "Optional — leave blank to just mark it replied." : "⌘/Ctrl + Enter saves. Images and files up to 4 MB."}</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -1578,7 +1617,9 @@ function Timeline({ entry }: { entry: TrackerEntry }) {
                     <time dateTime={update.occurredAt}>{format(parseISO(update.occurredAt), "EEE d MMM yyyy, HH:mm")}</time>
                     {isFollowUp ? ` · ${update.channel}` : ""}
                   </p>
-                  {update.note ? (
+                  {update.doc ? (
+                    <UpdateDoc doc={update.doc} className="mt-1 text-md" />
+                  ) : update.note ? (
                     <FormattedNote text={update.note} className="mt-1 text-md leading-6 text-text" />
                   ) : (
                     <p className="mt-1 text-sm text-text-muted italic">{update.fromThem ? "Replied" : "—"}</p>

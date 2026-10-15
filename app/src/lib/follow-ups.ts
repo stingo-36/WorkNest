@@ -3,6 +3,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { EntryKind, FollowUpStatus } from "@/generated/prisma/enums";
+import { docFileIds, docToText } from "@/lib/rich-text";
 
 /**
  * Follow-ups — "what did I tell whom, and when".
@@ -27,6 +28,8 @@ export type FollowUpInput = {
   dueDate?: Date | null;
   /** The first thing you told them. Optional — a thread can start empty. */
   note?: string;
+  /** Rich text (TipTap JSON); when given, `note` is derived from it. */
+  doc?: unknown;
   channel?: string;
   /** When that first conversation happened. Defaults to now. */
   occurredAt?: Date | null;
@@ -51,8 +54,39 @@ const UPDATE_SELECT = {
   channel: true,
   occurredAt: true,
   fromThem: true,
+  doc: true,
   createdAt: true,
 } satisfies Prisma.FollowUpUpdateSelect;
+
+/** Rich text in, plain text alongside: the doc is stored, `note` is what everything else reads. */
+function noteFields(input: { note?: string; doc?: unknown }) {
+  const doc = input.doc && typeof input.doc === "object" ? (input.doc as Prisma.InputJsonValue) : undefined;
+  return { note: (doc ? docToText(doc) : input.note ?? "").trim(), doc };
+}
+
+/** Claim the uploads a saved doc points at, so they belong to (and are deleted with) the entry. */
+async function linkFiles(userId: string, followUpId: string, doc: unknown) {
+  const ids = docFileIds(doc);
+  if (!ids.length) return;
+  await prisma.followUpFile.updateMany({ where: { id: { in: ids }, userId }, data: { followUpId } });
+}
+
+/** One uploaded image/file, before it's in any saved update. */
+export async function addTrackerFiles(userId: string, files: Array<{ name: string; mimeType: string; bytes: Uint8Array<ArrayBuffer> }>) {
+  return prisma.$transaction(
+    files.map((file) =>
+      prisma.followUpFile.create({
+        data: { userId, name: file.name, mimeType: file.mimeType, size: file.bytes.byteLength, data: file.bytes },
+        select: { id: true, name: true, mimeType: true, size: true },
+      }),
+    ),
+  );
+}
+
+/** The owner's file, for download. */
+export async function getTrackerFile(userId: string, fileId: string) {
+  return prisma.followUpFile.findFirst({ where: { id: fileId, userId }, select: { name: true, mimeType: true, data: true } });
+}
 
 const FOLLOW_UP_SELECT = {
   id: true,
@@ -75,9 +109,9 @@ const FOLLOW_UP_SELECT = {
 } satisfies Prisma.FollowUpSelect;
 
 export async function createFollowUp(userId: string, input: FollowUpInput) {
-  const note = input.note?.trim();
+  const { note, doc } = noteFields(input);
 
-  return prisma.followUp.create({
+  const created = await prisma.followUp.create({
     data: {
       userId,
       kind: input.kind ?? EntryKind.FollowUp,
@@ -92,12 +126,13 @@ export async function createFollowUp(userId: string, input: FollowUpInput) {
       tags: normalizeTags(input.tags),
       // A first note is written as a real update row, not as a field on the
       // thread, so day one is history in exactly the same shape as day ten.
-      ...(note
+      ...(note || doc
         ? {
             updates: {
               create: {
                 userId,
                 note,
+                doc,
                 channel: input.channel ?? "Slack",
                 occurredAt: input.occurredAt ?? new Date(),
               },
@@ -107,6 +142,8 @@ export async function createFollowUp(userId: string, input: FollowUpInput) {
     },
     select: FOLLOW_UP_SELECT,
   });
+  await linkFiles(userId, created.id, doc);
+  return created;
 }
 
 /**
@@ -118,6 +155,7 @@ export async function addFollowUpUpdate(
   followUpId: string,
   input: {
     note: string;
+    doc?: unknown;
     channel?: string;
     occurredAt?: Date | null;
     fromThem?: boolean;
@@ -134,12 +172,14 @@ export async function addFollowUpUpdate(
     data: {
       followUpId,
       userId,
-      note: input.note.trim(),
+      ...noteFields(input),
       channel: input.channel ?? "Slack",
       occurredAt: input.occurredAt ?? new Date(),
       fromThem: input.fromThem ?? false,
     },
   });
+
+  await linkFiles(userId, followUpId, input.doc);
 
   // Touch the thread so "recently active" ordering stays honest.
   await prisma.followUp.updateMany({

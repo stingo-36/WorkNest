@@ -4,7 +4,7 @@
 > changes scope, or is retired, update the matching section here (see
 > `AGENTS.md → Keeping the docs current`).
 >
-> Last synced with the codebase: **2026-10-14**
+> Last synced with the codebase: **2026-10-15**
 
 ---
 
@@ -212,14 +212,29 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   the nudge date, so the row moves to *Waiting*.
 - A follow-up needs a person: *Add* without one opens the Who panel with an error. The
   title is recorded as the first message (with the channel).
-- A new note is a composer card: title, a Bold / Italic / List toolbar (⌘/Ctrl+B, +I),
-  a roomy body (saved as its first update), tags and ★. In the entry dialog the
-  add-update field has the same toolbar inside its border, CKEditor-style. Later text goes in as updates.
-  Updates stay plain text with a small Markdown subset (`**bold**`, `*italic*`, `- ` lists,
-  bare links), rendered as React nodes — never HTML. File/image uploads are not built.
+- Writing (new note body and every add-update field) uses a **rich editor** (2026-10-15)
+  with its toolbar inside the field: bold, italic, underline, strike, highlight, inline
+  code · heading, subheading · bulleted, numbered, checklist, quote, code block, divider ·
+  link, **upload image**, **attach file** · undo/redo. Pasted formatted text keeps its
+  formatting; pasted Markdown-looking text (lists, headings, `**bold**`…) is converted;
+  pasted or dropped images/files upload (≤4 MB each, ≤5 at a time) — images show inline,
+  other files become 📎 links. Saved as TipTap JSON plus a plain-text copy, so search, AI
+  summaries and Work Logs read it unchanged. Older plain-text updates still render with
+  the small Markdown subset.
+- **Every large text field** has the same kind of editor (2026-10-15): Work Log and
+  Ticket Markdown fields, Resource and Achievement descriptions get bold, italic, strike,
+  inline code, heading, subheading, lists, quote, code block, link, **image upload** and
+  **file attach** (paste/drop too; Markdown text pastes as formatting). They still store
+  Markdown — links as `[text](url)`, images as `![alt](/api/tracker-files/…)` — and render
+  formatted; Favourites shows a plain preview. Single-line fields stay plain.
+- A new note is a composer card: title, the editor (saved as its first update), an
+  optional **date** (defaults to today; sets the first update's date), tags and ★.
   Tag chips on note rows put `#tag` in the search (the old tag-chip filter row and
   *Group by tag* were dropped with the redesign).
 - Any entry can be **starred as a favourite** (sorts first; open ones show in Favourites).
+- Every row has a **delete** button (trash, shown on hover/focus from md, always on phones)
+  with a confirmation; the dialog keeps its own Delete too. *Today* lists to-dos before
+  the follow-ups that need you.
 - Clicking a title (or *Open*) opens the entry in a wide **dialog** at every width — two
   columns from md: on the left status, date (editable), Done / Close / Archive, star,
   delete and the add-update form (formatting bar; follow-ups pick "I followed up" or
@@ -297,11 +312,13 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
 - Layout (owner's mockup, 2026-10-14): **Resources** title + one-line description on the
   left; an underline search (⌘K; text and `#tag`) and an ink **Add resource** button on
   the right; a rule. Below, a **Type / Tags** column (a sideways strip above the list under
-  lg): *All* (default) then each type with counts, the current one marked with an ink bar;
-  tags in mono with counts (a click shows All filtered by `#tag`, again clears). Beside it
+  lg): *All* (default) then each type with counts, on a white card with the current one
+  tinted; tags as **coloured capsules** with counts (brand colour for known tags such as
+  *android* or *github*, else a stable colour from the name; a click shows All filtered by
+  `#tag`, again clears). Row tags and Tracker note tags use the same capsules. Beside it
   one list headed "ALL RESOURCES · 7" (or the type) with a sort menu (*Recently added* ·
   *Recently updated* · *A–Z*). Each row: an initials tile (ink / teal / amber, fixed per
-  title), the title (opens the URL ↗) with the site in mono, description, mono tags;
+  title), the title (opens the URL ↗) with the site in mono, description, tag capsules;
   edit/delete on hover from md and the star. Commands/snippets add their code line with Copy.
   Types that read the same on screen (built-in *Website* shows as "Websites", like a
   custom *Websites*) are one type, and Profile refuses adding such a duplicate.

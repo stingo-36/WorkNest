@@ -385,6 +385,17 @@ export const followUpDueDateSchema = z
     return parsed;
   });
 
+/**
+ * A Tracker update's rich text: a TipTap document, capped by serialised size.
+ * It's rendered only through the editor schema (unknown nodes and non-upload
+ * image sources are dropped there), never as raw HTML.
+ */
+const richDocSchema = z
+  .unknown()
+  .optional()
+  .refine((value) => value === undefined || (typeof value === "object" && value !== null && (value as { type?: unknown }).type === "doc"), "Invalid text")
+  .refine((value) => value === undefined || JSON.stringify(value).length <= 300_000, "That note is too long");
+
 export const createFollowUpSchema = z
   .object({
     kind: entryKindSchema.default("FollowUp"),
@@ -395,6 +406,7 @@ export const createFollowUpSchema = z
     dueDate: followUpDueDateSchema,
     /** Optional: a thread can be opened before there is anything to record. */
     note: z.string().trim().max(10_000).optional(),
+    doc: richDocSchema,
     channel: followUpChannelSchema.optional(),
     occurredAt: optionalDateSchema,
     tags: tagsSchema,
@@ -426,12 +438,13 @@ export const addFollowUpUpdateSchema = z
   .object({
     followUpId: idSchema,
     note: z.string().trim().max(10_000),
+    doc: richDocSchema,
     channel: followUpChannelSchema.optional(),
     occurredAt: optionalDateSchema,
     fromThem: z.boolean().optional(),
   })
   .superRefine((value, ctx) => {
-    if (!value.fromThem && !value.note) {
+    if (!value.fromThem && !value.note && !value.doc) {
       ctx.addIssue({ code: "custom", path: ["note"], message: "Write something first" });
     }
   });

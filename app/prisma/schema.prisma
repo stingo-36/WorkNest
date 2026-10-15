@@ -146,6 +146,7 @@ model User {
   links                Link[]
   resources            Resource[]
   followUps            FollowUp[]
+  followUpFiles        FollowUpFile[]
   lists                UserList[]
   achievements         Achievement[]
   achievementFiles     AchievementFile[]
@@ -379,6 +380,7 @@ model FollowUp {
 
   user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   updates FollowUpUpdate[]
+  files   FollowUpFile[]
 
   @@index([userId])
   @@index([userId, kind])
@@ -404,6 +406,9 @@ model FollowUpUpdate {
   /// A follow-up whose newest row is from them is "replied"; otherwise it is
   /// still waiting on them. Derived, so there is no status to drift.
   fromThem   Boolean         @default(false)
+  /// Rich text (TipTap JSON) when written in the editor; `note` then holds its
+  /// plain text, which search, AI summaries and Work Logs keep reading.
+  doc        Json?
   createdAt  DateTime        @default(now())
 
   followUp FollowUp @relation(fields: [followUpId], references: [id], onDelete: Cascade)
@@ -413,6 +418,26 @@ model FollowUpUpdate {
   @@index([followUpId])
   @@index([followUpId, occurredAt])
   @@index([userId, occurredAt])
+}
+
+/// An image or file put into a Tracker update. Uploaded while writing, so it can
+/// exist before its entry does (a new note): `followUpId` is set when the entry
+/// or update that references it is saved. Stored in Postgres, ≤4 MB each.
+model FollowUpFile {
+  id         String    @id @default(cuid())
+  userId     String
+  followUpId String?
+  name       String
+  mimeType   String
+  size       Int
+  data       Bytes
+  createdAt  DateTime  @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  followUp FollowUp? @relation(fields: [followUpId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([followUpId])
 }
 
 // ---------------------------------------------------------------------------

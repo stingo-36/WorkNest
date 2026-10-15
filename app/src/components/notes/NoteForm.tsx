@@ -427,9 +427,10 @@ export function NoteForm({
           type="button"
           onClick={addSection}
           className={cn(
-            "mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border-strong/60 bg-surface px-4 py-3",
-            "text-sm font-semibold text-text-muted transition-colors",
-            "hover:border-primary hover:bg-card-tint hover:text-accent-text",
+            // Tinted, not blank white (owner, 2026-10-15): reads as an action, fills on hover.
+            "mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-primary/40 bg-primary-subtle px-4 py-3",
+            "text-sm font-semibold text-accent-text transition-colors",
+            "hover:border-primary hover:bg-primary hover:text-primary-fg",
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
           )}
         >

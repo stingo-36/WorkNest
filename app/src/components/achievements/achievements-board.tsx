@@ -15,7 +15,7 @@ import { Field, FormError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { MarkdownContent, MarkdownEditor } from "@/components/work-log/markdown-editor";
 import { toast } from "@/components/ui/toast";
 import { formatBytes } from "@/components/work-log/attachment-utils";
 
@@ -174,7 +174,7 @@ function AchievementEntry({ item, side, onEdit, onDelete }: { item: AchievementI
               </span>
             </p>
             <h3 className="mt-1.5 text-lg font-semibold tracking-[-0.01em] text-balance text-text md:text-xl">{item.title}</h3>
-            {item.description ? <p className="mt-1.5 max-w-[65ch] text-md whitespace-pre-line text-pretty text-text-muted">{item.description}</p> : null}
+            {item.description ? <MarkdownContent value={item.description} className="mt-1.5 max-w-[65ch] text-md text-text-muted" /> : null}
           </div>
           {/* Always visible on touch; on desktop they surface with hover/focus. */}
           <div className="-mr-2 flex shrink-0 items-center gap-0.5 lg:opacity-0 lg:transition-opacity lg:duration-150 lg:group-focus-within:opacity-100 lg:group-hover:opacity-100">
@@ -330,7 +330,7 @@ function AchievementDialog({ item, onClose }: { item: AchievementItem | null; on
         </Field>
 
         <Field label="Description" htmlFor="achievement-description" error={errors.description}>
-          <Textarea id="achievement-description" rows={3} value={draft.description} maxLength={5000} onChange={(event) => set("description", event.target.value)} />
+          <MarkdownEditor id="achievement-description" ariaLabel="Description" value={draft.description} onChange={(value) => set("description", value.slice(0, 5000))} placeholder="What it covered — links, images and files welcome." minHeight="min-h-24" />
         </Field>
 
         <div className="flex flex-col gap-2">
