@@ -56,7 +56,7 @@ placeholder page) · **Retired** (redirects).
 | Auth | `/login`, `/register` | Live (public) | Email + password. Direct admin sign-ins land on `/admin`; regular users land on `/tracker`. |
 | Work Logs | `/work-logs`, `/work-logs/[id]`, `/work-logs/[id]/edit` | Live | The core workflow — see §5.1. |
 | Tickets | `/tickets` | Live · hidden when *Tickets* is off in Profile | Master-detail ticket manager — see §5.2. |
-| Tracker | `/tracker` | Live — **post-login landing page** | To-do · Follow-ups · Notes tabs (`?view=`), full-width grouped record (2026-10-12) — see §5.3. |
+| Tracker | `/tracker` | Live — **post-login landing page** | To-do · Follow-ups · Notes tabs (`?view=`), two-column layout from the owner's mockup (2026-10-14) — see §5.3. |
 | Notes | `/notes`, `/notes/new`, `/notes/[id]`, `/notes/[id]/edit` | Live | Notebooks: note → sections → pages — see §5.4. |
 | Resources | `/resources` | Live | Typed personal library — see §5.5. |
 | Favourites | `/favourites` | Live | Everything starred in one place — see §5.6. |
@@ -187,43 +187,49 @@ update.*
 
 ### 5.3 Tracker
 
-Three tabs (`?view=todo|followups|notes`) in the Work Logs teal-and-ink palette. The title
-**Tracker** + today's date and search are followed by ticket-style underline tabs (open counts)
-pill (⌘K / Ctrl+K focuses it; matches text and `#tag`). The full-width queue starts with
-a dashed **add pill** (Enter or *Add* saves; tool buttons open small panels), then numbered
-rows grouped by status, without oversized row numbers. The old decorative summary/count
-column was removed on 2026-10-12.
-The latest saved note/update appears under each item title, so routine context is visible
-without opening the dialog. Finished items are always visible and grouped by completion
-date; completed to-dos sit between **Needs you** and **Coming up** instead of at the page foot.
-Follow-up rows label the latest reply explicitly. New reminder dates default to today,
+Three tabs (`?view=todo|followups|notes`) in the Work Logs teal-and-ink palette. Layout
+from the owner's mockup (2026-10-14, second pass): a top line with the date on the left and
+the tabs (open counts; Follow-ups amber when one needs you) plus a compact search pill (⌘K;
+text and `#tag`) on the right; then **Tracker** with the tab's underline **add field** beside
+it (Enter or *Add* saves; tool buttons open small panels). Below, **two columns** from lg
+(stacked on smaller screens), each a big title + count over a 2px rule (amber when
+something needs you). Rows carry an uppercase status eyebrow ("NUDGE DUE · ASHWINI").
+The latest saved update appears under each to-do and follow-up title (*Latest reply* /
+*Last note*), so routine context is visible without opening the dialog; note rows show
+only their title, tags and when they changed. Finished items sit in one collapsed **Completed / Closed / Archived** group
+(*Show*/*Hide*; a search opens it) grouped by completion date. New reminder dates default to today,
 Slack is the default channel, and the required **Who** field filters saved names as the
 user types while still accepting a new name. Reminder copy explains that the selected
 date is when WorkNest should prompt the user to follow up again if nobody has replied.
 
-| Tab (`EntryKind`) | Summary count | Add pill | Groups | Row actions |
+| Tab (`EntryKind`) | Tab badge | Add | Columns | Row actions |
 |---|---|---|---|---|
-| **To-do** (`Task`) | overdue/due-today to-dos + follow-ups that need you | title · due date · ★ | **Needs you** (incl. follow-ups: nudge due / replied) → **Completed · date** → **Coming up** (later + undated) | Mark done (ink when it needs you) · ★ |
-| **Follow-ups** (`FollowUp`) | replies + nudges due | title · who + where (channel) · nudge date | **Your turn** → **Nudge due** → **Waiting, not due yet** → **Closed · date** | Mark nudged · Got it (= close); replied: Got it · Open |
-| **Notes** (`Note`) | open notes | title · tags · ★ | **All notes** (favourites first, then recently updated) → **Archived · date** | Open · ★ |
+| **To-do** (`Task`) | overdue/due-today to-dos + follow-ups that need you | title · due date · ★ | left **Today** (incl. follow-ups: nudge due / replied) + "✓ N completed today · Show"; right **Upcoming** by *tomorrow's date · Later this week · Next week · Later · No date* (to-dos + future nudges) | round tick (done / close / reopen) · ★; follow-ups: Mark nudged / Got it |
+| **Follow-ups** (`FollowUp`) | replies + nudges due | title · who + where (channel) · nudge date | left **Needs you** (*Your turn* · *Nudge due*) + collapsed closed line; right **Waiting** | Mark nudged · Got it (= close); replied: Got it · Open |
+| **Notes** (`Note`) | open notes | left **New note** composer: title · body · formatting · tags · ★ (+ collapsed archive) | right **Notes** (favourites first, then recently updated; title, tags and "Updated …" only — the text stays inside) | Open · ★ |
 
 - **Mark nudged** appends an "I followed up" update ("Nudged", last channel) and clears
-  the nudge date, so the row moves to *Waiting, not due yet*.
+  the nudge date, so the row moves to *Waiting*.
 - A follow-up needs a person: *Add* without one opens the Who panel with an error. The
   title is recorded as the first message (with the channel).
-- A new note is created with title + tags; its text goes in as updates once it's open.
+- A new note is a composer card: title, a Bold / Italic / List toolbar (⌘/Ctrl+B, +I),
+  a roomy body (saved as its first update), tags and ★. In the entry dialog the
+  add-update field has the same toolbar inside its border, CKEditor-style. Later text goes in as updates.
+  Updates stay plain text with a small Markdown subset (`**bold**`, `*italic*`, `- ` lists,
+  bare links), rendered as React nodes — never HTML. File/image uploads are not built.
   Tag chips on note rows put `#tag` in the search (the old tag-chip filter row and
   *Group by tag* were dropped with the redesign).
 - Any entry can be **starred as a favourite** (sorts first; open ones show in Favourites).
-- Clicking a title (or *Open*) opens the entry in a **dialog** at every width: status,
-  date (editable), Done / Close / Archive, star, delete, an add-update form (follow-ups
-  pick "I followed up" or "<person> replied" + channel) and the timeline.
+- Clicking a title (or *Open*) opens the entry in a wide **dialog** at every width — two
+  columns from md: on the left status, date (editable), Done / Close / Archive, star,
+  delete and the add-update form (formatting bar; follow-ups pick "I followed up" or
+  "<person> replied" + channel); on the right the timeline.
 - **Follow-up state is derived, never stored:** if the newest record is *their* reply
   (`FollowUpUpdate.fromThem`) it is *their reply → your turn*, otherwise waiting.
 - Updates are **append-only** (`note` + channel + `occurredAt`). There is no action to
   edit or delete a single update. A whole entry can be deleted.
-- Empty active groups keep their heading and say so ("No nudges due."). Search narrows
-  the queue. "Today" is the browser's local day.
+- Empty columns keep their heading and say so ("Nothing else is waiting on anyone.").
+  Search narrows both columns and opens the collapsed finished line. "Today" is the browser's local day.
   People previously used are suggested.
 
 > Naming: the models are still `FollowUp` / `FollowUpUpdate` and the files
@@ -288,15 +294,17 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   URL, type or a **tag** (`#` ignored, spaces = dashes, so "vibe coding" finds
   `vibe-coding`) — and each resource can be **favourited**, **edited**
   (pencil on every card/row → the same form, prefilled) or deleted.
-- Layout (2026-10-10, from the owner's screenshot): a large **Resources** title with its
-  one-line description; a search pill and an ink **Add resource** button on the right.
-  Below, the types as **underline tabs** with counts (scroll sideways when there are
-  many) plus an **All types** menu, then a row of **tag facets** (`#tag count`, most-used
-  first; a click searches `#tag`, again clears). The selected tab is the sole type heading;
-  below it are the resource count and an outline **Add <type>** button, then open cards in
-  two columns: initials disc + site, star (edit/delete appear on hover from md), a big
-  title that opens the URL (↗), description, tags. Commands/snippets keep the code row with Copy.
-  Icons still pick the type in the dropdown and the All types menu.
+- Layout (owner's mockup, 2026-10-14): **Resources** title + one-line description on the
+  left; an underline search (⌘K; text and `#tag`) and an ink **Add resource** button on
+  the right; a rule. Below, a **Type / Tags** column (a sideways strip above the list under
+  lg): *All* (default) then each type with counts, the current one marked with an ink bar;
+  tags in mono with counts (a click shows All filtered by `#tag`, again clears). Beside it
+  one list headed "ALL RESOURCES · 7" (or the type) with a sort menu (*Recently added* ·
+  *Recently updated* · *A–Z*). Each row: an initials tile (ink / teal / amber, fixed per
+  title), the title (opens the URL ↗) with the site in mono, description, mono tags;
+  edit/delete on hover from md and the star. Commands/snippets add their code line with Copy.
+  Types that read the same on screen (built-in *Website* shows as "Websites", like a
+  custom *Websites*) are one type, and Profile refuses adding such a duplicate.
 - In the add/edit form, **Resource type** is a searchable dropdown (type "doc" →
   Documentation) and **Tags** is a search-as-you-type chip field that suggests tags
   already used (most used first). Enter or a comma adds a new tag; tags are stored

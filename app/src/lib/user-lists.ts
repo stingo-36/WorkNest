@@ -2,6 +2,7 @@ import "server-only";
 
 import { EntryKind, UserListKind } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
+import { resourceTypeKey } from "@/lib/resource-types";
 
 /**
  * The lists a user edits on the Profile page — every dropdown's options plus
@@ -27,14 +28,14 @@ export const DEFAULT_LISTS = {
 export type OrderedListKind = keyof typeof DEFAULT_LISTS;
 export type TagListKind = typeof UserListKind.NoteTag | typeof UserListKind.ResourceTag;
 
-/** Trim, collapse spaces, drop blanks and case-insensitive duplicates. */
-export function cleanValues(values: string[], max = 50) {
+/** Trim, collapse spaces, drop blanks and duplicates (case-insensitive, or by `keyOf`). */
+export function cleanValues(values: string[], max = 50, keyOf = (value: string) => value.toLowerCase()) {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const raw of values) {
     const value = raw.trim().replace(/\s+/g, " ").slice(0, 60);
-    if (!value || seen.has(value.toLowerCase())) continue;
-    seen.add(value.toLowerCase());
+    if (!value || seen.has(keyOf(value))) continue;
+    seen.add(keyOf(value));
     out.push(value);
   }
   return out.slice(0, max);
@@ -74,7 +75,9 @@ export async function getOrderedListState(userId: string, kind: OrderedListKind)
 }
 
 export async function setOrderedList(userId: string, kind: OrderedListKind, values: string[]) {
-  const row = await saveRow(userId, kind, { values: cleanValues(values) });
+  // Resource types that read the same on screen ("Website" / "Websites") are one type.
+  const cleaned = kind === UserListKind.ResourceType ? cleanValues(values, 50, resourceTypeKey) : cleanValues(values);
+  const row = await saveRow(userId, kind, { values: cleaned });
   return row.values;
 }
 

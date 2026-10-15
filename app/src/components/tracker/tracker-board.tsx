@@ -6,6 +6,7 @@ import {
   ArrowRight,
   CalendarDays,
   Check,
+  ChevronDown,
   Hash,
   MessageSquareReply,
   Plus,
@@ -17,7 +18,7 @@ import {
 } from "lucide-react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { differenceInCalendarDays, format, parseISO } from "date-fns";
+import { addDays, differenceInCalendarDays, endOfWeek, format, parseISO } from "date-fns";
 
 import {
   addFollowUpUpdate,
@@ -29,7 +30,7 @@ import {
   setFollowUpTags,
 } from "@/actions/follow-ups";
 import { cn } from "@/components/cn";
-import { PageHead, SearchPill, UnderlineTabs } from "@/components/shell/page-head";
+import { SearchPill } from "@/components/shell/page-head";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { Field, FormError } from "@/components/ui/field";
@@ -37,8 +38,8 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { TagInput } from "@/components/ui/tag-input";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
+import { FormattedNote, useNoteFormatting } from "@/components/tracker/note-text";
 import type {
   EntryKind,
   FollowUpStatus,
@@ -170,6 +171,9 @@ function ago(iso: string, today: string) {
   if (days < 7) return `${days}d ago`;
   return format(parseISO(iso), "d MMM");
 }
+
+/** One-line previews show the words, not the **markers**. */
+const stripMarks = (text: string) => text.replace(/\*\*([^*\n]+)\*\*/g, "$1").replace(/\*([^*\n]+)\*/g, "$1");
 
 const plural = (count: number, one: string, many = `${one}s`) => (count === 1 ? one : many);
 
@@ -322,41 +326,66 @@ export function TrackerBoard({
     choose(next.id);
   }
 
+  // Follow-ups badge turns amber when one needs you.
+  const followNeeds = byKind.FollowUp.some((entry) => needsYou(entry, today));
+
   return (
     <ListsContext.Provider value={lists}>
-    <div className="tk-focus flex w-full min-w-0 flex-col gap-11">
-      <PageHead
-        title="Tracker"
-        meta={format(parseISO(today), "EEEE d MMM yyyy")}
-        actions={<SearchPill id="tracker-search" label="Search this list" value={query} placeholder="Search, or #tag" onChange={setQuery} shortcut className="w-full md:w-72" />}
-      />
+    <div className="tk-focus flex w-full min-w-0 flex-col gap-12">
+      {/* Owner's mockup (2026-10-14, second pass): date eyebrow, then the title with the
+          add field beside it; two columns below. Tabs (and search) sit on the top line. */}
+      <header className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <p className="tk-eyebrow text-text-muted" suppressHydrationWarning>{format(parseISO(today), "EEE d MMM yyyy")}</p>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
+            <nav aria-label="Tracker lists" onKeyDown={onTabKey} className="flex gap-5 md:gap-7">
+              {VIEWS.map((item) => {
+                const on = item.id === view;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-current={on ? "page" : undefined}
+                    onClick={() => choose(item.id)}
+                    className={cn(
+                      "relative flex min-h-11 cursor-pointer items-center gap-1.5 text-md whitespace-nowrap transition-colors duration-150",
+                      on ? "font-semibold text-text after:absolute after:inset-x-0 after:bottom-1 after:h-0.5 after:bg-text" : "font-medium text-text-muted hover:text-text",
+                    )}
+                  >
+                    {item.label}
+                    <span className={cn("text-sm font-semibold tabular-nums", item.id === "followups" && followNeeds ? "text-warning" : "text-text-muted")}>{badge[item.id]}</span>
+                  </button>
+                );
+              })}
+            </nav>
+            <SearchPill id="tracker-search" label="Search the Tracker" value={query} placeholder="Search, or #tag" onChange={setQuery} shortcut className="h-11 w-full md:w-60" />
+          </div>
+        </div>
+        <div className="flex flex-wrap items-end gap-x-10 gap-y-5">
+          <h1 className="page-title">Tracker</h1>
+          <div className="min-w-0 flex-[1_1_20rem]">
+            {view === "todo" ? <AddTodo today={today} /> : null}
+            {view === "followups" ? <AddFollowUp people={people} today={today} /> : null}
+            {view === "notes" ? <p className="pb-3 text-md text-text-muted">Write a note below — the newest update shows on each card.</p> : null}
+          </div>
+        </div>
+      </header>
 
-      <div onKeyDown={onTabKey}>
-        <UnderlineTabs
-          label="Tracker lists"
-          items={VIEWS.map((item) => ({ key: item.id, label: item.label, count: badge[item.id] }))}
-          current={view}
-          onSelect={(key) => choose(key as TrackerView)}
-        />
-      </div>
-
-      {loadError ? <FormError>{loadError}</FormError> : null}
-
-      <div>
-        <section
-          id="tracker-panel"
-          role="tabpanel"
-          aria-label={`${VIEWS.find((item) => item.id === view)?.label ?? "Tracker"} list`}
-          className="tk-queue mx-auto flex w-full min-w-0 max-w-6xl flex-col"
-        >
-          {view === "todo" ? <TodoQueue entries={entries} today={today} needle={needle} onOpen={openEntry} /> : null}
-          {view === "followups" ? <FollowUpQueue entries={byKind.FollowUp} people={people} today={today} needle={needle} onOpen={openEntry} /> : null}
-          {view === "notes" ? <NoteQueue entries={byKind.Note} suggestions={tagSuggestions} today={today} needle={needle} onOpen={openEntry} onTag={(tag) => setQuery(`#${tag}`)} /> : null}
-        </section>
-      </div>
+      <section id="tracker-panel" aria-label={`${VIEWS.find((item) => item.id === view)?.label ?? "Tracker"} list`} className="flex min-w-0 flex-col">
+        {loadError ? <FormError>{loadError}</FormError> : null}
+        {needle ? (
+          <p className="mb-6 flex flex-wrap items-center gap-x-3 text-md text-text-muted">
+            Showing matches for <b className="font-semibold text-text">{query.trim()}</b>
+            <button type="button" onClick={() => setQuery("")} className="min-h-11 cursor-pointer font-semibold text-accent-text hover:underline">Clear</button>
+          </p>
+        ) : null}
+        {view === "todo" ? <TodoQueue entries={entries} today={today} needle={needle} onOpen={openEntry} /> : null}
+        {view === "followups" ? <FollowUpQueue entries={byKind.FollowUp} today={today} needle={needle} onOpen={openEntry} /> : null}
+        {view === "notes" ? <NoteQueue entries={byKind.Note} suggestions={tagSuggestions} today={today} needle={needle} onOpen={openEntry} onTag={(tag) => setQuery(`#${tag}`)} /> : null}
+      </section>
 
       {opened ? (
-        <Modal open size="lg" onClose={() => setOpenId(null)} eyebrow={<EntryEyebrow entry={opened} />} title={<EntryTitle entry={opened} />}>
+        <Modal open size="xl" onClose={() => setOpenId(null)} eyebrow={<EntryEyebrow entry={opened} />} title={<EntryTitle entry={opened} />}>
           <EntryBody key={opened.id} entry={opened} tagSuggestions={tagSuggestions} onDeleted={() => setOpenId(null)} />
         </Modal>
       ) : null}
@@ -517,37 +546,131 @@ function finishedByDay(entries: TrackerEntry[]) {
     .map(([key, items]) => ({ key, label: format(parseISO(key), "EEEE d MMM"), items }));
 }
 
-/** An uppercase group label over rows; an empty group keeps its rule and says so. */
-function Group({ id, label, count, needs = false, first = false, empty, children }: { id?: string; label: string; count: number; needs?: boolean; first?: boolean; empty: string; children?: React.ReactNode }) {
+/** Two columns from lg (Today | Upcoming, …); stacked on smaller screens. */
+function Columns({ children }: { children: React.ReactNode }) {
+  return <div className="grid min-w-0 gap-x-14 gap-y-14 lg:grid-cols-2 lg:items-start">{children}</div>;
+}
+
+/** A column: big title + count over a 2px rule (amber when something needs you). */
+function Column({ title, count, needs = false, aside, children }: { title: string; count?: number; needs?: boolean; aside?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section id={id} aria-label={label} className="scroll-mt-6">
-      <h3 className={cn("tk-eyebrow pb-3.5", !first && "border-t border-border pt-9", needs ? "text-warning" : "text-accent-text")}>
-        {label} · <span className="tabular-nums">{count}</span>
-      </h3>
-      {count === 0 ? (
-        <p className={cn("border-t-2 py-5.5 text-lg text-text-muted", needs ? "border-dashed border-[var(--c-wl-dash)]" : "border-text")}>{empty}</p>
-      ) : (
-        <ol>{children}</ol>
-      )}
+    <section aria-label={title} className="flex min-w-0 flex-col">
+      <div className={cn("flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b-2 pb-3", needs ? "border-[var(--c-wl-dash)]" : "border-text")}>
+        <h2 className="tk-col-title">
+          {title}
+          {count !== undefined ? <span className={cn("ml-3 tabular-nums", needs ? "text-warning" : "text-text-subtle")}>{count}</span> : null}
+        </h2>
+        {aside ? <p className={cn("text-sm font-medium", needs ? "text-warning" : "text-text-muted")} suppressHydrationWarning>{aside}</p> : null}
+      </div>
+      {children}
     </section>
   );
 }
 
-/**
- * One compact row: title (opens the entry), a meta line, actions.
- * The first row of a group carries the heavy rule — dashed amber when it needs you.
- */
-function Row({ needs, first, muted = false, title, meta, actions, onOpen }: { index?: number; needs: boolean; first: boolean; muted?: boolean; title: string; meta: React.ReactNode; actions: React.ReactNode; onOpen: () => void }) {
+function Empty({ children }: { children: React.ReactNode }) {
+  return <p className="border-b border-border py-5 text-md text-text-muted">{children}</p>;
+}
+
+/** A small sub-label inside a column ("Thu 15 Oct", "Your turn") over its own rows. */
+function Bucket({ label, needs = false, children }: { label: string; needs?: boolean; children: React.ReactNode }) {
   return (
-    <li className={cn("flex flex-wrap items-center gap-x-6 gap-y-3 py-5.5", first ? (needs ? "border-t-2 border-dashed border-[var(--c-wl-dash)]" : "border-t-2 border-text") : "border-t border-border")}>
-      <div className="flex min-w-0 flex-[1_1_12rem] flex-col gap-1.5 md:flex-[1_1_18.75rem]">
-        <button type="button" onClick={onOpen} className={cn("tk-row-title min-h-7 w-fit max-w-full cursor-pointer py-0.5 text-left [overflow-wrap:anywhere] decoration-2 underline-offset-4 hover:underline", muted && "text-text-muted line-through")}>
-          {title}
-        </button>
-        {meta}
+    <div>
+      <h3 className={cn("tk-label pt-5 pb-1", needs ? "text-warning" : "text-text-muted")} suppressHydrationWarning>{label}</h3>
+      <ol>{children}</ol>
+    </div>
+  );
+}
+
+/**
+ * Finished entries collapsed under one line — "✓ 2 completed today · Show" —
+ * grouped by the day they were finished. A search opens it.
+ */
+function FinishedGroup({ verb, entries, today, needle, render }: { verb: string; entries: TrackerEntry[]; today: string; needle: string; render: (entry: TrackerEntry) => React.ReactNode }) {
+  const [show, setShow] = useState(false);
+  if (entries.length === 0) return null;
+  const days = finishedByDay(entries);
+  const open = show || Boolean(needle);
+  const allToday = days.length === 1 && days[0].key === today;
+  return (
+    <div className="pt-4">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={`finished-${verb}`}
+        onClick={() => setShow(!show)}
+        className="flex min-h-11 w-full cursor-pointer items-center justify-between gap-4 border-b border-border pb-2 text-left"
+      >
+        <span className="flex items-center gap-2 text-md text-text-muted" suppressHydrationWarning>
+          <Check className="size-4 text-primary" strokeWidth={2.4} aria-hidden="true" />
+          {entries.length} {verb}{allToday ? " today" : ""}
+        </span>
+        <span className="flex items-center gap-1 text-md font-semibold text-text">
+          {open ? "Hide" : "Show"}
+          <ChevronDown className={cn("size-4 transition-transform duration-150 motion-reduce:transition-none", open && "rotate-180")} aria-hidden="true" />
+        </span>
+      </button>
+      {open ? (
+        <div id={`finished-${verb}`}>
+          {days.map((day) => (
+            <Bucket key={day.key} label={day.key === today ? "Today" : day.label}>{day.items.map(render)}</Bucket>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** One row: optional leading tick, a status eyebrow, the title (opens the entry), extra lines, actions. */
+function Row({ muted = false, needs = false, eyebrow, leading, title, meta, actions, onOpen }: { muted?: boolean; needs?: boolean; eyebrow?: React.ReactNode; leading?: React.ReactNode; title: string; meta?: React.ReactNode; actions?: React.ReactNode; onOpen: () => void }) {
+  return (
+    <li className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-border py-4.5">
+      <div className="flex min-w-0 flex-[1_1_14rem] items-start gap-3">
+        {leading}
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          {eyebrow ? <p className={cn("tk-label", needs ? "text-warning" : "text-text-muted")} suppressHydrationWarning>{eyebrow}</p> : null}
+          <button type="button" onClick={onOpen} className={cn("tk-row-title min-h-7 w-fit max-w-full cursor-pointer py-0.5 text-left [overflow-wrap:anywhere] decoration-2 underline-offset-4 hover:underline", muted && "text-text-muted line-through")}>
+            {title}
+          </button>
+          {meta}
+        </div>
       </div>
-      <div className="flex flex-none items-center gap-1.5 max-md:pl-25">{actions}</div>
+      {actions ? <div className="ml-auto flex flex-none items-center gap-1.5">{actions}</div> : null}
     </li>
+  );
+}
+
+/** The round tick before a row: done / close in one click, or reopen. */
+function DoneCircle({ entry }: { entry: TrackerEntry }) {
+  const { run, pending } = useRun();
+  const done = !isOpen(entry);
+  const verb = entry.kind === "FollowUp" ? "Close" : "Mark done";
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={done}
+      aria-label={done ? `Reopen: ${entry.subject}` : `${verb}: ${entry.subject}`}
+      title={done ? "Reopen" : verb}
+      disabled={pending}
+      onClick={() => run(done ? markOpen(entry) : markDone(entry), done ? "Reopened" : entry.kind === "FollowUp" ? "Closed" : "Done")}
+      className="group -my-2 -ml-2.5 grid size-11 shrink-0 cursor-pointer place-items-center rounded-full disabled:cursor-wait"
+    >
+      <span className={cn("grid size-5.5 place-items-center rounded-full border-2 transition-colors duration-150", done ? "border-primary bg-primary text-primary-fg" : "border-text-subtle group-hover:border-primary")}>
+        {done ? <Check className="size-3.5" strokeWidth={3} aria-hidden="true" /> : null}
+      </span>
+    </button>
+  );
+}
+
+/** One-line preview of the newest message, shown on rows in every tab. */
+function LatestLine({ entry }: { entry: TrackerEntry }) {
+  const latest = entry.updates[0];
+  const text = latest?.note.trim();
+  if (!text || text === entry.subject) return null;
+  return (
+    <p className={cn("line-clamp-2 text-md [overflow-wrap:anywhere]", latest.fromThem ? "font-medium text-text" : "text-text-muted")}>
+      <span className="text-text-muted">{latest.fromThem ? "Latest reply:" : "Last note:"}</span> {stripMarks(text)}
+    </p>
   );
 }
 
@@ -586,11 +709,6 @@ function FavouriteToggle({ entry }: { entry: TrackerEntry }) {
       <Star className={cn("size-5", entry.pinned && "fill-current")} strokeWidth={1.8} aria-hidden="true" />
     </button>
   );
-}
-
-/** Keeps the actions column aligned on rows that have no star (as in the mockup). */
-function Spacer() {
-  return <span aria-hidden="true" className="size-11 shrink-0" />;
 }
 
 function Avatar({ name }: { name: string }) {
@@ -643,9 +761,9 @@ function AddPill({ label, inputId, placeholder, value, onChange, onSubmit, pendi
   panel: React.ReactNode;
 }) {
   return (
-    <form aria-label={label} onSubmit={(event) => { event.preventDefault(); onSubmit(); }} className="relative mb-8">
-      <div className="tk-add flex items-center gap-0.5 rounded-full bg-surface py-1 pr-1 pl-5.5">
-        <label htmlFor={inputId} className="flex h-13 min-w-0 flex-1 items-center gap-3.5 text-primary">
+    <form aria-label={label} onSubmit={(event) => { event.preventDefault(); onSubmit(); }} className="relative">
+      <div className="tk-add flex items-center gap-0.5 py-2 pl-1">
+        <label htmlFor={inputId} className="flex h-11 min-w-0 flex-1 items-center gap-3.5 text-text-muted">
           <Plus className="size-5 shrink-0" strokeWidth={2.2} aria-hidden="true" />
           <span className="sr-only">{label}</span>
           <input
@@ -659,12 +777,12 @@ function AddPill({ label, inputId, placeholder, value, onChange, onSubmit, pendi
           />
         </label>
         {tools}
-        <button type="submit" disabled={pending} className="h-13 shrink-0 cursor-pointer rounded-full bg-sidebar px-5 text-lg font-semibold text-sidebar-fg transition-colors duration-150 hover:bg-sidebar-3 disabled:cursor-wait disabled:opacity-60 md:px-6.5">
+        <button type="submit" disabled={pending} className="ml-1 h-11 shrink-0 cursor-pointer rounded-full bg-sidebar px-5 text-md font-semibold text-sidebar-fg transition-colors duration-150 hover:bg-sidebar-3 disabled:cursor-wait disabled:opacity-60 md:px-6">
           Add
         </button>
       </div>
       {panel}
-      {error ? <p className="mt-2 px-5.5 text-base font-medium text-danger" role="alert">{error}</p> : null}
+      {error ? <p className="mt-2 px-1 text-base font-medium text-danger" role="alert">{error}</p> : null}
     </form>
   );
 }
@@ -679,7 +797,7 @@ function ToolButton({ label, expanded, pressed, onClick, className, children }: 
       aria-expanded={expanded}
       aria-pressed={pressed}
       onClick={onClick}
-      className={cn("inline-flex h-13 min-w-11 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full px-2.5 text-base font-semibold text-text-muted transition-colors duration-150 hover:bg-surface-2 hover:text-text md:min-w-12", className)}
+      className={cn("inline-flex h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full px-2.5 text-base font-semibold text-text-muted transition-colors duration-150 hover:bg-surface-2 hover:text-text md:min-w-12", className)}
     >
       {children}
     </button>
@@ -728,11 +846,11 @@ function DatePanel({ id, label, hint, value, onChange, onClose }: { id: string; 
   );
 }
 
-function DateTool({ label, value, expanded, onClick }: { label: string; value: string; expanded: boolean; onClick: () => void }) {
+function DateTool({ label, value, today, expanded, onClick }: { label: string; value: string; today: string; expanded: boolean; onClick: () => void }) {
   return (
     <ToolButton label={value ? `${label}: ${dayLabel(value)}` : label} expanded={expanded} onClick={onClick} className={value ? "text-text" : undefined}>
       <CalendarDays className="size-5" strokeWidth={1.8} aria-hidden="true" />
-      {value ? <span className="hidden md:inline">{format(parseISO(value), "d MMM")}</span> : null}
+      {value ? <span className="hidden md:inline">{value === today ? "Today" : format(parseISO(value), "d MMM")}</span> : null}
     </ToolButton>
   );
 }
@@ -773,9 +891,35 @@ function useCreate(onSaved: () => void) {
 
 // --- to-do ---------------------------------------------------------------------
 
+/** Open work after today: Thu 15 Oct (tomorrow) · Later this week · Next week · Later · No date. */
+function upcomingBuckets(items: TrackerEntry[], today: string) {
+  const start = parseISO(today);
+  const tomorrow = format(addDays(start, 1), "yyyy-MM-dd");
+  const weekEnd = format(endOfWeek(start, { weekStartsOn: 1 }), "yyyy-MM-dd");
+  const nextWeekEnd = format(addDays(endOfWeek(start, { weekStartsOn: 1 }), 7), "yyyy-MM-dd");
+  const buckets = [
+    { key: "tomorrow", label: dayLabel(tomorrow), items: [] as TrackerEntry[] },
+    { key: "week", label: "Later this week", items: [] as TrackerEntry[] },
+    { key: "next", label: "Next week", items: [] as TrackerEntry[] },
+    { key: "later", label: "Later", items: [] as TrackerEntry[] },
+    { key: "someday", label: "No date", items: [] as TrackerEntry[] },
+  ];
+  for (const entry of items) {
+    const due = entry.dueDate;
+    const i = !due ? 4 : due <= tomorrow ? 0 : due <= weekEnd ? 1 : due <= nextWeekEnd ? 2 : 3;
+    buckets[i].items.push(entry);
+  }
+  return buckets.filter((bucket) => bucket.items.length);
+}
+
+/** "Both need you", "Needs you", "3 need you". */
+function needLine(count: number) {
+  return count === 0 ? undefined : count === 1 ? "Needs you" : count === 2 ? "Both need you" : `${count} need you`;
+}
+
 /**
- * Needs you (overdue / due-today to-dos, plus follow-ups whose nudge is due or
- * who replied) → Completed by date → Coming up (later and undated to-dos).
+ * Left: Today (overdue / due-today to-dos, follow-ups whose nudge is due or who
+ * replied) and the collapsed completed line. Right: Upcoming by day.
  */
 function TodoQueue({ entries, today, needle, onOpen }: { entries: TrackerEntry[]; today: string; needle: string; onOpen: (entry: TrackerEntry) => void }) {
   const { needs, coming, done } = useMemo(() => {
@@ -783,9 +927,8 @@ function TodoQueue({ entries, today, needle, onOpen }: { entries: TrackerEntry[]
     for (const entry of entries) {
       if (entry.kind === "Note" || !matches(entry, needle)) continue;
       if (needsYou(entry, today)) groups.needs.push(entry);
-      else if (entry.kind !== "Task") continue;
-      else if (isOpen(entry)) groups.coming.push(entry);
-      else groups.done.push(entry);
+      else if (!isOpen(entry)) { if (entry.kind === "Task") groups.done.push(entry); }
+      else if (entry.kind === "Task" || entry.dueDate) groups.coming.push(entry);
     }
     groups.needs.sort(byNeed);
     groups.coming.sort(byDue);
@@ -793,27 +936,26 @@ function TodoQueue({ entries, today, needle, onOpen }: { entries: TrackerEntry[]
     return groups;
   }, [entries, today, needle]);
 
-  const nothing = needle ? "Nothing matches." : undefined;
-  const completedDays = finishedByDay(done);
-  let index = 0;
+  const row = (entry: TrackerEntry, mode: "today" | "upcoming" | "done") => entry.kind === "Task"
+    ? <TodoRow key={entry.id} entry={entry} today={today} mode={mode} onOpen={() => onOpen(entry)} />
+    : <FollowUpRow key={entry.id} entry={entry} today={today} compact={mode !== "today"} onOpen={() => onOpen(entry)} />;
 
   return (
-    <>
-      <AddTodo today={today} />
-      <Group label="Needs you" count={needs.length} needs first empty={nothing ?? "Nothing overdue, due today or waiting on you."}>
-        {needs.map((entry, i) => entry.kind === "Task"
-          ? <TodoRow key={entry.id} index={++index} entry={entry} today={today} needs first={i === 0} onOpen={() => onOpen(entry)} />
-          : <FollowUpRow key={entry.id} index={++index} entry={entry} today={today} needs first={i === 0} inTodo onOpen={() => onOpen(entry)} />)}
-      </Group>
-      {completedDays.map((day) => (
-        <Group key={day.key} label={`Completed · ${day.label}`} count={day.items.length} empty="">
-          {day.items.map((entry, i) => <TodoRow key={entry.id} index={++index} entry={entry} today={today} needs={false} first={i === 0} onOpen={() => onOpen(entry)} />)}
-        </Group>
-      ))}
-      <Group label="Coming up" count={coming.length} empty={nothing ?? "Nothing else on the list. Add a to-do above."}>
-        {coming.map((entry, i) => <TodoRow key={entry.id} index={++index} entry={entry} today={today} needs={false} first={i === 0} onOpen={() => onOpen(entry)} />)}
-      </Group>
-    </>
+    <Columns>
+      <Column title="Today" count={needs.length} needs={needs.length > 0} aside={needLine(needs.length)}>
+        {needs.length ? <ol>{needs.map((entry) => row(entry, "today"))}</ol> : <Empty>{needle ? "Nothing matches." : "Nothing overdue, due today or waiting on you."}</Empty>}
+        <FinishedGroup verb="completed" entries={done} today={today} needle={needle} render={(entry) => row(entry, "done")} />
+      </Column>
+      <Column title="Upcoming" count={coming.length}>
+        {coming.length ? (
+          upcomingBuckets(coming, today).map((bucket) => (
+            <Bucket key={bucket.key} label={bucket.label}>{bucket.items.map((entry) => row(entry, "upcoming"))}</Bucket>
+          ))
+        ) : (
+          <Empty>{needle ? "Nothing matches." : "Nothing coming up. Add a to-do above."}</Empty>
+        )}
+      </Column>
+    </Columns>
   );
 }
 
@@ -843,7 +985,7 @@ function AddTodo({ today }: { today: string }) {
       error={error}
       tools={
         <>
-          <DateTool label="Set due date" value={date} expanded={panel} onClick={() => setPanel(!panel)} />
+          <DateTool label="Set due date" value={date} today={today} expanded={panel} onClick={() => setPanel(!panel)} />
           <StarTool value={pinned} onChange={setPinned} />
         </>
       }
@@ -861,34 +1003,18 @@ function todoMeta(entry: TrackerEntry, today: string) {
   return `Due ${dayLabel(entry.dueDate)} · ${fromToday(entry.dueDate, today, "late")}`;
 }
 
-function TodoRow({ index, entry, today, needs, first, onOpen }: { index: number; entry: TrackerEntry; today: string; needs: boolean; first: boolean; onOpen: () => void }) {
-  const done = !isOpen(entry);
-  const notes = entry.updates.length;
-  const latestNote = entry.updates[0]?.note.trim();
+/** Today rows carry a status eyebrow; upcoming rows are just tick + title (the bucket has the date). */
+function TodoRow({ entry, today, mode, onOpen }: { entry: TrackerEntry; today: string; mode: "today" | "upcoming" | "done"; onOpen: () => void }) {
   return (
     <Row
-      index={index}
-      needs={needs}
-      first={first}
-      muted={done}
+      muted={mode === "done"}
+      needs={mode === "today"}
+      eyebrow={mode === "today" ? todoMeta(entry, today) : undefined}
+      leading={<DoneCircle entry={entry} />}
       title={entry.subject}
       onOpen={onOpen}
-      meta={
-        <>
-          {latestNote ? <p className="line-clamp-2 text-md text-text-muted [overflow-wrap:anywhere]">{latestNote}</p> : null}
-          <p className={cn("text-base font-medium", needs ? "text-warning" : "text-text-muted")} suppressHydrationWarning>
-            {todoMeta(entry, today)}{notes ? ` · ${notes} ${plural(notes, "note")}` : ""}
-          </p>
-        </>
-      }
-      actions={
-        <>
-          {done
-            ? <ActionPill label="Reopen" action={markOpen(entry)} success="Reopened" />
-            : <ActionPill ink={needs} label="Mark done" action={markDone(entry)} success="Done" />}
-          <FavouriteToggle entry={entry} />
-        </>
-      }
+      meta={<LatestLine entry={entry} />}
+      actions={<FavouriteToggle entry={entry} />}
     />
   );
 }
@@ -896,10 +1022,10 @@ function TodoRow({ index, entry, today, needs, first, onOpen }: { index: number;
 // --- follow-ups ------------------------------------------------------------------
 
 /**
- * Your turn (they replied) → Nudge due → Waiting, not due yet → Closed on
- * request. "Got it" closes a follow-up; "Mark nudged" records a nudge.
+ * Left: Needs you — Your turn (they replied) and Nudge due — then the collapsed
+ * closed line. Right: Waiting, not due yet. "Got it" closes; "Mark nudged" records a nudge.
  */
-function FollowUpQueue({ entries, people, today, needle, onOpen }: { entries: TrackerEntry[]; people: string[]; today: string; needle: string; onOpen: (entry: TrackerEntry) => void }) {
+function FollowUpQueue({ entries, today, needle, onOpen }: { entries: TrackerEntry[]; today: string; needle: string; onOpen: (entry: TrackerEntry) => void }) {
   const groups = useMemo(() => {
     const next = { replied: [] as TrackerEntry[], due: [] as TrackerEntry[], waiting: [] as TrackerEntry[], closed: [] as TrackerEntry[] };
     for (const entry of entries) {
@@ -918,31 +1044,21 @@ function FollowUpQueue({ entries, people, today, needle, onOpen }: { entries: Tr
     return next;
   }, [entries, today, needle]);
 
-  const nothing = needle ? "Nothing matches." : undefined;
-  const closedDays = finishedByDay(groups.closed);
-  let index = 0;
-  const hasReplies = groups.replied.length > 0;
+  const row = (entry: TrackerEntry) => <FollowUpRow key={entry.id} entry={entry} today={today} onOpen={() => onOpen(entry)} />;
+  const needCount = groups.replied.length + groups.due.length;
 
   return (
-    <>
-      <AddFollowUp people={people} today={today} />
-      {hasReplies ? (
-        <Group label="Your turn" count={groups.replied.length} needs first empty="">
-          {groups.replied.map((entry, i) => <FollowUpRow key={entry.id} index={++index} entry={entry} today={today} needs first={i === 0} onOpen={() => onOpen(entry)} />)}
-        </Group>
-      ) : null}
-      <Group label="Nudge due" count={groups.due.length} needs first={!hasReplies} empty={nothing ?? "No nudges due."}>
-        {groups.due.map((entry, i) => <FollowUpRow key={entry.id} index={++index} entry={entry} today={today} needs first={i === 0} onOpen={() => onOpen(entry)} />)}
-      </Group>
-      <Group label="Waiting, not due yet" count={groups.waiting.length} empty={nothing ?? "Nothing else is waiting on anyone."}>
-        {groups.waiting.map((entry, i) => <FollowUpRow key={entry.id} index={++index} entry={entry} today={today} needs={false} first={i === 0} onOpen={() => onOpen(entry)} />)}
-      </Group>
-      {closedDays.map((day) => (
-        <Group key={day.key} label={`Closed · ${day.label}`} count={day.items.length} empty="">
-          {day.items.map((entry, i) => <FollowUpRow key={entry.id} index={++index} entry={entry} today={today} needs={false} first={i === 0} onOpen={() => onOpen(entry)} />)}
-        </Group>
-      ))}
-    </>
+    <Columns>
+      <Column title="Needs you" count={needCount} needs={needCount > 0} aside={needLine(needCount)}>
+        {groups.replied.length ? <Bucket label="Your turn" needs>{groups.replied.map(row)}</Bucket> : null}
+        {groups.due.length ? <Bucket label="Nudge due" needs>{groups.due.map(row)}</Bucket> : null}
+        {needCount === 0 ? <Empty>{needle ? "Nothing matches." : "No replies or nudges waiting on you."}</Empty> : null}
+        <FinishedGroup verb="closed" entries={groups.closed} today={today} needle={needle} render={row} />
+      </Column>
+      <Column title="Waiting" count={groups.waiting.length}>
+        {groups.waiting.length ? <ol>{groups.waiting.map(row)}</ol> : <Empty>{needle ? "Nothing matches." : "Nothing else is waiting on anyone."}</Empty>}
+      </Column>
+    </Columns>
   );
 }
 
@@ -990,7 +1106,7 @@ function AddFollowUp({ people, today }: { people: string[]; today: string }) {
           <ToolButton label={person ? `Waiting on ${person}` : "Choose who you are waiting on"} expanded={panel === "who"} onClick={() => setPanel(panel === "who" ? null : "who")}>
             {person ? <Avatar name={person} /> : <UserRound className="size-5" strokeWidth={1.8} aria-hidden="true" />}
           </ToolButton>
-          <DateTool label="Set follow-up reminder" value={date} expanded={panel === "date"} onClick={() => setPanel(panel === "date" ? null : "date")} />
+          <DateTool label="Set follow-up reminder" value={date} today={today} expanded={panel === "date"} onClick={() => setPanel(panel === "date" ? null : "date")} />
         </>
       }
       panel={
@@ -1029,49 +1145,47 @@ function followMeta(entry: TrackerEntry, today: string) {
   return entry.dueDate ? `${wrote} · nudge ${dayLabel(entry.dueDate)}` : wrote;
 }
 
-function FollowUpRow({ index, entry, today, needs, first, inTodo = false, onOpen }: { index: number; entry: TrackerEntry; today: string; needs: boolean; first: boolean; inTodo?: boolean; onOpen: () => void }) {
+/** Eyebrow "NUDGE DUE · ASHWINI" over the title; compact (upcoming / finished) = tick + title + person. */
+function FollowUpRow({ entry, today, compact = false, onOpen }: { entry: TrackerEntry; today: string; compact?: boolean; onOpen: () => void }) {
   const state = followStateOf(entry);
   const person = entry.person ?? "Someone";
-  const latestReply = entry.updates.find((update) => update.fromThem)?.note.trim();
-  const latestNote = entry.updates[0]?.note.trim();
+  const needs = needsYou(entry, today);
+  if (compact) {
+    return (
+      <Row
+        muted={state === "closed"}
+        leading={<DoneCircle entry={entry} />}
+        title={entry.subject}
+        onOpen={onOpen}
+        meta={<LatestLine entry={entry} />}
+        actions={<span className="text-sm text-text-muted">{person}</span>}
+      />
+    );
+  }
+  const status = state === "closed" ? "Closed" : state === "replied" ? "Replied" : needs ? "Nudge due" : entry.dueDate ? `Nudge ${dayLabel(entry.dueDate)}` : "Waiting";
   return (
     <Row
-      index={index}
-      needs={needs}
-      first={first}
       muted={state === "closed"}
+      needs={needs}
+      eyebrow={`${status} · ${person}`}
       title={entry.subject}
       onOpen={onOpen}
       meta={
-        inTodo ? (
-          <p className="text-base font-medium text-warning" suppressHydrationWarning>Follow-up · {person} · {followMeta(entry, today)}</p>
-        ) : (
-          <>
-            {latestReply ? <p className="line-clamp-2 text-md font-medium text-text [overflow-wrap:anywhere]"><span className="text-text-muted">Latest reply:</span> {latestReply}</p> : latestNote ? <p className="line-clamp-2 text-md text-text-muted [overflow-wrap:anywhere]">{latestNote}</p> : null}
-            <p className={cn("flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-base font-medium", needs ? "text-warning" : "text-text-muted")}>
-              <Avatar name={person} />
-              <span className="font-semibold text-text">{person}</span>
-              <span suppressHydrationWarning>· {followMeta(entry, today)}</span>
-            </p>
-          </>
-        )
+        <>
+          <LatestLine entry={entry} />
+          {!needs && state !== "closed" ? <p className="text-sm text-text-muted" suppressHydrationWarning>{followMeta(entry, today)}</p> : null}
+        </>
       }
       actions={
         state === "closed" ? (
           <ActionPill label="Reopen" action={markOpen(entry)} success="Reopened" />
         ) : state === "replied" ? (
-          <>
-            <ActionPill ink label="Got it" action={markDone(entry)} success="Closed" />
-            {inTodo ? <Spacer /> : <OpenPill onOpen={onOpen} />}
-          </>
-        ) : inTodo ? (
-          <>
-            <NudgePill entry={entry} ink />
-            <Spacer />
-          </>
+          <ActionPill ink label="Got it" action={markDone(entry)} success="Closed" />
+        ) : needs ? (
+          <NudgePill entry={entry} ink />
         ) : (
           <>
-            <NudgePill entry={entry} ink={needs} />
+            <NudgePill entry={entry} ink={false} />
             <ActionPill label="Got it" action={markDone(entry)} success="Closed" />
           </>
         )
@@ -1094,7 +1208,7 @@ function noteTags(entries: TrackerEntry[]) {
   return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 }
 
-/** All notes (favourites first, then recently updated) → archived date groups. A tag chip searches for it. */
+/** Left: the composer and the collapsed archive. Right: every open note with its latest update. */
 function NoteQueue({ entries, suggestions, today, needle, onOpen, onTag }: { entries: TrackerEntry[]; suggestions: string[]; today: string; needle: string; onOpen: (entry: TrackerEntry) => void; onTag: (tag: string) => void }) {
   const { live, archived } = useMemo(() => {
     const next = { live: [] as TrackerEntry[], archived: [] as TrackerEntry[] };
@@ -1107,84 +1221,95 @@ function NoteQueue({ entries, suggestions, today, needle, onOpen, onTag }: { ent
     return next;
   }, [entries, needle]);
 
-  let index = 0;
-  const archivedDays = finishedByDay(archived);
+  const row = (entry: TrackerEntry) => <NoteRow key={entry.id} entry={entry} today={today} onOpen={() => onOpen(entry)} onTag={onTag} />;
 
   return (
-    <>
-      <AddNote suggestions={suggestions} />
-      <Group label="All notes" count={live.length} first empty={needle ? "Nothing matches." : "No notes yet. Write one above."}>
-        {live.map((entry, i) => <NoteRow key={entry.id} index={++index} entry={entry} today={today} first={i === 0} onOpen={() => onOpen(entry)} onTag={onTag} />)}
-      </Group>
-      {archivedDays.map((day) => (
-        <Group key={day.key} label={`Archived · ${day.label}`} count={day.items.length} empty="">
-          {day.items.map((entry, i) => <NoteRow key={entry.id} index={++index} entry={entry} today={today} first={i === 0} onOpen={() => onOpen(entry)} onTag={onTag} />)}
-        </Group>
-      ))}
-    </>
+    <Columns>
+      <Column title="New note">
+        <div className="pt-5"><AddNote suggestions={suggestions} /></div>
+        <FinishedGroup verb="archived" entries={archived} today={today} needle={needle} render={row} />
+      </Column>
+      <Column title="Notes" count={live.length}>
+        {live.length ? <ol>{live.map(row)}</ol> : <Empty>{needle ? "Nothing matches." : "No notes yet. Write one on the left."}</Empty>}
+      </Column>
+    </Columns>
   );
 }
 
 function AddNote({ suggestions }: { suggestions: string[] }) {
   const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [pinned, setPinned] = useState(false);
   const [panel, setPanel] = useState(false);
-  const { create, pending, error, setError } = useCreate(() => { setSubject(""); setTags([]); setPinned(false); setPanel(false); });
+  const { create, pending, error, setError } = useCreate(() => { setSubject(""); setBody(""); setTags([]); setPinned(false); setPanel(false); });
+  const { bar, formatKey } = useNoteFormatting("add-note-body", body, setBody);
 
   function save() {
     if (pending) return;
     if (!subject.trim()) { setError("Give the note a title"); document.getElementById("add-note")?.focus(); return; }
-    // Title (and tags) now; the note's text goes in as updates once it's open.
-    create({ kind: "Note", subject: subject.trim().slice(0, 300), tags }, pinned);
+    create({ kind: "Note", subject: subject.trim().slice(0, 300), note: body.trim() || undefined, channel: "Other", tags }, pinned);
   }
 
   return (
-    <AddPill
-      label="Add a note"
-      inputId="add-note"
-      placeholder="Write a note…"
-      value={subject}
-      onChange={(value) => { setSubject(value); setError(undefined); }}
-      onSubmit={save}
-      pending={pending}
-      error={error}
-      tools={
-        <>
+    <form aria-label="Add a note" onSubmit={(event) => { event.preventDefault(); save(); }} className="relative">
+      <div className="tk-field flex flex-col rounded-2xl border border-border-strong bg-surface">
+        <label htmlFor="add-note" className="sr-only">Note title</label>
+        <input
+          id="add-note"
+          value={subject}
+          maxLength={300}
+          placeholder="Note title"
+          aria-invalid={error ? true : undefined}
+          onChange={(event) => { setSubject(event.target.value); setError(undefined); }}
+          className="min-w-0 bg-transparent px-5 pt-4 pb-3 text-lg font-semibold text-text outline-none placeholder:font-medium placeholder:text-text-muted"
+        />
+        <div className="border-y border-border px-2">{bar}</div>
+        <label htmlFor="add-note-body" className="sr-only">Note</label>
+        <textarea
+          id="add-note-body"
+          value={body}
+          rows={5}
+          maxLength={10_000}
+          placeholder="Write the note…"
+          onChange={(event) => setBody(event.target.value)}
+          onKeyDown={(event) => { if (formatKey(event)) return; if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); save(); } }}
+          className="min-h-32 resize-y bg-transparent px-5 py-3 text-md leading-6 text-text outline-none placeholder:text-text-muted"
+        />
+        <div className="flex flex-wrap items-center gap-1 border-t border-border py-1.5 pr-1.5 pl-2">
           <ToolButton label={tags.length ? `Tags: ${tags.join(", ")}` : "Add a tag"} expanded={panel} onClick={() => setPanel(!panel)} className={tags.length ? "text-text" : undefined}>
             <Hash className="size-5" strokeWidth={1.8} aria-hidden="true" />
-            {tags.length ? <span className="tabular-nums">{tags.length}</span> : null}
+            {tags.length ? <span className="max-w-48 truncate">{tags.map((tag) => `#${tag}`).join(" ")}</span> : null}
           </ToolButton>
           <StarTool value={pinned} onChange={setPinned} />
-        </>
-      }
-      panel={
-        panel ? (
-          <PillPanel label="Tags" onClose={() => setPanel(false)}>
-            <Field label="Tags" htmlFor="add-note-tags" hint="Enter or comma adds a tag.">
-              <TagInput id="add-note-tags" value={tags} onChange={setTags} suggestions={suggestions} placeholder="e.g. drupal, deploy" />
-            </Field>
-          </PillPanel>
-        ) : null
-      }
-    />
+          <span className="ml-auto text-sm text-text-subtle max-md:hidden">⌘/Ctrl + Enter</span>
+          <button type="submit" disabled={pending} className="ml-2 h-11 shrink-0 cursor-pointer rounded-full bg-sidebar px-5 text-md font-semibold text-sidebar-fg transition-colors duration-150 hover:bg-sidebar-3 disabled:cursor-wait disabled:opacity-60 max-md:ml-auto">
+            Add note
+          </button>
+        </div>
+      </div>
+      {panel ? (
+        <PillPanel label="Tags" onClose={() => setPanel(false)}>
+          <Field label="Tags" htmlFor="add-note-tags" hint="Enter or comma adds a tag.">
+            <TagInput id="add-note-tags" value={tags} onChange={setTags} suggestions={suggestions} placeholder="e.g. drupal, deploy" />
+          </Field>
+        </PillPanel>
+      ) : null}
+      {error ? <p className="mt-2 px-1 text-base font-medium text-danger" role="alert">{error}</p> : null}
+    </form>
   );
 }
 
-function NoteRow({ index, entry, today, first, onOpen, onTag }: { index: number; entry: TrackerEntry; today: string; first: boolean; onOpen: () => void; onTag: (tag: string) => void }) {
+/** A note row is just its title, tags and when it changed — the text stays inside (owner, 2026-10-14). */
+function NoteRow({ entry, today, onOpen, onTag }: { entry: TrackerEntry; today: string; onOpen: () => void; onTag: (tag: string) => void }) {
   const archived = !isOpen(entry);
-  const firstLine = entry.updates[0]?.note.split("\n").find((line) => line.trim())?.trim();
   return (
     <Row
-      index={index}
-      needs={false}
-      first={first}
       title={entry.subject}
       onOpen={onOpen}
       meta={
         <>
-          {firstLine ? <p className="line-clamp-2 text-md text-text-muted [overflow-wrap:anywhere]">{firstLine}</p> : null}
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-base font-medium text-text-muted">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 pt-1 text-base font-medium text-text-muted">
             {entry.tags.map((tag) => (
               <button key={tag} type="button" onClick={() => onTag(tag)} title={`Show notes tagged #${tag}`} className="cursor-pointer rounded-full bg-primary-subtle px-2.5 py-0.5 font-semibold text-accent-text hover:underline">
                 #{tag}
@@ -1242,13 +1367,16 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
   ];
 
   return (
-    <div className={cn("flex max-w-3xl flex-col gap-6", pending && "opacity-60")}>
-      <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
+    // Two columns from md: facts, actions and the add form on the left; the history on the right.
+    <div className={cn("grid gap-6 md:grid-cols-2 md:gap-8", pending && "opacity-60")}>
+      <div className="flex min-w-0 flex-col gap-6">
+      {/* Labels on one line, values centred in one 44px row (the date field's height). */}
+      <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
         <dl className="flex flex-wrap gap-x-8 gap-y-4">
           {facts.map((fact) => (
             <div key={fact.label} className="min-w-0">
               <dt className="text-xs text-text-subtle">{fact.label}</dt>
-              <dd className="mt-1 text-sm font-medium text-text">{fact.value}</dd>
+              <dd className="mt-1 flex h-11 items-center text-sm font-medium text-text">{fact.value}</dd>
             </div>
           ))}
         </dl>
@@ -1259,7 +1387,7 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
               id={`due-${entry.id}`}
               type="date"
               value={entry.dueDate ?? ""}
-              className="mt-1 w-44"
+              className="mt-1 h-11 w-44"
               onChange={(event) => run(() => rescheduleFollowUp({ followUpId: entry.id, dueDate: event.target.value || null }), event.target.value ? "Date set" : "Date cleared")}
             />
           </div>
@@ -1292,6 +1420,7 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
       </div>
 
       <AddUpdateForm key={entry.updates.length} entry={entry} />
+      </div>
 
       <Timeline entry={entry} />
 
@@ -1347,8 +1476,9 @@ function AddUpdateForm({ entry }: { entry: TrackerEntry }) {
   const [channel, setChannel] = useState(isFollowUp ? defaultChannel(channels) : "Other");
   const person = entry.person ?? "They";
 
-  const label = isFollowUp ? (fromThem ? `What did ${person} say?` : "What did you tell them?") : entry.kind === "Task" ? "Add a note" : "Add an update";
+  const label = isFollowUp ? (fromThem ? `What did ${person} say?` : "What did you tell them?") : entry.kind === "Task" ? "Add a note" : "Add to this note";
   const canSave = fromThem || note.trim().length > 0;
+  const { bar, formatKey } = useNoteFormatting(`note-${entry.id}`, note, setNote);
 
   function save() {
     if (!canSave) return;
@@ -1384,15 +1514,25 @@ function AddUpdateForm({ entry }: { entry: TrackerEntry }) {
         </div>
       ) : null}
 
-      <Field label={label} htmlFor={`note-${entry.id}`} hint={isFollowUp && fromThem ? "Optional — leave blank to just mark it replied." : undefined}>
-        <Textarea
-          id={`note-${entry.id}`}
-          rows={2}
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-          onKeyDown={(event) => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); save(); } }}
-        />
-      </Field>
+      {/* One field with its toolbar inside it (like CKEditor), not a separate row. */}
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor={`note-${entry.id}`} className="text-sm font-semibold text-text">{label}</label>
+        <div className="flex flex-col overflow-hidden rounded-xl border border-border-strong bg-surface transition-colors duration-150 focus-within:border-primary focus-within:shadow-[var(--sh-focus)]">
+          <div className="border-b border-border px-1">{bar}</div>
+          <textarea
+            id={`note-${entry.id}`}
+            aria-describedby={`note-${entry.id}-hint`}
+            // Notes are where the writing happens: give them room.
+            rows={entry.kind === "Note" ? 7 : 4}
+            maxLength={10_000}
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            onKeyDown={(event) => { if (formatKey(event)) return; if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); save(); } }}
+            className="min-h-28 resize-y bg-transparent px-3.5 py-3 text-md leading-6 text-text outline-none"
+          />
+        </div>
+        <p id={`note-${entry.id}-hint`} className="text-sm text-text-muted">{isFollowUp && fromThem ? "Optional — leave blank to just mark it replied." : "⌘/Ctrl + Enter saves."}</p>
+      </div>
 
       <div className="flex flex-wrap items-center gap-2">
         {isFollowUp ? (
@@ -1414,7 +1554,7 @@ function Timeline({ entry }: { entry: TrackerEntry }) {
   const isFollowUp = entry.kind === "FollowUp";
   const heading = isFollowUp ? "Conversation" : entry.kind === "Task" ? "Notes" : "Updates";
   return (
-    <section aria-label={heading} className="border-t border-border pt-5">
+    <section aria-label={heading} className="min-w-0 border-t border-border pt-5 md:border-t-0 md:border-l md:pt-0 md:pl-8">
       <h3 className="text-sm font-semibold text-text">
         {heading} <span className="font-normal text-text-subtle tabular-nums">· {entry.updates.length}</span>
       </h3>
@@ -1439,7 +1579,7 @@ function Timeline({ entry }: { entry: TrackerEntry }) {
                     {isFollowUp ? ` · ${update.channel}` : ""}
                   </p>
                   {update.note ? (
-                    <p className="mt-1 whitespace-pre-wrap text-md leading-6 text-text [overflow-wrap:anywhere]">{update.note}</p>
+                    <FormattedNote text={update.note} className="mt-1 text-md leading-6 text-text" />
                   ) : (
                     <p className="mt-1 text-sm text-text-muted italic">{update.fromThem ? "Replied" : "—"}</p>
                   )}

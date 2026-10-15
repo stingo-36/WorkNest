@@ -76,9 +76,10 @@ checked against ui-ux-pro-max and the responsive-design skill. Sizes run 375px �
 | `.page-title` (and `.wl-title`) | `clamp(2rem, 1.4rem + 2.35vw, 3.5rem)` — 32→56px, 800 | the page's h1 (via `PageHead`) |
 | `.tk-section` | 22→32px, 700 | section headings (Favourites groups, a ticket's title) |
 | `.tk-card-title` | 19→26px, 700 | card / item titles (Resources, Favourites) |
-| `.tk-row-title` | 16→20px, 600 | numbered queue rows (Tracker) |
+| `.tk-row-title` | 16→20px, 600 | Tracker row titles |
 | `.tk-hero` / `.tk-hero-line` | 80→208px / 24→36px | Notes' summary display count and its line |
 | `.tk-stat` / `.tk-index` | 28→40px / 32→48px | Notes summary counts / Tracker row numbers |
+| `.tk-col-title` | 24→32px | Tracker column titles |
 | `.tk-eyebrow` / `.tk-label` | 13px / 12px uppercase | group labels, dates / stat labels |
 | body | `text-lg` 16px for descriptions; `text-md` 15 / `text-base` 14 for meta | |
 
@@ -103,16 +104,18 @@ All motion stops under `prefers-reduced-motion`.
 
 `/tracker` and `/notes` share the owner's teal-and-ink visual family. The wrapper
 `.tk-focus` (now on every list page, see Page header) adds
-`--c-border-strong #a9b5b3` (dashed add-pill edge) and `--c-tk-rule #c7d2cf` (summary rules,
+`--c-border-strong #a9b5b3` (composer and editor field edges) and `--c-tk-rule #c7d2cf` (summary rules,
 outline pill edges). Header: `PageHead` with the date as `meta`, then 48px pills
 (active tab / primary button = ink `bg-sidebar`, idle = white with `--c-border`) and a
 `SearchPill` (⌘K). Notes retains layout F's left summary column (`.tk-hero`, `.tk-bar`,
-`.tk-stat`) beside its bookshelf. Tracker instead uses one centred full-width queue:
-`.tk-add` dashed pill, ticket-style underline tabs, uppercase group headings, and rows
-without decorative indices. `.tk-row-title` and the first row of a group use a 2px rule (dashed
-amber when it needs you, ink otherwise), 44px action pills (ink or `--c-tk-rule` outline).
-The latest update appears under the row title. Completed/closed/archived entries are
-always present under dated group headings; to-do completion groups precede Coming up.
+`.tk-stat`) beside its bookshelf. Tracker (owner's mockup, 2026-10-14, second pass): top
+line = date eyebrow · tabs + compact search; then the title with the add field beside it.
+`.tk-add` is an underline (2px ink, primary on focus), 44px tools and Add. Two equal
+columns from lg (`gap-x-14`), each `.tk-col-title` (24→32px, 800) + count (amber when it
+needs you, else subtle) over a 2px rule (solid amber `--c-wl-dash` / ink). Rows: hairline
+separators, an uppercase `.tk-label` status eyebrow above the title, a 22px round tick on
+to-dos and upcoming rows. Finished entries collapse under "✓ N completed today · Show". The note composer is
+a `.tk-field` card (title · hairline · body · toolbar). Entry dialogs use `Modal size="xl"`.
 The `.tk-*` type classes are scoped under `.tk-focus` so they beat `.app-shell main hN`.
 Sizes: see Type scale.
 
@@ -139,7 +142,7 @@ components"); keep them distinct when adding to a page:
 
 | Page | Pattern |
 |---|---|
-| Tracker | title + tab pills + search → **full-width numbered queue** (add pill, grouped rows, latest update inline); finished entries are always visible in date groups; entry opens in a dialog |
+| Tracker | date · tabs + search → title + add field → **two columns** (Today \| Upcoming, Needs you \| Waiting, composer \| notes); finished entries collapse under one *Show* line; entry opens in a two-column dialog |
 | Work Logs | split hero (form + slate sprint card with ring) → **vertical timeline** per sprint |
 | Work-log editor | action strip → **one document** (`.wl-doc` turns section cards into ruled chapters) + margin outline |
 | Work-log detail | **slate details panel** (`.wl-hero` tokens) + bento of cards |
@@ -147,7 +150,7 @@ components"); keep them distinct when adding to a page:
 | Favourites | `PageHead` → **underline tabs** (All · Important · Notes · Resources, `?show=`) → Important as a two-column section, then Notes and Resources side by side; items = disc + meta + big title |
 | Notes | layout "F": title + search + New note → **summary column** (notebook count, cover-colour bars, sections/pages/starred) + **bookshelf** of accent-coloured covers |
 | Note reader | **three-column docs** (contents · page · on this page at xl) |
-| Resources | display title + search + Add → **underline type tabs** + All types menu → tag row → count + Add action → **open two-column cards** (the selected tab is the only type heading) |
+| Resources | title + line · underline search + Add → rule → **Type / Tags column** (13rem; ink left bar on the current type; mono tags) beside **one list** (eyebrow "ALL RESOURCES · N" + sort menu over a 2px ink rule; rows = 40px rounded initials tile in ink/teal/amber, bold title ↗ + mono host, description, mono tags, hairline separators) |
 | Profile | identity header → **section select on phone/tablet, wrapped tab bar from `lg`** → label/control rows |
 | Achievements | totals strip → **centred rail, alternating cards** from lg |
 | Reports | **sprint card rail** → paper on a desk |
@@ -346,7 +349,7 @@ off-palette hues except semantic red/green, orange stars, and real brand logos:
 | Tickets | list header band + open ticket header band | first ticket opens by default; selected row uses a teal tint + teal leading rule |
 | Tracker | active tab, focus lists' toned edge | |
 | Notes | stats band (notes · favourites · sections) with the white "New note" CTA | Favourites / All notes groups |
-| Resources | selected type (solid ink) + panel header band | every type uses the accent (`TYPE_ACCENT`); icons tell types apart |
+| Resources | current type: ink left bar (bottom bar under lg) | initials tiles in ink / teal / amber; type icons remain in the type picker |
 | Favourites | summary band of three count tiles (jump links) | |
 | Profile | open section header band, active menu item | |
 
@@ -474,7 +477,7 @@ All under `app/src/components/`. Use these before writing new markup.
 | `TicketStatusBadge`, `TICKET_STATUS_DOT` | Status colours + labels + order (all tinted badges). |
 | `ProjectInput` | MUI Autocomplete (freeSolo) of the user's project names; loads on open, no module cache. |
 | `TagInput`, `normalizeTag` | MUI Autocomplete (multiple + freeSolo) chip field over existing tags. Click or ↓+Enter picks a suggestion; Enter/comma adds typed text; blur keeps typed text. Tags normalised (lowercase, no `#`, spaces → `-`), max 25. No `autoHighlight` — in MUI 9 freeSolo, Enter commits typed text, so a pre-highlight would mislead. |
-| `Modal` | Native `<dialog>`: header (eyebrow + title + close), scrolling body, optional footer; `md`/`lg`. Backdrop close only when the press **and** the click are both on the backdrop. |
+| `Modal` | Native `<dialog>`: header (eyebrow + title + close), scrolling body, optional footer; `md`/`lg`/`xl` (xl = max-w-5xl, the Tracker entry dialog). Backdrop close only when the press **and** the click are both on the backdrop. |
 | `ConfirmationDialog` | Native `<dialog>`; `destructive` uses the danger button; async `onConfirm`. |
 | `EmptyState` | Muted icon, one line, one action. |
 | `Toaster`, `toast` | sonner, bottom-right, max 2. Import `toast` from here, never from sonner. **Not for autosave.** |

@@ -74,7 +74,7 @@ authenticated shell.
 | `/work-logs/[workLogId]` | `.../page.tsx` | read-only detail + Copy as text; side rail begins with that day's Tracker to-dos |
 | `/work-logs/[workLogId]/edit` | `.../edit/page.tsx` | `WorkLogEditor` |
 | `/tickets` | `(app)/tickets/page.tsx` | `TicketBoard` (`PageHead`, direct New ticket form, underline status tabs, list + open ticket with editable number/title/project, compact journey and latest update); redirects to `/work-logs` if tickets disabled |
-| `/tracker` | `(app)/tracker/page.tsx` | `TrackerBoard` — full-width grouped queue per tab (To-do / Follow-ups / Notes), latest update inline, finished entries always visible by date; entries open in a dialog; default landing after login; `?view=todo\|followups\|notes` picks the tab |
+| `/tracker` | `(app)/tracker/page.tsx` | `TrackerBoard` — two-column queue per tab (To-do: Today | Upcoming; Follow-ups: Needs you | Waiting; Notes: composer | notes), latest update inline, finished entries in a collapsed group; entries open in a two-column dialog; update text formatting in `components/tracker/note-text.tsx`; default landing after login; `?view=todo\|followups\|notes` picks the tab |
 | `/notes`, `/notes/new`, `/notes/[noteId]`, `/notes/[noteId]/edit` | `(app)/notes/**` | notebooks; the list is `NoteLibrary` (layout "F": header, summary column, bookshelf) |
 | `/resources` | `(app)/resources/page.tsx` | `ResourceLibrary` |
 | `/favourites` | `(app)/favourites/page.tsx` | reads Prisma directly; `?show=important\|notes\|resources` picks the tab |
@@ -165,6 +165,7 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `components/shell/page-motion.tsx` | GSAP route-family choreography for authenticated page regions; reduced-motion safe, load-only and intentionally unrelated to scrolling |
 | `components/shell/page-band.tsx`, `components/ui/band-sx.ts` | leftovers: `bandField` (Quick log's band button) and the MUI `tone="band"` field styling |
 | `lib/sprint.ts` | **the only** sprint arithmetic (`getSprint`) — local calendar days |
+| `lib/resource-types.ts` | shared (client + server): built-in type labels/plurals (`typeMeta`) and `resourceTypeKey` — types with the same on-screen name are one type |
 | `lib/user-lists.ts` | Profile-editable lists: `DEFAULT_LISTS`, ordered lists, project options/suggestions, tag usage + rename/delete (raw SQL, user-scoped) |
 | `lib/reports.ts` | sprint list, report data per sprint, AI-only "5-15 Report" (`generateSprintReport` → ok or failure reason; `normalizeReportBody` tolerates bold/other-level section headings and `*`/`•` bullets), staleness; model-less (old code-built) reports ignored |
 | `lib/achievements.ts` | achievements + certificate files (bytes only read by the download route) |

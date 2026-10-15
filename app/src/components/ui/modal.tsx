@@ -26,7 +26,7 @@ export function Modal({
   title: ReactNode;
   eyebrow?: ReactNode;
   footer?: ReactNode;
-  size?: "md" | "lg";
+  size?: "md" | "lg" | "xl";
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -69,7 +69,7 @@ export function Modal({
       }}
       className={cn(
         "t-modal m-auto w-[calc(100%-2rem)] overflow-hidden rounded-2xl border border-border bg-surface p-0 text-text shadow-lg backdrop:bg-overlay",
-        size === "lg" ? "max-w-2xl" : "max-w-xl",
+        size === "xl" ? "max-w-5xl" : size === "lg" ? "max-w-2xl" : "max-w-xl",
       )}
     >
       {open ? (
