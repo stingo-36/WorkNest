@@ -27,6 +27,39 @@
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
 
+**2026-10-14 — Resources follows the owner's list mockup.** Tabs + two-column cards gave
+way to a Type/Tags side column and one list of rows with initials tiles, a sort menu and
+an underline search. Tile colours (ink, teal, amber) are fixed per title by a hash, so a
+resource keeps its colour. *Rejected:* the per-type "Add <type>" button (not in the
+mockup — Add resource preselects the current type); the mockup's "[Resource 5]"
+placeholder row.
+
+**2026-10-14 — Tracker becomes two columns (Today | Upcoming), add field beside the title.**
+Second mockup the same day replaced the side "at a glance" column: no side panel, the
+add field sits beside the title, tabs + search on the top line (owner: "only add tabs on
+top"). Follow-ups split Needs you | Waiting; Notes split composer | notes. *Rejected:*
+"See full calendar →" from the mockup (no calendar view exists); dropping search (kept
+compact beside the tabs since `#tag` chips rely on it).
+
+**2026-10-14 — (superseded the same day) Tracker side "at a glance" column, collapsed finished groups.**
+Supersedes 2026-10-12's "no summary column" and "finished always visible": the owner sent a
+mockup with Today / Upcoming (day buckets) / *Completed today · Show*, and a right column
+(At a glance, Waiting on people, Notes). The owner first asked for a dark column, then
+had the colour removed — it sits on the page. Notes got a real composer and the latest
+update on each row; the entry dialog is two columns (form | history). Formatting is a
+Markdown subset kept in the plain-text `note` so search, AI summaries and Work Logs keep
+reading it unchanged. *Rejected:* TipTap JSON in updates (every reader would need to parse
+it); the dark side panel; `@person` parsing in the to-do field (shown in the mockup's
+placeholder, not built).
+
+**2026-10-14 — Resource types are compared by their on-screen name.** Built-in *Website*
+renders as "Websites", so a custom *Websites* made two identical tabs. `resourceTypeKey`
+(the displayed plural, lower-cased) now dedupes the Profile list (client toast + server
+`cleanValues`) and merges tabs on Resources; editing a stray resource saves it under the
+list's spelling. Code/URL behaviour is keyed the same way so a custom "Commands" acts
+like *Command*. Resources also gained an **All** tab (default; tag clicks go there).
+*Rejected:* a data migration renaming types (the user owns their list's spelling).
+
 **2026-10-14 — Primary navigation is a full-width sticky top bar, superseding the
 bottom dock.** Section links are centred on desktop and use one dark-bar treatment; the
 current page is a white underline instead of a white pill. Five labelled items plus the
@@ -735,6 +768,14 @@ is done on the real rendered app.
 ## Changelog
 
 `YYYY-MM-DD — what changed — key files`
+
+- 2026-10-14 — Resources redesigned from the owner's mockup: Type/Tags side column, one sortable list of rows with initials tiles, underline search; sanity pass (typecheck, lint, build) and stale doc lines fixed — `components/resources/resource-library.tsx`, `PRD.md`, `Design-System.md`, `Memory.md`
+
+- 2026-10-14 — Tracker: formatting toolbar moved inside the text field (dialog + note composer), dialog Status/Added/Due values aligned on one row, note rows show the title only (owner reversed "latest update on the card" for notes) — `components/tracker/tracker-board.tsx`, `components/tracker/note-text.tsx`, docs
+
+- 2026-10-14 — Tracker reworked to the owner's second mockup: two columns per tab, add field beside the title, tabs + search on the top line, status eyebrows on rows; side column removed — `components/tracker/tracker-board.tsx`, `app/globals.css`, docs
+
+- 2026-10-14 — Tracker redesign from the owner's mockup (side glance column, Today/Upcoming buckets, collapsed finished groups, round ticks, underline add field), note composer with formatting, latest message on rows, two-column entry dialog; Resources All tab and same-name type merge/guard — `components/tracker/tracker-board.tsx`, `components/tracker/note-text.tsx`, `components/resources/resource-library.tsx`, `lib/resource-types.ts`, `lib/user-lists.ts`, `components/profile/list-editors.tsx`, `components/ui/modal.tsx`, `app/globals.css`
 
 - 2026-10-14 — Aligned Tracker tabs with Tickets, removed oversized row indices, labelled the latest follow-up reply inline, defaulted new follow-ups to Slack and today's reminder date, clarified that the date means when to follow up again, and replaced the Who datalist with a searchable free-text autocomplete — `components/tracker/tracker-board.tsx`, docs
 

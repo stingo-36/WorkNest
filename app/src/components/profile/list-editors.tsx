@@ -5,6 +5,7 @@ import { Check, GripVertical, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
+import { resourceTypeKey } from "@/lib/resource-types";
 import { addProject, addTag, deleteAllTags, deleteTag, setResourceTypeIcon, removeProject, renameTag, resetOrderedList, setOrderedList } from "@/actions/user-lists";
 import { cn } from "@/components/cn";
 import { Button } from "@/components/ui/button";
@@ -216,7 +217,10 @@ export function OrderedListEditor({
         placeholder={addPlaceholder}
         pending={pending}
         onAdd={(value) => {
-          if (values.some((item) => item.toLowerCase() === value.toLowerCase())) { toast.error(`“${value}” is already in the list`); return; }
+          // Resource types compare by how they read on screen ("Website" shows as "Websites").
+          const same = (item: string) => (kind === "ResourceType" ? resourceTypeKey(item) === resourceTypeKey(value) : item.toLowerCase() === value.toLowerCase());
+          const existing = values.find(same);
+          if (existing) { toast.error(existing === value ? `“${value}” is already in the list` : `“${value}” is already in the list as “${existing}”`); return; }
           save([...values, value], `Added “${value}”`);
           if (initialIcons && newIcon) {
             const icon = iconRefKey(newIcon);
