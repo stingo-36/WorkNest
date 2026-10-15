@@ -27,6 +27,16 @@
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
 
+**2026-10-15 — Work Logs browses earlier sprints again (reverses "current sprint only").**
+Owner: "there is no way to check previous sprint". ‹ › arrows beside the sprint eyebrow
+step one sprint back/forward (never past the current one); the sprint is derived from
+`?day=`, so the deck's `replaceState` keeps working unchanged and a shared day link opens
+the right sprint. The page now loads logs by the sprint's date range (was the latest 50,
+which would miss older sprints). `SprintDeck` is keyed by sprint start so the open day
+resets on navigation. *Rejected:* a separate `?sprint=` param (two params to keep in
+sync with the deck's URL mirror); a sprint dropdown (Reports already has one; arrows fit
+the header).
+
 **2026-10-15 — All large text fields get the full editor, still stored as Markdown.**
 Owner: "all big description fields" should allow images, links and files. Work Log / Ticket
 fields already used `MarkdownEditor`; it gained the toolbar, links, uploads and Markdown
@@ -804,6 +814,7 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-15 — Work Logs: ‹ › previous/next sprint arrows, `?day=` picks the sprint, logs queried by sprint range — `app/(app)/work-logs/page.tsx`, PRD §5.1, Architecture §3
 - 2026-10-15 — Tags lose their fill: coloured text only (owner: solid and pastel capsules both looked off) — `components/ui/tag-chip.tsx`, `lib/tag-colors.ts`, `components/resources/resource-library.tsx`, `components/tracker/tracker-board.tsx`
 
 - 2026-10-15 — Work log detail redesigned from the owner's mockup (dark hero band with title + counts, log left, to-dos/history/details right); Resources type list on a dark panel and solid tag capsules (owner: no pastels) — `app/(app)/work-logs/[workLogId]/page.tsx`, `components/resources/resource-library.tsx`, `components/ui/tag-chip.tsx`, `lib/tag-colors.ts`, docs
