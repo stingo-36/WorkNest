@@ -349,7 +349,7 @@ off-palette hues except semantic red/green, orange stars, and real brand logos:
 | Tickets | list header band + open ticket header band | first ticket opens by default; selected row uses a teal tint + teal leading rule |
 | Tracker | active tab, focus lists' toned edge | |
 | Notes | stats band (notes · favourites · sections) with the white "New note" CTA | Favourites / All notes groups |
-| Resources | type list on a dark `bg-sidebar` panel; current type = light pill (`bg-sidebar-fg`, ink text) | initials tiles in ink / teal / amber; solid tag capsules |
+| Resources | type list on a dark `bg-sidebar` panel; current type = light pill (`bg-sidebar-fg`, ink text) | initials tiles in ink / teal / amber; tags as coloured text |
 | Favourites | summary band of three count tiles (jump links) | |
 | Profile | open section header band, active menu item | |
 
@@ -476,7 +476,7 @@ All under `app/src/components/`. Use these before writing new markup.
 | `Badge`, `TicketId` | Generic badge; `TicketId` is mandatory for ticket keys. |
 | `TicketStatusBadge`, `TICKET_STATUS_DOT` | Status colours + labels + order (all tinted badges). |
 | `ProjectInput` | MUI Autocomplete (freeSolo) of the user's project names; loads on open, no module cache. |
-| `TagChip`, `tagChipClass`, `tagChipStyle` | Tag capsule: **solid** `--tag` fill from `lib/tag-colors.ts` with a white or ink label (`tagTextTone`, whichever contrasts more), mono, `rounded-full`. The brand/fallback hexes there are **data, not UI tokens** — the only raw colours allowed. |
+| `TagChip`, `tagChipClass`, `tagChipStyle` | Tag as **coloured mono text, no fill**: `--tag` from `lib/tag-colors.ts` mixed 50/50 with `--c-text` (keeps light brand colours readable); counts in muted text; hover/selected = underline. The brand/fallback hexes there are **data, not UI tokens** — the only raw colours allowed. |
 | `TagInput`, `normalizeTag` | MUI Autocomplete (multiple + freeSolo) chip field over existing tags. Click or ↓+Enter picks a suggestion; Enter/comma adds typed text; blur keeps typed text. Tags normalised (lowercase, no `#`, spaces → `-`), max 25. No `autoHighlight` — in MUI 9 freeSolo, Enter commits typed text, so a pre-highlight would mislead. |
 | `Modal` | Native `<dialog>`: header (eyebrow + title + close), scrolling body, optional footer; `md`/`lg`/`xl` (xl = max-w-5xl, the Tracker entry dialog). Backdrop close only when the press **and** the click are both on the backdrop. |
 | `ConfirmationDialog` | Native `<dialog>`; `destructive` uses the danger button; async `onConfirm`. |

@@ -313,7 +313,7 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   left; an underline search (⌘K; text and `#tag`) and an ink **Add resource** button on
   the right; a rule. Below, a **Type / Tags** column (a sideways strip above the list under
   lg): *All* (default) then each type with counts, on a dark panel with the current one
-  as a light pill; tags as **solid coloured capsules** with counts (brand colour for known tags such as
+  as a light pill; tags in **colour-coded text** (no fill) with counts (brand colour for known tags such as
   *android* or *github*, else a stable colour from the name; a click shows All filtered by
   `#tag`, again clears). Row tags and Tracker note tags use the same capsules. Beside it
   one list headed "ALL RESOURCES · 7" (or the type) with a sort menu (*Recently added* ·

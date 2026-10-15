@@ -804,6 +804,8 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-15 — Tags lose their fill: coloured text only (owner: solid and pastel capsules both looked off) — `components/ui/tag-chip.tsx`, `lib/tag-colors.ts`, `components/resources/resource-library.tsx`, `components/tracker/tracker-board.tsx`
+
 - 2026-10-15 — Work log detail redesigned from the owner's mockup (dark hero band with title + counts, log left, to-dos/history/details right); Resources type list on a dark panel and solid tag capsules (owner: no pastels) — `app/(app)/work-logs/[workLogId]/page.tsx`, `components/resources/resource-library.tsx`, `components/ui/tag-chip.tsx`, `lib/tag-colors.ts`, docs
 
 - 2026-10-15 — Live /tracker 500 after deploy: `tracker_rich_updates` hadn't been applied to Neon; ran `db:hosted` (migrate deploy). Reminder: hosted migration before merging schema changes (skills.md §11 step 6) — Neon

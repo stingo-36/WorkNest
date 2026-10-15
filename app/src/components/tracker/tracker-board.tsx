@@ -1362,7 +1362,7 @@ function NoteRow({ entry, today, onOpen, onTag }: { entry: TrackerEntry; today: 
         <>
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 pt-1 text-base font-medium text-text-muted">
             {entry.tags.map((tag) => (
-              <button key={tag} type="button" onClick={() => onTag(tag)} title={`Show notes tagged #${tag}`} style={tagChipStyle(tag)} className={cn(tagChipClass, "cursor-pointer hover:brightness-95")}>
+              <button key={tag} type="button" onClick={() => onTag(tag)} title={`Show notes tagged #${tag}`} style={tagChipStyle(tag)} className={cn(tagChipClass, "cursor-pointer decoration-2 underline-offset-4 hover:underline")}>
                 #{tag}
               </button>
             ))}
