@@ -240,7 +240,7 @@ export function ResourceLibrary({
             {usedTags.length ? (
               <div role="group" aria-labelledby="resource-tags-label" className="flex flex-col gap-2">
                 <h2 id="resource-tags-label" className="tk-label text-text-muted">Tags</h2>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-x-3.5 gap-y-0.5">
                   {usedTags.map(([tag, count]) => {
                     const on = query === `#${tag}`;
                     return (
@@ -251,9 +251,9 @@ export function ResourceLibrary({
                         onClick={() => { setSearch(on ? "" : `#${tag}`); if (!on) setPicked(ALL); }}
                         style={tagChipStyle(tag)}
                         // 36px tap target around a slim capsule; the selected tag gets a solid ring.
-                        className={cn(tagChipClass, "min-h-9 cursor-pointer transition-[filter,box-shadow] duration-150 hover:brightness-110", on && "ring-2 ring-text ring-offset-2 ring-offset-[var(--c-wl-page)]")}
+                        className={cn(tagChipClass, "min-h-9 cursor-pointer decoration-2 underline-offset-4 hover:underline", on && "underline")}
                       >
-                        #{tag} <span className="tabular-nums opacity-80">{count}</span>
+                        #{tag} <span className="font-medium text-text-muted tabular-nums">{count}</span>
                       </button>
                     );
                   })}
@@ -558,7 +558,7 @@ function ResourceRow({ resource, onEdit }: { resource: ResourceItem; onEdit: () 
           </div>
         ) : null}
         {resource.tags.length ? (
-          <p className="flex flex-wrap gap-1.5 pt-1">
+          <p className="flex flex-wrap gap-x-3 gap-y-1 pt-0.5">
             {resource.tags.map((tag) => <TagChip key={tag} tag={tag} />)}
           </p>
         ) : null}
