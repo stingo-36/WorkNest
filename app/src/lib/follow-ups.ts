@@ -3,7 +3,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { EntryKind, FollowUpStatus } from "@/generated/prisma/enums";
-import { docFileIds, docToText } from "@/lib/rich-text";
+import { docFileIds, docToText, TODO_STATUS_NOTES } from "@/lib/rich-text";
 
 /**
  * Follow-ups — "what did I tell whom, and when".
@@ -195,14 +195,35 @@ export async function setFollowUpStatus(
   followUpId: string,
   status: FollowUpStatus,
 ) {
-  const result = await prisma.followUp.updateMany({
+  const before = await prisma.followUp.findFirst({
+    where: { id: followUpId, userId },
+    select: { kind: true, status: true },
+  });
+  if (!before) return null;
+
+  const now = new Date();
+  await prisma.followUp.updateMany({
     where: { id: followUpId, userId },
     data: {
       status,
-      completedAt: status === FollowUpStatus.Done ? new Date() : null,
+      completedAt: status === FollowUpStatus.Done ? now : null,
     },
   });
-  if (result.count === 0) return null;
+
+  // A to-do's timeline keeps every done/reopen with its date. `completedAt`
+  // alone is cleared by a reopen, so the history would be lost.
+  if (before.kind === EntryKind.Task && before.status !== status) {
+    await prisma.followUpUpdate.create({
+      data: {
+        followUpId,
+        userId,
+        note: status === FollowUpStatus.Done ? TODO_STATUS_NOTES.done : TODO_STATUS_NOTES.reopened,
+        channel: "Other",
+        occurredAt: now,
+        fromThem: false,
+      },
+    });
+  }
   return getFollowUp(userId, followUpId);
 }
 

@@ -41,6 +41,7 @@ import { TagInput } from "@/components/ui/tag-input";
 import { toast } from "@/components/ui/toast";
 import { FormattedNote } from "@/components/tracker/note-text";
 import { UpdateDoc, UpdateEditor, type EditorValue } from "@/components/tracker/update-editor";
+import { isStatusNote, TODO_STATUS_NOTES } from "@/lib/rich-text";
 import { tagChipClass, tagChipStyle } from "@/components/ui/tag-chip";
 import type {
   EntryKind,
@@ -671,9 +672,10 @@ function DoneCircle({ entry }: { entry: TrackerEntry }) {
 
 /** One-line preview of the newest message, shown on rows in every tab. */
 function LatestLine({ entry }: { entry: TrackerEntry }) {
-  const latest = entry.updates[0];
+  // "Marked done" / "Reopened" are bookkeeping; the preview shows what you wrote.
+  const latest = entry.updates.find((update) => !isStatusNote(update));
   const text = latest?.note.trim();
-  if (!text || text === entry.subject) return null;
+  if (!latest || !text || text === entry.subject) return null;
   return (
     <p className={cn("line-clamp-2 text-md [overflow-wrap:anywhere]", latest.fromThem ? "font-medium text-text" : "text-text-muted")}>
       <span className="text-text-muted">{latest.fromThem ? "Latest reply:" : "Last note:"}</span> {stripMarks(text)}
@@ -1617,7 +1619,12 @@ function Timeline({ entry }: { entry: TrackerEntry }) {
                     <time dateTime={update.occurredAt}>{format(parseISO(update.occurredAt), "EEE d MMM yyyy, HH:mm")}</time>
                     {isFollowUp ? ` · ${update.channel}` : ""}
                   </p>
-                  {update.doc ? (
+                  {isStatusNote(update) ? (
+                    <p className={cn("mt-1 inline-flex items-center gap-1.5 text-sm font-semibold", update.note === TODO_STATUS_NOTES.done ? "text-status-completed-fg" : "text-text-muted")}>
+                      {update.note === TODO_STATUS_NOTES.done ? <Check className="size-3.5" strokeWidth={3} aria-hidden="true" /> : <RotateCcw className="size-3.5" aria-hidden="true" />}
+                      {update.note}
+                    </p>
+                  ) : update.doc ? (
                     <UpdateDoc doc={update.doc} className="mt-1 text-md" />
                   ) : update.note ? (
                     <FormattedNote text={update.note} className="mt-1 text-md leading-6 text-text" />

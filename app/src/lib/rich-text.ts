@@ -11,6 +11,11 @@ type DocNode = { type?: string; text?: string; attrs?: Record<string, unknown>; 
 /** Where an uploaded Tracker file is served from; ids in a doc are found by this prefix. */
 export const TRACKER_FILE_PATH = "/api/tracker-files/";
 
+/** Timeline entries the app writes when a to-do is ticked or reopened. Previews skip them. */
+export const TODO_STATUS_NOTES = { done: "Marked done", reopened: "Reopened" } as const;
+export const isStatusNote = (update: { note: string; doc?: unknown }) =>
+  !update.doc && (update.note === TODO_STATUS_NOTES.done || update.note === TODO_STATUS_NOTES.reopened);
+
 /** Bytes per uploaded image or file. Vercel functions accept ~4.5 MB per request. */
 export const MAX_TRACKER_FILE_BYTES = 4 * 1024 * 1024;
 
