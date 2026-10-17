@@ -4,7 +4,7 @@
 > (with the *why*), gotchas that cost time before, and a changelog. Newest first in
 > every section. Update rules are in `AGENTS.md` §2.
 >
-> Last synced with the codebase: **2026-10-15**
+> Last synced with the codebase: **2026-10-17**
 
 ---
 
@@ -657,6 +657,13 @@ is done on the real rendered app.
 
 ## Gotchas
 
+- **2026-10-17 — TipTap `getJSON()` can't go straight into a Server Action.** ProseMirror
+  builds node `attrs` with `Object.create(null)` and `getJSON()` reuses them; React only
+  serialises plain-prototype objects, so those arrive as temporary client references and
+  Prisma throws ("Cannot access toStringTag on the server…") before writing. Every Tracker
+  note/update add failed on live from 2026-10-15 until fixed. JSON round-trip the doc first
+  (`update-editor.tsx`).
+
 - **2026-10-15 — Editor uploads can be orphaned.** Files upload while you write (before
   the entry/update exists), so a draft that's never saved — and every upload from a
   Markdown field (Work Logs, Tickets, Resources, Achievements), which is never linked —
@@ -814,6 +821,7 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-17 — Fix: adding a Tracker note crashed the page (null-prototype TipTap attrs sent to a Server Action); doc is now plain JSON — `components/tracker/update-editor.tsx`
 - 2026-10-15 — Work Logs: ‹ › previous/next sprint arrows, `?day=` picks the sprint, logs queried by sprint range — `app/(app)/work-logs/page.tsx`, PRD §5.1, Architecture §3
 - 2026-10-15 — Tags lose their fill: coloured text only (owner: solid and pastel capsules both looked off) — `components/ui/tag-chip.tsx`, `lib/tag-colors.ts`, `components/resources/resource-library.tsx`, `components/tracker/tracker-board.tsx`
 

@@ -274,7 +274,10 @@ export function UpdateEditor({ id, label, placeholder, boxed = false, minHeight 
       },
     },
     onUpdate: ({ editor: e }) => {
-      const doc = e.getJSON();
+      // getJSON() reuses ProseMirror's null-prototype `attrs` objects, which a
+      // Server Action can't serialise (they arrive as opaque references and
+      // Prisma throws). A JSON round-trip makes every object plain.
+      const doc = JSON.parse(JSON.stringify(e.getJSON())) as JSONContent;
       const text = docToText(doc);
       onChange({ doc: e.isEmpty ? null : doc, text, hasContent: !e.isEmpty && (text.trim().length > 0 || docFileIds(doc).length > 0) });
     },
