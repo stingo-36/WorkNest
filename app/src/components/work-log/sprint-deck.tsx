@@ -25,7 +25,7 @@ export type DeckLog = {
 /** The Tracker as it stood on one day (grouped on the server from `listTrackerForRange`). */
 export type DeckTracker = {
   /** done = finished that day; due = due that day, still open; overdue = due earlier, still open; added = created that day (shown as "Created"). */
-  todos: Array<{ id: string; subject: string; state: "done" | "due" | "overdue" | "added"; pinned: boolean; due: string | null }>;
+  todos: Array<{ id: string; subject: string; state: "done" | "due" | "overdue" | "added"; pinned: boolean; due: string | null; doneLater: string | null }>;
   followUps: Array<{ id: string; person: string | null; subject: string; note: string | null; fromThem: boolean; ticketKey: string | null; done: boolean }>;
   notes: Array<{ id: string; subject: string; note: string | null; tags: string[] }>;
 };
@@ -300,7 +300,9 @@ function Todos({ todos }: { todos: DeckTracker["todos"] }) {
       {sorted.length ? (
         <ul className="flex flex-col gap-2">
           {sorted.map((todo) => {
-            const look = TODO_LOOK[todo.state];
+            // Finished on a later day: keep what it was that day, but tint it done and strike it through.
+            const look = todo.doneLater ? { ...TODO_LOOK[todo.state], card: TODO_LOOK.done.card, disc: TODO_LOOK.done.disc, meta: TODO_LOOK.done.meta, Icon: Check } : TODO_LOOK[todo.state];
+            const struck = todo.state === "done" || todo.doneLater;
             return (
               <li key={todo.id} className={cn("flex gap-3 rounded-2xl px-3.5 py-2.5 text-base leading-relaxed text-text", look.card)}>
                 <span className={cn("mt-0.5 grid size-6 shrink-0 place-items-center rounded-full", look.disc)} aria-hidden="true">
@@ -309,8 +311,9 @@ function Todos({ todos }: { todos: DeckTracker["todos"] }) {
                 <span className="min-w-0 flex-1">
                   {/* Done needs no word — the tick says it. */}
                   {look.label ? <><b className="font-semibold">{look.label}:</b>{" "}</> : <span className="sr-only">Done: </span>}
-                  <span className={todo.state === "done" ? "line-through decoration-text-subtle" : undefined}>{todo.subject}</span>
+                  <span className={struck ? "line-through decoration-text-subtle" : undefined}>{todo.subject}</span>
                   {todo.state === "overdue" && todo.due ? <span className={look.meta}> · due {todo.due}</span> : null}
+                  {todo.doneLater ? <span className={look.meta}> · done {todo.doneLater}</span> : null}
                 </span>
                 {todo.pinned ? <Star className="mt-1.5 size-3.5 shrink-0 fill-current text-warning" aria-label="Important" /> : null}
               </li>

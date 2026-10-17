@@ -4,7 +4,7 @@
 > changes scope, or is retired, update the matching section here (see
 > `AGENTS.md → Keeping the docs current`).
 >
-> Last synced with the codebase: **2026-10-15**
+> Last synced with the codebase: **2026-10-17**
 
 ---
 
@@ -98,7 +98,7 @@ update.*
   grows it into the **day card** (animated): big date, status chip, View full log / Edit log,
   title (split on `|`), then four sections — **Summary** (AI summary if generated, else one
   status-marked row per ticket update; shown only for a logged day — a day with no log
-  offers Start log / Mark holiday / Mark leave on the right of the header instead), and that day's Tracker **To-do list** (overdue, due that day, created that day, done — each a tinted card),
+  offers Start log / Mark holiday / Mark leave on the right of the header instead), and that day's Tracker **To-do list** (overdue, due that day, created that day, done — each a tinted card; one finished on a later day keeps its label but turns green, struck through, "· done 17 Oct"),
   **Follow-ups** (entries created or written to that day: person, subject, latest note,
   waiting / replied / closed) and **Notes** (created or added to that day), each with an
   Open link to its Tracker tab. Summary sits on the left; of the lists that exist (in the order to-dos, follow-ups, notes), the first goes on the right, the second under Summary on the left, the third back on the right. **Empty sections are hidden** (no "No X that day" rows), so whichever lists exist move up. `?day=` keeps the open day. From lg the page fits the screen
@@ -212,6 +212,9 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
 
 - **Mark nudged** appends an "I followed up" update ("Nudged", last channel) and clears
   the nudge date, so the row moves to *Waiting*.
+- Ticking a to-do done (or reopening it) appends a dated **"Marked done" / "Reopened"**
+  entry to its timeline, shown as a small status line; the done date also shows as
+  *Status: Done · 17 Oct*. Row previews ("Last note:") skip these entries.
 - A follow-up needs a person: *Add* without one opens the Who panel with an error. The
   title is recorded as the first message (with the channel).
 - Writing (new note body and every add-update field) uses a **rich editor** (2026-10-15)

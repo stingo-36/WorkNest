@@ -27,6 +27,13 @@
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
 
+**2026-10-17 — To-do done/reopen is written to the timeline.** `completedAt` is cleared
+on reopen, so it can't hold history; a `FollowUpUpdate` ("Marked done"/"Reopened",
+plain note, no doc) keeps every tick, append-only like "Nudged". Recognised by
+`isStatusNote` (`lib/rich-text.ts`) so previews skip them. Old Work Log days keep the
+to-do's state *as it stood* (due/overdue) but render it done once finished later.
+*Rejected:* a synthetic timeline row from `completedAt` (lost on reopen); a new column.
+
 **2026-10-15 — Work Logs browses earlier sprints again (reverses "current sprint only").**
 Owner: "there is no way to check previous sprint". ‹ › arrows beside the sprint eyebrow
 step one sprint back/forward (never past the current one); the sprint is derived from
@@ -821,6 +828,7 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-17 — To-dos finished later show struck through with "done <date>" on older Work Log days; ticking/reopening a to-do appends a "Marked done"/"Reopened" timeline entry — `lib/day-tracker.ts`, `components/work-log/sprint-deck.tsx`, `components/work-log/day-todos.tsx`, `lib/follow-ups.ts`, `lib/rich-text.ts`, `components/tracker/tracker-board.tsx`, PRD §5.1/§5.3
 - 2026-10-17 — Fix: adding a Tracker note crashed the page (null-prototype TipTap attrs sent to a Server Action); doc is now plain JSON — `components/tracker/update-editor.tsx`
 - 2026-10-15 — Work Logs: ‹ › previous/next sprint arrows, `?day=` picks the sprint, logs queried by sprint range — `app/(app)/work-logs/page.tsx`, PRD §5.1, Architecture §3
 - 2026-10-15 — Tags lose their fill: coloured text only (owner: solid and pastel capsules both looked off) — `components/ui/tag-chip.tsx`, `lib/tag-colors.ts`, `components/resources/resource-library.tsx`, `components/tracker/tracker-board.tsx`

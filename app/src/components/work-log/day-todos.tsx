@@ -89,11 +89,12 @@ function TodoGroup({ title, empty, items, kind, date }: { title: string; empty: 
           {items.map((todo) => (
             <li key={todo.id} className="flex w-full min-w-0 items-start gap-2 text-sm">
               <span className="w-full min-w-0 flex-1 overflow-hidden">
-                <span className={kind === "done" ? "block w-full whitespace-normal break-words text-text-muted line-through" : "block w-full whitespace-normal break-words font-medium text-text"}>
+                {/* Overdue that day but finished since: struck through, so the log doesn't read as still pending. */}
+                <span className={kind === "done" || todo.completedAt ? "block w-full whitespace-normal break-words text-text-muted line-through" : "block w-full whitespace-normal break-words font-medium text-text"}>
                   {todo.subject}
                 </span>
                 {kind === "overdue" && todo.dueDate ? (
-                  <span className="text-xs text-danger">
+                  <span className={todo.completedAt ? "text-xs text-status-completed-fg" : "text-xs text-danger"}>
                     {todo.dueDate === date ? "Due this day" : `Due ${format(parseISO(todo.dueDate), "d MMM")}`}
                     {todo.completedAt ? ` · done ${format(new Date(todo.completedAt), "d MMM")}` : ""}
                   </span>
