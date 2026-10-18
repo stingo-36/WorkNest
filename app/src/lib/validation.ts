@@ -627,3 +627,14 @@ export const updateAchievementSchema = z.object({ achievementId: idSchema, data:
 export const achievementIdSchema = z.object({ achievementId: idSchema });
 
 export const achievementFileIdSchema = z.object({ fileId: idSchema });
+
+/** Ask your workspace: one question, plus a few earlier turns for follow-ups. */
+export const askWorkspaceSchema = z.object({
+  question: z.string().trim().min(2, "Type a question first").max(500, "Keep the question under 500 characters"),
+  history: z
+    .array(z.object({ question: z.string().max(500), answer: z.string().max(4_000) }))
+    .max(10)
+    .default([]),
+  /** The browser's local day, so "today" and "this week" mean the user's day. */
+  today: dateOnlySchema,
+});

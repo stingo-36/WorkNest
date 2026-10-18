@@ -16,7 +16,9 @@ export function Toaster() {
       position="bottom-right"
       visibleToasts={2}
       gap={12}
-      offset={16}
+      // Above the Ask button, which owns the bottom-right corner.
+      offset={{ right: 24, bottom: 88 }}
+      mobileOffset={{ right: 16, bottom: 76 }}
       theme="light"
       toastOptions={{
         unstyled: true,

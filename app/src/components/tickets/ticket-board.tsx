@@ -3,6 +3,7 @@
 import { format } from "date-fns";
 import { ArrowRight, Building2, CalendarDays, History, Loader2, Pencil, Plus, Search, ShieldCheck, Ticket as TicketIcon, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { appendTicketHistoryEntry, createTicket, deleteTicketHistoryEntry, getTicket, updateTicket } from "@/actions/tickets";
@@ -69,6 +70,22 @@ export function TicketBoard({ initialTickets, loadError, daysOff = [] }: { initi
       return matchesStatus && matchesQuery;
     });
   }, [query, status, tickets]);
+
+  // `?ticket=<id>` (links from Ask) selects that ticket, whatever its status.
+  const linkedId = useSearchParams().get("ticket");
+  const linked = linkedId && tickets.some((ticket) => ticket.id === linkedId) ? linkedId : null;
+  const [handledLink, setHandledLink] = useState<string | null>(null);
+  if (linked !== handledLink) {
+    setHandledLink(linked);
+    if (linked) {
+      setStatus("All");
+      setQuery("");
+      setSelectedId(linked);
+    }
+  }
+  useEffect(() => {
+    if (linkedId) window.history.replaceState(null, "", "/tickets");
+  }, [linkedId]);
 
   // Never open on an empty detail panel: fall back to the first ticket in the list.
   const selectedTicket = visibleTickets.find((ticket) => ticket.id === selectedId) ?? visibleTickets[0] ?? null;

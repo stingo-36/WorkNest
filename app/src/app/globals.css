@@ -474,6 +474,15 @@ span.wl-face { cursor: default; }
   .wl-col:hover { transform: none !important; }
 }
 
+/* Ask panel (2026-10-17): rises from the bottom-right corner; the waiting line breathes. */
+@keyframes ask-rise { from { opacity: 0; transform: translateY(0.75rem) scale(0.98); } }
+@keyframes ask-breathe { 50% { opacity: 0.45; } }
+.ask-panel { animation: ask-rise var(--duration-slow) var(--ease-smooth-out) both; transform-origin: bottom right; }
+.ask-thinking { animation: ask-breathe 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .ask-panel, .ask-thinking { animation: none; }
+}
+
 /* Tracker "F · Focus" layout (2026-10-10, from the owner's redesign canvas): the
    Work Logs deck palette on the same page tint, ink dock; display type for the
    title, the summary's huge count and the queue's row numbers. Amber dashed =

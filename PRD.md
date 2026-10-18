@@ -60,6 +60,7 @@ placeholder page) · **Retired** (redirects).
 | Notes | `/notes`, `/notes/new`, `/notes/[id]`, `/notes/[id]/edit` | Live | Notebooks: note → sections → pages — see §5.4. |
 | Resources | `/resources` | Live | Typed personal library — see §5.5. |
 | Favourites | `/favourites` | Live | Everything starred in one place — see §5.6. |
+| Ask | floating button, bottom-right of every app page | Live | Chat that answers questions about your own records, with numbered links to the sources — see §5.13. |
 | Quick log | dialog (nav button, Work Logs header) | Live | Paste rough text → AI draft → review → apply, for a work log, to-dos or follow-ups — see §5.10. |
 | Profile | `/profile` (account menu) | Live | Name, sprint calendar, tickets on/off, AI summary key — see §5.7. |
 | Achievements | `/achievements` (account menu) | Live | Certifications/courses/awards timeline with certificates — see §5.8. |
@@ -485,6 +486,27 @@ How the text is read — the AI does the fuzzy part, code the exact part:
   email. The signed-in admin cannot reset or delete its own account here, and the final
   Admin account can never be deleted; self-service password change lives in Profile.
 
+### 5.13 Ask your workspace (added 2026-10-17)
+
+A chat bubble (**Ask**, ink pill) in the bottom-right of every signed-in page opens a
+panel (bottom-right card on md+, a bottom sheet on phones). You type a question —
+"What did I tell Ashwini about SPAM?", "What's overdue?" — and get a short answer
+built **only** from your own records, with numbered citation chips and a source list.
+Each source links to the record: Tracker entries open in their dialog
+(`/tracker?open=`), tickets are selected (`/tickets?ticket=`), work logs and notebooks
+open their page, resources go to Resources.
+
+- **Read-only.** It answers; it never creates, edits or sends anything.
+- **Your data only.** Searches the signed-in user's work logs (incl. meetings and
+  ticket updates), Tracker entries and their history, tickets (if enabled),
+  resources and notebook pages. The AI sees only the few records that matched.
+- **Says when it doesn't know** instead of guessing. Few or no keyword matches →
+  your open Tracker entries and latest logs are added, so broad questions work.
+- Follow-up questions use the last few turns. The chat survives moving between pages
+  and is gone on reload (nothing is stored). New chat clears it.
+- Uses the same OpenRouter key as AI summaries; without one it says how to set it up.
+- Keyword search (not embeddings): "email" won't find a note that only says "SMTP".
+
 ## 6. Non-functional requirements
 
 - **User isolation:** every regular query is scoped by `userId` taken from the
@@ -501,7 +523,7 @@ How the text is read — the AI does the fuzzy part, code the exact part:
 
 ## 7. Out of scope (don't build, don't promise)
 
-AI beyond the per-log summary, sprint report and Quick log reading; Jira / GitHub / Slack / Calendar integrations; PDF/Markdown export;
+AI beyond the per-log summary, sprint report, Quick log reading and read-only Ask (§5.13); Jira / GitHub / Slack / Calendar integrations; PDF/Markdown export;
 emailed reports; team workspaces; sharing; global search (not built yet);
 dark mode (removed).
 
