@@ -46,7 +46,12 @@ export function WorkLogSummary({
   // Guards the one-time auto run against React's double-invoked effects in dev.
   const autoStarted = useRef(false);
   // Generating writes updatedAt back unchanged, so any later edit makes this true.
-  const stale = Boolean(summary && generatedAt && new Date(updatedAt) > new Date(generatedAt));
+  // A to-do ticked off after the summary was written also makes it stale (it may still say "overdue").
+  const stale = Boolean(
+    summary &&
+      generatedAt &&
+      (new Date(updatedAt) > new Date(generatedAt) || todos.some((todo) => todo.completedAt && new Date(todo.completedAt) > new Date(generatedAt))),
+  );
   const hasTodoContent = todos.some((todo) => {
     const completedDay = todo.completedAt ? format(new Date(todo.completedAt), "yyyy-MM-dd") : null;
     return completedDay === todoDate || (todo.dueDate !== null && todo.dueDate <= todoDate && !(completedDay && completedDay <= todoDate));
@@ -108,7 +113,7 @@ export function WorkLogSummary({
             <p className="mt-3 text-xs text-text-muted">
               {model}
               {generatedAt ? <> · <time dateTime={generatedAt}>{format(new Date(generatedAt), "d MMM yyyy, h:mm a")}</time></> : null}
-              {stale ? <span className="font-semibold text-text"> · The log changed since — regenerate to include the latest edits.</span> : null}
+              {stale ? <span className="font-semibold text-text"> · The log or its to-dos changed since — regenerate to include the latest.</span> : null}
             </p>
           </div>
         ) : pending ? (

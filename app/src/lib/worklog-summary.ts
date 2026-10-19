@@ -34,8 +34,8 @@ export function workLogHasContent(log: SummaryInput): boolean {
 
 const TODO_HEADING = {
   done: "To-dos completed that day",
-  due: "To-dos due that day, still open",
-  overdue: "To-dos overdue and still open",
+  due: "To-dos due that day, not done by the end of it",
+  overdue: "To-dos overdue that day, not done by the end of it",
   added: "To-dos created that day",
 } as const;
 
@@ -53,7 +53,8 @@ export function workLogAsText(log: SummaryInput): string {
     log.learningNotes.trim() ? `Work done\n${log.learningNotes.trim()}` : "",
     ...(["done", "due", "overdue", "added"] as const).map((state) => {
       // Same-named entries (e.g. a re-added to-do) would read as a repeat; keep one.
-      const items = [...new Set(todos.filter((todo) => todo.state === state).map((todo) => todo.subject))];
+      // A to-do finished on a later day says so, so the summary never reads as still pending.
+      const items = [...new Set(todos.filter((todo) => todo.state === state).map((todo) => `${todo.subject}${todo.doneLater ? ` (since done, ${todo.doneLater})` : ""}`))];
       return items.length ? `${TODO_HEADING[state]}\n${bullets(items)}` : "";
     }),
     followUps.length
