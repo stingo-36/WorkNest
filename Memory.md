@@ -27,6 +27,14 @@
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
 
+**2026-10-17 — Ask your workspace: read-only AI chat, keyword retrieval.** Owner asked
+for a chatbot bottom-right; PRD §7 widened to allow it. Answers only from the user's
+records with numbered sources; never writes. Retrieval is Postgres `ILIKE` + word-count
+ranking (nothing to keep in sync, fits the free models' small context), topped up
+with open Tracker entries + latest logs so broad questions work. Chat is client state
+only (not stored). *Rejected:* pgvector embeddings for v1 (setup + sync cost; revisit if
+synonyms matter), sending the whole account to the AI, a full chat page.
+
 **2026-10-17 — To-do done/reopen is written to the timeline.** `completedAt` is cleared
 on reopen, so it can't hold history; a `FollowUpUpdate` ("Marked done"/"Reopened",
 plain note, no doc) keeps every tick, append-only like "Nudged". Recognised by
@@ -828,6 +836,7 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-17 — Ask your workspace: bottom-right chat answering from your own records with source links; Tracker `?open=` and Tickets `?ticket=` deep links; toasts lifted above it — `lib/ask.ts`, `actions/ask.ts`, `components/ask/ask-widget.tsx`, `components/shell/app-shell.tsx`, `components/ui/toast.tsx`, `tracker-board.tsx`, `ticket-board.tsx`, `globals.css`, PRD §4/§5.13/§7, Architecture §3/§4, Design-System §8
 - 2026-10-17 — To-dos finished later show struck through with "done <date>" on older Work Log days; ticking/reopening a to-do appends a "Marked done"/"Reopened" timeline entry — `lib/day-tracker.ts`, `components/work-log/sprint-deck.tsx`, `components/work-log/day-todos.tsx`, `lib/follow-ups.ts`, `lib/rich-text.ts`, `components/tracker/tracker-board.tsx`, PRD §5.1/§5.3
 - 2026-10-17 — Fix: adding a Tracker note crashed the page (null-prototype TipTap attrs sent to a Server Action); doc is now plain JSON — `components/tracker/update-editor.tsx`
 - 2026-10-15 — Work Logs: ‹ › previous/next sprint arrows, `?day=` picks the sprint, logs queried by sprint range — `app/(app)/work-logs/page.tsx`, PRD §5.1, Architecture §3

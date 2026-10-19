@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { AskWidget } from "@/components/ask/ask-widget";
 import { InstallAppDialog } from "@/components/pwa/install-app";
 import { QuickLogProvider } from "@/components/quick-log/quick-log";
 import { AppNav, type ShellUser } from "@/components/shell/app-nav";
@@ -44,6 +45,7 @@ export function AppShell({
             </div>
           </main>
           <InstallAppDialog />
+          <AskWidget />
         </QuickLogProvider>
       </div>
     </>

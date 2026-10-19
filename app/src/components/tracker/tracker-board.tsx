@@ -17,7 +17,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { addDays, differenceInCalendarDays, endOfWeek, format, parseISO } from "date-fns";
 
 import {
@@ -313,6 +313,23 @@ export function TrackerBoard({
   const lists = useMemo(() => ({ channels, noteTags: savedNoteTags }), [channels, savedNoteTags]);
   const tagSuggestions = mergeTags(noteTags(byKind.Note).map(([tag]) => tag), savedNoteTags);
   const openEntry = (entry: TrackerEntry) => setOpenId(entry.id);
+
+  // `?open=<id>` (links from Ask) opens that entry on its tab. The param is then
+  // dropped, so following the same link again opens it again.
+  const linkedId = useSearchParams().get("open");
+  const linked = linkedId ? entries.find((entry) => entry.id === linkedId) : undefined;
+  const linkedTab: TrackerView = linked?.kind === "FollowUp" ? "followups" : linked?.kind === "Note" ? "notes" : "todo";
+  const [handledLink, setHandledLink] = useState<string | null>(null);
+  if ((linked?.id ?? null) !== handledLink) {
+    setHandledLink(linked?.id ?? null);
+    if (linked) {
+      setView(linkedTab);
+      setOpenId(linked.id);
+    }
+  }
+  useEffect(() => {
+    if (linkedId) window.history.replaceState(null, "", linkedTab === "todo" ? "/tracker" : `/tracker?view=${linkedTab}`);
+  }, [linkedId, linkedTab]);
 
   function choose(next: TrackerView) {
     setView(next);
