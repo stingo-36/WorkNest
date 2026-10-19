@@ -4,7 +4,7 @@
 > changes scope, or is retired, update the matching section here (see
 > `AGENTS.md → Keeping the docs current`).
 >
-> Last synced with the codebase: **2026-10-17**
+> Last synced with the codebase: **2026-10-19**
 
 ---
 
@@ -99,7 +99,7 @@ update.*
   grows it into the **day card** (animated): big date, status chip, View full log / Edit log,
   title (split on `|`), then four sections — **Summary** (AI summary if generated, else one
   status-marked row per ticket update; shown only for a logged day — a day with no log
-  offers Start log / Mark holiday / Mark leave on the right of the header instead), and that day's Tracker **To-do list** (overdue, due that day, created that day, done — each a tinted card; one finished on a later day keeps its label but turns green, struck through, "· done 17 Oct"),
+  offers Start log / Mark holiday / Mark leave on the right of the header instead), and that day's Tracker **To-do list** (overdue, due that day, created that day, done — each a tinted card; every finished one is struck through with its done date, "· done 17 Oct", and one finished on a later day keeps its label but turns green),
   **Follow-ups** (entries created or written to that day: person, subject, latest note,
   waiting / replied / closed) and **Notes** (created or added to that day), each with an
   Open link to its Tracker tab. Summary sits on the left; of the lists that exist (in the order to-dos, follow-ups, notes), the first goes on the right, the second under Summary on the left, the third back on the right. **Empty sections are hidden** (no "No X that day" rows), so whichever lists exist move up. `?day=` keeps the open day. From lg the page fits the screen
@@ -506,6 +506,10 @@ open their page, resources go to Resources.
   and is gone on reload (nothing is stored). New chat clears it.
 - Uses the same OpenRouter key as AI summaries; without one it says how to set it up.
 - Keyword search (not embeddings): "email" won't find a note that only says "SMTP".
+- A to-do/follow-up's current state comes only from the Tracker: open ones past their
+  due date are flagged overdue for the AI. Work logs are read as history and their
+  stored AI summaries are not sent (they can be stale), so a to-do that was overdue
+  on an old log but done since is never reported as overdue.
 
 ## 6. Non-functional requirements
 

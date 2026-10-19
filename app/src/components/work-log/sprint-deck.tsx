@@ -25,7 +25,7 @@ export type DeckLog = {
 /** The Tracker as it stood on one day (grouped on the server from `listTrackerForRange`). */
 export type DeckTracker = {
   /** done = finished that day; due = due that day, still open; overdue = due earlier, still open; added = created that day (shown as "Created"). */
-  todos: Array<{ id: string; subject: string; state: "done" | "due" | "overdue" | "added"; pinned: boolean; due: string | null; doneLater: string | null }>;
+  todos: Array<{ id: string; subject: string; state: "done" | "due" | "overdue" | "added"; pinned: boolean; due: string | null; doneLater: string | null; doneOn: string | null }>;
   followUps: Array<{ id: string; person: string | null; subject: string; note: string | null; fromThem: boolean; ticketKey: string | null; done: boolean }>;
   notes: Array<{ id: string; subject: string; note: string | null; tags: string[] }>;
 };
@@ -313,7 +313,7 @@ function Todos({ todos }: { todos: DeckTracker["todos"] }) {
                   {look.label ? <><b className="font-semibold">{look.label}:</b>{" "}</> : <span className="sr-only">Done: </span>}
                   <span className={struck ? "line-through decoration-text-subtle" : undefined}>{todo.subject}</span>
                   {todo.state === "overdue" && todo.due ? <span className={look.meta}> · due {todo.due}</span> : null}
-                  {todo.doneLater ? <span className={look.meta}> · done {todo.doneLater}</span> : null}
+                  {struck && todo.doneOn ? <span className={look.meta}> · done {todo.doneOn}</span> : null}
                 </span>
                 {todo.pinned ? <Star className="mt-1.5 size-3.5 shrink-0 fill-current text-warning" aria-label="Important" /> : null}
               </li>

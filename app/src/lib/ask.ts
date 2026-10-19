@@ -54,7 +54,7 @@ const day = (date: Date) => format(date, "d MMM yyyy");
  * current: open Tracker entries and the latest logs — so broad questions
  * ("what's overdue?", "what am I waiting on?") have something to go on.
  */
-async function findCandidates(userId: string, terms: string[], ticketsEnabled: boolean): Promise<Candidate[]> {
+async function findCandidates(userId: string, terms: string[], ticketsEnabled: boolean, todayKey: string): Promise<Candidate[]> {
   const recent = terms.length === 0;
   const any = <T>(build: (term: string) => T) => terms.map(build);
   const patterns = terms.map((term) => `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
@@ -84,7 +84,6 @@ async function findCandidates(userId: string, terms: string[], ticketsEnabled: b
         OR: [
           ...any((t) => ({ title: contains(t) })),
           ...any((t) => ({ learningNotes: contains(t) })),
-          ...any((t) => ({ summary: contains(t) })),
           ...any((t) => ({ meetings: { some: { OR: [{ name: contains(t) }, { notes: contains(t) }] } } })),
           ...any((t) => ({ ticketUpdates: { some: { description: contains(t) } } })),
         ],
@@ -92,7 +91,7 @@ async function findCandidates(userId: string, terms: string[], ticketsEnabled: b
       orderBy: { date: "desc" },
       take: recent ? 3 : PER_SOURCE,
       select: {
-        id: true, date: true, title: true, dayType: true, learningNotes: true, summary: true,
+        id: true, date: true, title: true, dayType: true, learningNotes: true,
         meetings: { select: { name: true, notes: true } },
         ticketUpdates: { select: { description: true, status: true, ticket: { select: { ticketId: true, title: true } } } },
       },
@@ -146,11 +145,13 @@ async function findCandidates(userId: string, terms: string[], ticketsEnabled: b
 
   for (const entry of entries) {
     const kind = entry.kind === EntryKind.FollowUp ? "Follow-up" : entry.kind === EntryKind.Task ? "To-do" : "Note";
+    // `dueDate` is a date column (UTC midnight), so its ISO prefix is the calendar day.
+    const overdue = entry.status === "Open" && entry.dueDate && entry.dueDate.toISOString().slice(0, 10) < todayKey;
     const facts = [
       entry.person ? `Person: ${entry.person}` : "",
       entry.ticketKey ? `Ticket: ${entry.ticketKey}` : "",
       `Status: ${entry.status}${entry.completedAt ? ` (done ${day(entry.completedAt)})` : ""}`,
-      entry.dueDate ? `Due: ${day(entry.dueDate)}` : "",
+      entry.dueDate ? `Due: ${day(entry.dueDate)}${overdue ? " (OVERDUE)" : ""}` : "",
       `Created: ${day(entry.createdAt)}`,
       entry.tags.length ? `Tags: ${entry.tags.join(", ")}` : "",
     ].filter(Boolean);
@@ -171,7 +172,6 @@ async function findCandidates(userId: string, terms: string[], ticketsEnabled: b
       log.learningNotes.trim() ? `Work done:\n${markdownPreview(log.learningNotes)}` : "",
       ...log.ticketUpdates.map((u) => `Ticket ${u.ticket.ticketId} ${u.ticket.title} [${u.status}]: ${markdownPreview(u.description)}`),
       ...log.meetings.filter((m) => m.notes.trim()).map((m) => `Meeting ${m.name}: ${markdownPreview(m.notes)}`),
-      log.summary ? `Summary: ${markdownPreview(log.summary)}` : "",
     ].filter(Boolean);
     candidates.push({ kind: "Work log", title: log.title, date: day(log.date), href: `/work-logs/${log.id}`, text: [log.title, ...parts].join("\n"), at: log.date });
   }
@@ -224,7 +224,8 @@ function rank(candidates: Candidate[], terms: string[]) {
 const SYSTEM_PROMPT = `You answer questions about the user's own work records in WorkNest (work logs, to-dos, follow-ups, notes, tickets, resources).
 
 Rules:
-- Use ONLY the numbered SOURCES. Never invent people, dates, numbers or events.
+- Use ONLY the numbered SOURCES.
+- The current state of a to-do or follow-up is its "Status" line. Something is overdue only when its source says "(OVERDUE)"; if none does, say nothing is overdue. Work logs are history: what was pending on a past day may be done now. Never invent people, dates, numbers or events.
 - Cite every fact with its source number in square brackets, like [2]. Several: [1][3].
 - If the sources don't answer the question, say plainly that you couldn't find it in their workspace, and mention the closest related thing if there is one.
 - Speak to the user as "you". Be brief: 1-4 short sentences, or a short "- " list when listing several items. Plain text, no headings, no tables.
@@ -236,12 +237,14 @@ export async function askWorkspace(userId: string, input: { question: string; hi
   if (!config) return { ok: false, message: aiFailureMessage({ reason: "not_configured" }) };
 
   const history = input.history.slice(-MAX_HISTORY);
+  const today = new Date(input.today.getTime() + input.today.getTimezoneOffset() * 60_000);
+  const todayKey = format(today, "yyyy-MM-dd");
   const terms = searchTerms(input.question, history.at(-1)?.question ?? "");
-  const matched = terms.length ? rank(await findCandidates(userId, terms, settings.ticketsEnabled), terms) : [];
+  const matched = terms.length ? rank(await findCandidates(userId, terms, settings.ticketsEnabled, todayKey), terms) : [];
   // Few or no keyword hits: add what's current, so broad questions still get an answer.
   const sources = matched.length >= 4 ? matched : [
     ...matched,
-    ...(await findCandidates(userId, [], settings.ticketsEnabled)).filter((c) => !matched.some((m) => m.href === c.href)),
+    ...(await findCandidates(userId, [], settings.ticketsEnabled, todayKey)).filter((c) => !matched.some((m) => m.href === c.href)),
   ].slice(0, MAX_SOURCES + 6);
 
   const sourceText = sources.length
@@ -253,7 +256,7 @@ export async function askWorkspace(userId: string, input: { question: string; hi
 
   const ai = await openRouterComplete(config, {
     system: SYSTEM_PROMPT,
-    user: `TODAY: ${format(new Date(input.today.getTime() + input.today.getTimezoneOffset() * 60_000), "EEEE d MMM yyyy")}\n\nSOURCES:\n${sourceText}\n\n${conversation}QUESTION: ${input.question}`,
+    user: `TODAY: ${format(today, "EEEE d MMM yyyy")}\n\nSOURCES:\n${sourceText}\n\n${conversation}QUESTION: ${input.question}`,
     maxChars: 4_000,
     maxTokens: 3_000,
     checkReasoning: false,

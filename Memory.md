@@ -4,7 +4,7 @@
 > (with the *why*), gotchas that cost time before, and a changelog. Newest first in
 > every section. Update rules are in `AGENTS.md` §2.
 >
-> Last synced with the codebase: **2026-10-17**
+> Last synced with the codebase: **2026-10-19**
 
 ---
 
@@ -26,6 +26,15 @@
 ## Decisions
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
+
+**2026-10-19 — Ask doesn't read stored work-log summaries; overdue is computed.** Owner
+asked "What's overdue?" and got two to-dos done on 7 Oct, quoted from the 6 Oct log's
+AI summary ("Overdue: push AI module…"). Summaries are a snapshot that goes stale when a
+to-do is ticked later, and Ask already reads the raw log + live Tracker, so the summary
+is dropped from Ask's search and text. Open entries past due get "(OVERDUE)" and the
+prompt says only those count. Summaries now write "(since done, 7 Oct)" and show the
+regenerate hint when a day's to-do was finished after the summary. *Rejected:*
+auto-regenerating every affected summary on tick (an AI call per old log).
 
 **2026-10-17 — Ask your workspace: read-only AI chat, keyword retrieval.** Owner asked
 for a chatbot bottom-right; PRD §7 widened to allow it. Answers only from the user's
@@ -836,6 +845,7 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-19 — Ask no longer reports to-dos done since as overdue (drops stale log summaries, flags real overdue); every struck to-do on Work Logs shows its done date; summaries note "since done" and go stale when a to-do is finished later — `lib/ask.ts`, `lib/day-tracker.ts`, `lib/worklog-summary.ts`, `sprint-deck.tsx`, `day-todos.tsx`, `work-log-summary.tsx`, PRD §5.1/§5.13
 - 2026-10-17 — Ask your workspace: bottom-right chat answering from your own records with source links; Tracker `?open=` and Tickets `?ticket=` deep links; toasts lifted above it — `lib/ask.ts`, `actions/ask.ts`, `components/ask/ask-widget.tsx`, `components/shell/app-shell.tsx`, `components/ui/toast.tsx`, `tracker-board.tsx`, `ticket-board.tsx`, `globals.css`, PRD §4/§5.13/§7, Architecture §3/§4, Design-System §8
 - 2026-10-17 — To-dos finished later show struck through with "done <date>" on older Work Log days; ticking/reopening a to-do appends a "Marked done"/"Reopened" timeline entry — `lib/day-tracker.ts`, `components/work-log/sprint-deck.tsx`, `components/work-log/day-todos.tsx`, `lib/follow-ups.ts`, `lib/rich-text.ts`, `components/tracker/tracker-board.tsx`, PRD §5.1/§5.3
 - 2026-10-17 — Fix: adding a Tracker note crashed the page (null-prototype TipTap attrs sent to a Server Action); doc is now plain JSON — `components/tracker/update-editor.tsx`

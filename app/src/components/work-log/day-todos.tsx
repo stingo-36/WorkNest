@@ -98,6 +98,8 @@ function TodoGroup({ title, empty, items, kind, date }: { title: string; empty: 
                     {todo.dueDate === date ? "Due this day" : `Due ${format(parseISO(todo.dueDate), "d MMM")}`}
                     {todo.completedAt ? ` · done ${format(new Date(todo.completedAt), "d MMM")}` : ""}
                   </span>
+                ) : kind === "done" && todo.completedAt ? (
+                  <span className="text-xs text-status-completed-fg">Done {format(new Date(todo.completedAt), "d MMM")}</span>
                 ) : null}
               </span>
               {todo.pinned ? <Star className="mt-0.5 size-3.5 shrink-0 fill-current text-warning" aria-label="Important" /> : null}
