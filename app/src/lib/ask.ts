@@ -1,37 +1,57 @@
 import "server-only";
 
-import { format } from "date-fns";
+import { differenceInCalendarDays, format, parseISO } from "date-fns";
 
 import { EntryKind } from "@/generated/prisma/enums";
-import { aiFailureMessage, openRouterComplete } from "@/lib/ai-summary";
-import { getOpenRouterConfig } from "@/lib/ai-settings";
+import { aiFailureMessage, type ChatMessage, openRouterChat, openRouterComplete, type ToolSpec } from "@/lib/ai-summary";
+import { DEFAULT_OPENROUTER_MODEL, getOpenRouterConfig } from "@/lib/ai-settings";
 import { prisma } from "@/lib/prisma";
 import { docToText, markdownPreview } from "@/lib/rich-text";
 import { getUserSettings } from "@/lib/user-settings";
+import { askChangeSchema, askProposalSchema, askRangeSchema, type AskProposal, dateOnlySchema } from "@/lib/validation";
 
 /**
- * Ask: questions about your own workspace, answered by the AI from your
- * records only, with numbered sources linking back to them.
+ * Ask: an assistant over your own workspace. Answers come from your records
+ * only, with numbered sources linking back to them.
+ *
+ * It's a small agent loop: the AI starts with the open Tracker and keyword
+ * matches for the message, and can call tools to search again, read work logs
+ * for a date range or list finished Tracker items, then answers. It can also
+ * propose Tracker changes (create, mark done/reopen, reschedule, add an
+ * update) — never applied here: the chat shows each one and the user confirms
+ * it with a click, which goes through the normal actions/follow-ups.ts.
  *
  * Retrieval is keyword-based (Postgres ILIKE over the user's rows, scored by
- * how many question words each record contains) — no embeddings to keep in
- * sync. Every query is scoped by `userId`; the AI sees only the handful of
- * records that matched, never the whole account.
+ * how many words each record contains) — no embeddings to keep in sync.
+ * Every query is scoped by `userId`; record numbers map back to ids here on
+ * the server, so the AI never handles ids.
  */
 
 export type AskSource = { n: number; kind: "Work log" | "To-do" | "Follow-up" | "Note" | "Ticket" | "Resource" | "Notebook"; title: string; date: string | null; href: string };
 export type AskTurn = { question: string; answer: string };
-export type AskResult = { ok: true; answer: string; sources: AskSource[]; model: string } | { ok: false; message: string };
+export type { AskProposal };
+export type AskResult = { ok: true; answer: string; sources: AskSource[]; proposals: AskProposal[]; model: string } | { ok: false; message: string };
 
-type Candidate = Omit<AskSource, "n"> & { text: string; at: Date };
+/** `entry` is set for Tracker entries, so a proposed change can point at one. */
+type Candidate = Omit<AskSource, "n"> & { text: string; at: Date; entry?: { id: string; kind: EntryKind; open: boolean; due: string | null } };
 
 const STOPWORDS = new Set(
   "a an and are about after all also any as at be been before but by can could did do does done for from get got had has have how i if in into is it its just me my of on or our said say says should so tell than that the their them then there these they this to told up us was we were what when where which who why will with would you your did didn't any anything something".split(" "),
 );
 const PER_SOURCE = 25;
 const MAX_SOURCES = 10;
+const MAX_OPEN_ENTRIES = 40;
+const MAX_PROPOSALS = 5;
 const MAX_RECORD_CHARS = 1_500;
-const MAX_HISTORY = 4;
+const MAX_HISTORY = 6;
+/** Tool rounds before the AI must answer. */
+const MAX_STEPS = 4;
+/**
+ * Free models that handle tool calls well (checked 2026-10-19). Used only while
+ * the user is on the default model list — the default's first pick often can't
+ * call tools, which leaves `openrouter/free` to land on tiny models.
+ */
+const ASK_MODELS = ["nvidia/nemotron-3-ultra-550b-a55b:free", "nvidia/nemotron-3-super-120b-a12b:free", "openrouter/free"];
 
 /** Search words from the question (and the previous one, so "and him?" still finds things). */
 export function searchTerms(...texts: string[]): string[] {
@@ -49,19 +69,112 @@ export function searchTerms(...texts: string[]): string[] {
 const contains = (value: string) => ({ contains: value, mode: "insensitive" as const });
 const day = (date: Date) => format(date, "d MMM yyyy");
 
+const ENTRY_SELECT = {
+  id: true, kind: true, subject: true, person: true, ticketKey: true, status: true, dueDate: true, completedAt: true, createdAt: true, updatedAt: true, tags: true,
+  updates: { orderBy: { occurredAt: "desc" as const }, take: 8, select: { note: true, occurredAt: true, fromThem: true, channel: true } },
+};
+type EntryRow = { id: string; kind: EntryKind; subject: string; person: string | null; ticketKey: string | null; status: string; dueDate: Date | null; completedAt: Date | null; createdAt: Date; updatedAt: Date; tags: string[]; updates: Array<{ note: string; occurredAt: Date; fromThem: boolean; channel: string }> };
+
+/** "21 Oct 2026 (in 2 days)" — said in words, so the AI never has to do date maths. */
+function dueText(dueDate: Date, open: boolean, todayKey: string) {
+  // `dueDate` is a date column (UTC midnight), so its ISO prefix is the calendar day.
+  const key = dueDate.toISOString().slice(0, 10);
+  const label = format(parseISO(key), "EEE d MMM yyyy");
+  if (!open) return label;
+  const diff = differenceInCalendarDays(parseISO(key), parseISO(todayKey));
+  const when = diff < 0 ? `overdue by ${-diff} day${diff === -1 ? "" : "s"}` : diff === 0 ? "due today" : diff === 1 ? "due tomorrow" : `upcoming, in ${diff} days`;
+  return `${label} (${when})`;
+}
+
+function entryCandidate(entry: EntryRow, todayKey: string, maxUpdates: number): Candidate {
+  const kind = entry.kind === EntryKind.FollowUp ? "Follow-up" : entry.kind === EntryKind.Task ? "To-do" : "Note";
+  const open = entry.status === "Open";
+  const waiting = entry.kind === EntryKind.FollowUp && open ? (entry.updates[0]?.fromThem ? " — they replied, your move" : " — waiting on them") : "";
+  const facts = [
+    entry.person ? `Person: ${entry.person}` : "",
+    entry.ticketKey ? `Ticket: ${entry.ticketKey}` : "",
+    `Status: ${open ? (entry.kind === EntryKind.Note ? "active" : "open") : `done${entry.completedAt ? ` on ${day(entry.completedAt)}` : ""}`}${waiting}`,
+    entry.dueDate ? `Due: ${dueText(entry.dueDate, open, todayKey)}` : entry.kind === EntryKind.Task && open ? "Due: no date" : "",
+    `Created: ${day(entry.createdAt)}`,
+    entry.tags.length ? `Tags: ${entry.tags.join(", ")}` : "",
+  ].filter(Boolean);
+  const updates = entry.updates.slice(0, maxUpdates).map((u) => `- ${day(u.occurredAt)}${entry.kind === EntryKind.FollowUp ? (u.fromThem ? " (they replied" : " (you said") + `, ${u.channel})` : ""}: ${u.note}`);
+  return {
+    kind,
+    title: entry.kind === EntryKind.FollowUp && entry.person ? `${entry.person} · ${entry.subject}` : entry.subject,
+    date: day(entry.updates[0]?.occurredAt ?? entry.createdAt),
+    href: `/tracker?view=${entry.kind === EntryKind.FollowUp ? "followups" : entry.kind === EntryKind.Note ? "notes" : "todo"}&open=${entry.id}`,
+    text: [entry.subject, facts.join(" · "), updates.length ? `History (newest first):\n${updates.join("\n")}` : ""].filter(Boolean).join("\n"),
+    at: entry.updatedAt,
+    entry: { id: entry.id, kind: entry.kind, open, due: entry.dueDate ? entry.dueDate.toISOString().slice(0, 10) : null },
+  };
+}
+
+const LOG_SELECT = {
+  id: true, date: true, title: true, dayType: true, learningNotes: true,
+  meetings: { select: { name: true, notes: true } },
+  ticketUpdates: { select: { description: true, status: true, ticket: { select: { ticketId: true, title: true } } } },
+};
+type LogRow = { id: string; date: Date; title: string; dayType: string; learningNotes: string; meetings: Array<{ name: string; notes: string }>; ticketUpdates: Array<{ description: string; status: string; ticket: { ticketId: string; title: string } }> };
+
+function logCandidate(log: LogRow): Candidate {
+  const parts = [
+    log.dayType !== "Work" ? `Day type: ${log.dayType}` : "",
+    log.learningNotes.trim() ? `Work done:\n${markdownPreview(log.learningNotes)}` : "",
+    ...log.ticketUpdates.map((u) => `Ticket ${u.ticket.ticketId} ${u.ticket.title} [${u.status}]: ${markdownPreview(u.description)}`),
+    ...log.meetings.filter((m) => m.notes.trim()).map((m) => `Meeting ${m.name}: ${markdownPreview(m.notes)}`),
+  ].filter(Boolean);
+  return { kind: "Work log", title: log.title, date: day(log.date), href: `/work-logs/${log.id}`, text: [log.title, ...parts].join("\n"), at: log.date };
+}
+
+/**
+ * Everything open in the Tracker right now — small for one person, and it
+ * answers "what's due / upcoming / waiting" — plus exact counts, because
+ * models miscount long lists.
+ */
+async function openTracker(userId: string, todayKey: string): Promise<{ candidates: Candidate[]; counts: string }> {
+  const entries = await prisma.followUp.findMany({
+    where: { userId, status: "Open" },
+    orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { updatedAt: "desc" }],
+    take: MAX_OPEN_ENTRIES,
+    select: ENTRY_SELECT,
+  });
+  const when = (entry: EntryRow) => {
+    if (!entry.dueDate) return "no date";
+    const diff = differenceInCalendarDays(parseISO(entry.dueDate.toISOString().slice(0, 10)), parseISO(todayKey));
+    return diff < 0 ? "overdue" : diff === 0 ? "due today" : "upcoming";
+  };
+  const tally = (list: EntryRow[]) => {
+    const by = new Map<string, number>();
+    for (const entry of list) by.set(when(entry), (by.get(when(entry)) ?? 0) + 1);
+    return ["overdue", "due today", "upcoming", "no date"].filter((k) => by.get(k)).map((k) => `${by.get(k)} ${k}`).join(", ") || "none";
+  };
+  const todos = entries.filter((e) => e.kind === EntryKind.Task);
+  const follows = entries.filter((e) => e.kind === EntryKind.FollowUp);
+  const replied = follows.filter((e) => e.updates[0]?.fromThem).length;
+  const counts = [
+    `Open to-dos: ${todos.length} (${tally(todos)})`,
+    `Open follow-ups: ${follows.length} (${tally(follows)}; ${replied} replied — your move, ${follows.length - replied} waiting on them)`,
+    `Active notes: ${entries.length - todos.length - follows.length}`,
+    entries.length === MAX_OPEN_ENTRIES ? `(only the first ${MAX_OPEN_ENTRIES} open entries are listed)` : "",
+  ].filter(Boolean).join("\n");
+  return { candidates: entries.map((entry) => entryCandidate(entry, todayKey, 2)), counts };
+}
+
 /**
  * With `terms`, rows mentioning any of them. Without (recent mode), what's
  * current: open Tracker entries and the latest logs — so broad questions
  * ("what's overdue?", "what am I waiting on?") have something to go on.
  */
 async function findCandidates(userId: string, terms: string[], ticketsEnabled: boolean, todayKey: string): Promise<Candidate[]> {
+  // Without terms: the latest logs only (open Tracker entries come from `openTracker`).
   const recent = terms.length === 0;
   const any = <T>(build: (term: string) => T) => terms.map(build);
   const patterns = terms.map((term) => `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
 
   const [entries, logs, tickets, resources, pages] = await Promise.all([
-    prisma.followUp.findMany({
-      where: recent ? { userId, status: "Open" } : {
+    recent ? Promise.resolve([]) : prisma.followUp.findMany({
+      where: {
         userId,
         OR: [
           ...any((t) => ({ subject: contains(t) })),
@@ -72,11 +185,8 @@ async function findCandidates(userId: string, terms: string[], ticketsEnabled: b
         ],
       },
       orderBy: { updatedAt: "desc" },
-      take: recent ? 15 : PER_SOURCE,
-      select: {
-        id: true, kind: true, subject: true, person: true, ticketKey: true, status: true, dueDate: true, completedAt: true, createdAt: true, updatedAt: true, tags: true,
-        updates: { orderBy: { occurredAt: "desc" }, take: 8, select: { note: true, occurredAt: true, fromThem: true, channel: true } },
-      },
+      take: PER_SOURCE,
+      select: ENTRY_SELECT,
     }),
     prisma.workLog.findMany({
       where: recent ? { userId } : {
@@ -90,11 +200,7 @@ async function findCandidates(userId: string, terms: string[], ticketsEnabled: b
       },
       orderBy: { date: "desc" },
       take: recent ? 3 : PER_SOURCE,
-      select: {
-        id: true, date: true, title: true, dayType: true, learningNotes: true,
-        meetings: { select: { name: true, notes: true } },
-        ticketUpdates: { select: { description: true, status: true, ticket: { select: { ticketId: true, title: true } } } },
-      },
+      select: LOG_SELECT,
     }),
     ticketsEnabled && !recent
       ? prisma.ticket.findMany({
@@ -143,38 +249,9 @@ async function findCandidates(userId: string, terms: string[], ticketsEnabled: b
 
   const candidates: Candidate[] = [];
 
-  for (const entry of entries) {
-    const kind = entry.kind === EntryKind.FollowUp ? "Follow-up" : entry.kind === EntryKind.Task ? "To-do" : "Note";
-    // `dueDate` is a date column (UTC midnight), so its ISO prefix is the calendar day.
-    const overdue = entry.status === "Open" && entry.dueDate && entry.dueDate.toISOString().slice(0, 10) < todayKey;
-    const facts = [
-      entry.person ? `Person: ${entry.person}` : "",
-      entry.ticketKey ? `Ticket: ${entry.ticketKey}` : "",
-      `Status: ${entry.status}${entry.completedAt ? ` (done ${day(entry.completedAt)})` : ""}`,
-      entry.dueDate ? `Due: ${day(entry.dueDate)}${overdue ? " (OVERDUE)" : ""}` : "",
-      `Created: ${day(entry.createdAt)}`,
-      entry.tags.length ? `Tags: ${entry.tags.join(", ")}` : "",
-    ].filter(Boolean);
-    const updates = entry.updates.map((u) => `- ${day(u.occurredAt)}${entry.kind === EntryKind.FollowUp ? (u.fromThem ? " (they replied" : " (you said") + `, ${u.channel})` : ""}: ${u.note}`);
-    candidates.push({
-      kind,
-      title: entry.kind === EntryKind.FollowUp && entry.person ? `${entry.person} · ${entry.subject}` : entry.subject,
-      date: day(entry.updates[0]?.occurredAt ?? entry.createdAt),
-      href: `/tracker?view=${entry.kind === EntryKind.FollowUp ? "followups" : entry.kind === EntryKind.Note ? "notes" : "todo"}&open=${entry.id}`,
-      text: [entry.subject, facts.join(" · "), updates.length ? `History (newest first):\n${updates.join("\n")}` : ""].filter(Boolean).join("\n"),
-      at: entry.updatedAt,
-    });
-  }
+  for (const entry of entries) candidates.push(entryCandidate(entry, todayKey, 8));
 
-  for (const log of logs) {
-    const parts = [
-      log.dayType !== "Work" ? `Day type: ${log.dayType}` : "",
-      log.learningNotes.trim() ? `Work done:\n${markdownPreview(log.learningNotes)}` : "",
-      ...log.ticketUpdates.map((u) => `Ticket ${u.ticket.ticketId} ${u.ticket.title} [${u.status}]: ${markdownPreview(u.description)}`),
-      ...log.meetings.filter((m) => m.notes.trim()).map((m) => `Meeting ${m.name}: ${markdownPreview(m.notes)}`),
-    ].filter(Boolean);
-    candidates.push({ kind: "Work log", title: log.title, date: day(log.date), href: `/work-logs/${log.id}`, text: [log.title, ...parts].join("\n"), at: log.date });
-  }
+  for (const log of logs) candidates.push(logCandidate(log));
 
   for (const ticket of tickets) {
     const updates = ticket.updates.map((u) => `- ${u.workLog ? day(u.workLog.date) : "?"} [${u.status}]: ${markdownPreview(u.description)}`);
@@ -221,64 +298,396 @@ function rank(candidates: Candidate[], terms: string[]) {
     .map((item) => item.candidate);
 }
 
-const SYSTEM_PROMPT = `You answer questions about the user's own work records in WorkNest (work logs, to-dos, follow-ups, notes, tickets, resources).
 
-Rules:
-- Use ONLY the numbered SOURCES.
-- The current state of a to-do or follow-up is its "Status" line. Something is overdue only when its source says "(OVERDUE)"; if none does, say nothing is overdue. Work logs are history: what was pending on a past day may be done now. Never invent people, dates, numbers or events.
-- Cite every fact with its source number in square brackets, like [2]. Several: [1][3].
-- If the sources don't answer the question, say plainly that you couldn't find it in their workspace, and mention the closest related thing if there is one.
-- Speak to the user as "you". Be brief: 1-4 short sentences, or a short "- " list when listing several items. Plain text, no headings, no tables.
-- Give dates as "14 Oct" (add the year only if it isn't this year).
-- Don't mention "sources" or "records" in general terms; just answer.`;
+const ABOUT = `You are Ask, the assistant built into WorkNest — a personal work journal for one person. Talk with the user naturally, like a sharp, helpful colleague who has read their whole workspace.
 
-export async function askWorkspace(userId: string, input: { question: string; history: AskTurn[]; today: Date }): Promise<AskResult> {
-  const [config, settings] = await Promise.all([getOpenRouterConfig(userId), getUserSettings(userId)]);
-  if (!config) return { ok: false, message: aiFailureMessage({ reason: "not_configured" }) };
+What you can do (describe this in your own words when asked what you can do or how you can help):
+- Answer anything about their own work: daily work logs (what they did, meetings, ticket updates), their Tracker (to-dos, follow-ups with people, notes), tickets, saved resources and notebooks — who they told what, when something happened, what's due, overdue, upcoming, waiting or finished, summaries of a day, week or month.
+- Work on their Tracker: add to-dos (with due dates), follow-ups (something they told a person) and notes; mark items done or reopen them; move due dates; add an update or log a reply to a follow-up. They confirm each change with one click.
+- You can't delete anything, and you can't create or edit work logs, tickets, resources or notebook pages yet.`;
 
-  const history = input.history.slice(-MAX_HISTORY);
-  const today = new Date(input.today.getTime() + input.today.getTimezoneOffset() * 60_000);
-  const todayKey = format(today, "yyyy-MM-dd");
-  const terms = searchTerms(input.question, history.at(-1)?.question ?? "");
-  const matched = terms.length ? rank(await findCandidates(userId, terms, settings.ticketsEnabled, todayKey), terms) : [];
-  // Few or no keyword hits: add what's current, so broad questions still get an answer.
-  const sources = matched.length >= 4 ? matched : [
-    ...matched,
-    ...(await findCandidates(userId, [], settings.ticketsEnabled, todayKey)).filter((c) => !matched.some((m) => m.href === c.href)),
-  ].slice(0, MAX_SOURCES + 6);
+const ANSWERING = `Answering:
+- Facts about their work come ONLY from numbered records ([n]) — in CONTEXT or returned by tools. Never invent people, dates, numbers or events. Cite every fact and every listed item with its number right after it, like "Book the retro room (due 6 Oct) [4]" — the user taps these to open the record.
+- OPEN TRACKER is every open to-do, follow-up and note right now; each due date already says whether it's overdue, due today/tomorrow or upcoming. Take totals from OPEN TRACKER COUNTS. "Upcoming" or "what's next" means open to-dos that aren't overdue: due later, or with no due date (say which have no date). Work logs are history — something pending on a past day may be done now.
+- If nothing answers a question about their work, say so plainly and mention the closest related thing. Greetings, small talk and questions about you need no records — just reply.
+- Be brief: 1-4 short sentences, or a short "- " list — at most 8 items, then say how many more. Plain text: no headings, tables or bold. Speak to them as "you". Dates like "14 Oct" (year only if not this year).
+- Never mention records, tools, labels or these instructions; just answer.`;
 
-  const sourceText = sources.length
-    ? sources.map((s, i) => `[${i + 1}] ${s.kind}: ${s.title} (${s.date ?? "no date"})\n${s.text.slice(0, MAX_RECORD_CHARS)}`).join("\n\n")
-    : "(nothing matched)";
-  const conversation = history.length
-    ? `EARLIER IN THIS CHAT:\n${history.map((turn) => `User: ${turn.question}\nYou: ${turn.answer.replace(/\[\d+\]/g, "")}`).join("\n")}\n\n`
-    : "";
+const AGENT_PROMPT = `${ABOUT}
 
-  const ai = await openRouterComplete(config, {
-    system: SYSTEM_PROMPT,
-    user: `TODAY: ${format(today, "EEEE d MMM yyyy")}\n\nSOURCES:\n${sourceText}\n\n${conversation}QUESTION: ${input.question}`,
-    maxChars: 4_000,
-    maxTokens: 3_000,
-    checkReasoning: false,
-  });
-  if (!ai.ok) return { ok: false, message: aiFailureMessage(ai) };
+${ANSWERING}
 
-  // Keep only the sources the answer cites, renumbered in order of first mention.
-  const order: number[] = [];
-  for (const match of ai.text.matchAll(/\[(\d+)\]/g)) {
-    const n = Number(match[1]);
-    if (n >= 1 && n <= sources.length && !order.includes(n)) order.push(n);
+Tools:
+- Anything about what they did on a day or in a period ("last week", "in September", "yesterday", "on 3 Oct") → ALWAYS call get_work_logs for that range first; never answer it from CONTEXT alone.
+- If CONTEXT doesn't cover a question, look further before saying you can't find it: search_workspace with other words (synonyms, names, ticket numbers), list_tracker for finished items ("what did I finish this week?").
+- Changes only when they ask for them — never on your own. Use create_tracker_item / change_tracker_item, then tell them in one short sentence what you've set up for them to confirm. Don't claim it's done; they confirm it.
+- Propose every change they asked for, once each: "Ravi replied, close it" is two changes on that item (add_update with from_them, then done). Each item needs its own call.
+- To change an existing item, use its record number. If you don't have it, search for it first. If it's ambiguous, ask which one.
+- Work out dates ("tomorrow", "Friday", "next week") from TODAY as YYYY-MM-DD.
+- If a follow-up's person is missing, ask who instead of drafting it.`;
+
+const LEGACY_PROMPT = `${ABOUT}
+
+${ANSWERING}
+
+Adding to the Tracker (you can only add here, not change existing items):
+- Only when they ask you to add, create, remind, track, note down or follow up on something. Never on your own.
+- Reply with one short sentence saying what you drafted, then on the last lines a block exactly like:
+<items>
+[{"kind":"todo","subject":"Review the release notes","due":"2026-10-21"}]
+</items>
+- kind is "todo", "followup" or "note". subject: short, starts with a verb for a to-do. due: "YYYY-MM-DD" or null — work out "tomorrow", "Friday", "next week" from TODAY; notes never have one. A followup also needs "person" and "note" (what they told that person); a note may have "note". Optional "tags": ["tag"]. At most 5.
+- If a follow-up's person is missing, ask who instead of drafting it.`;
+
+const date = { type: "string", description: "YYYY-MM-DD" };
+const TOOLS: ToolSpec[] = [
+  {
+    type: "function",
+    function: {
+      name: "search_workspace",
+      description: "Keyword search across work logs (incl. meetings and ticket updates), Tracker entries (open and done, with history), tickets, resources and notebook pages. Matches whole words in the text, so try names, ticket numbers and the words the user would have written.",
+      parameters: { type: "object", properties: { query: { type: "string", description: "A few keywords" } }, required: ["query"] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_work_logs",
+      description: "The user's daily work logs between two dates (inclusive, at most 62 days), oldest first. Use for anything about a day, week or period.",
+      parameters: { type: "object", properties: { from: date, to: date }, required: ["from", "to"] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_tracker",
+      description: "Tracker entries by status. 'done' lists finished ones, optionally only those finished between from and to.",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", enum: ["open", "done"] },
+          kind: { type: "string", enum: ["todo", "followup", "note", "any"] },
+          from: { ...date, description: "Finished on or after (YYYY-MM-DD). Optional." },
+          to: { ...date, description: "Finished on or before (YYYY-MM-DD). Optional." },
+        },
+        required: ["status"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_tracker_item",
+      description: "Propose a new Tracker item; the user confirms it with one click. Only when they ask.",
+      parameters: {
+        type: "object",
+        properties: {
+          kind: { type: "string", enum: ["todo", "followup", "note"] },
+          subject: { type: "string", description: "Short; a to-do starts with a verb" },
+          person: { type: "string", description: "Follow-ups only: who they told" },
+          note: { type: "string", description: "Follow-up: what they told that person. Note: its text." },
+          due: { type: ["string", "null"], description: "YYYY-MM-DD or null. Never for notes." },
+          tags: { type: "array", items: { type: "string" } },
+        },
+        required: ["kind", "subject"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "change_tracker_item",
+      description: "Propose a change to an existing to-do, follow-up or note, by its record number; the user confirms it with one click. Only when they ask.",
+      parameters: {
+        type: "object",
+        properties: {
+          record: { type: "integer", description: "The [n] number of the Tracker record" },
+          change: { type: "string", enum: ["done", "reopen", "reschedule", "add_update"], description: "done/reopen; reschedule = new due date; add_update = append a note (for a follow-up: what they said, or their reply with from_them)" },
+          due: { type: ["string", "null"], description: "reschedule: YYYY-MM-DD, or null to clear" },
+          note: { type: "string", description: "add_update: the text" },
+          from_them: { type: "boolean", description: "add_update on a follow-up: true if this is the other person's reply" },
+        },
+        required: ["record", "change"],
+      },
+    },
+  },
+];
+
+/** Records the AI has seen this turn, numbered once so citations and changes point at the same thing. */
+class Records {
+  list: Candidate[] = [];
+  /** Numbers handed out by tools (not the starting CONTEXT). */
+  looked: number[] = [];
+  add(candidate: Candidate) {
+    const found = this.list.findIndex((c) => c.href === candidate.href);
+    if (found !== -1) return found + 1;
+    this.list.push(candidate);
+    return this.list.length;
   }
-  const answer = ai.text
+  render(candidates: Candidate[], chars: number, fromTool = true) {
+    if (!candidates.length) return "Nothing found.";
+    return candidates
+      .map((c) => {
+        const n = this.add(c);
+        if (fromTool && !this.looked.includes(n)) this.looked.push(n);
+        return `[${n}] ${c.kind}: ${c.title} (${c.date ?? "no date"})\n${c.text.slice(0, chars)}`;
+      })
+      .join("\n\n");
+  }
+}
+
+const KIND_OF: Record<string, EntryKind | undefined> = { todo: EntryKind.Task, followup: EntryKind.FollowUp, note: EntryKind.Note };
+
+type ToolContext = { userId: string; ticketsEnabled: boolean; todayKey: string; records: Records; proposals: AskProposal[] };
+
+async function runTool(name: string, rawArgs: string, ctx: ToolContext): Promise<string> {
+  let args: Record<string, unknown>;
+  try {
+    args = JSON.parse(rawArgs || "{}") as Record<string, unknown>;
+  } catch {
+    return "Error: the arguments weren't valid JSON.";
+  }
+  switch (name) {
+    case "search_workspace": {
+      const terms = searchTerms(String(args.query ?? ""));
+      if (!terms.length) return "Error: give a few keywords.";
+      return ctx.records.render(rank(await findCandidates(ctx.userId, terms, ctx.ticketsEnabled, ctx.todayKey), terms), 1_200);
+    }
+    case "get_work_logs": {
+      const range = askRangeSchema.safeParse(args);
+      if (!range.success) return "Error: from and to must be YYYY-MM-DD, from before to, at most 62 days apart.";
+      const logs = await prisma.workLog.findMany({
+        where: { userId: ctx.userId, date: { gte: range.data.from, lte: range.data.to } },
+        orderBy: { date: "asc" },
+        take: 62,
+        select: LOG_SELECT,
+      });
+      if (!logs.length) {
+        // Say where the nearest logs are, so the AI answers instead of searching in circles.
+        const [before, after] = await Promise.all([
+          prisma.workLog.findFirst({ where: { userId: ctx.userId, date: { lt: range.data.from } }, orderBy: { date: "desc" }, select: { date: true } }),
+          prisma.workLog.findFirst({ where: { userId: ctx.userId, date: { gt: range.data.to } }, orderBy: { date: "asc" }, select: { date: true } }),
+        ]);
+        return `No work logs between ${day(range.data.from)} and ${day(range.data.to)}.${before ? ` The latest log before that is ${day(before.date)}.` : ""}${after ? ` The next one after is ${day(after.date)}.` : ""}`;
+      }
+      // A long period gets shorter logs so it still fits.
+      return ctx.records.render(logs.map(logCandidate), logs.length > 15 ? 500 : 1_200);
+    }
+    case "list_tracker": {
+      const done = args.status === "done";
+      const kind = KIND_OF[String(args.kind ?? "")];
+      const bound = (value: unknown) => {
+        const parsed = dateOnlySchema.safeParse(value);
+        return value && parsed.success ? parsed.data : undefined;
+      };
+      const between = { from: bound(args.from), to: bound(args.to) };
+      const entries = await prisma.followUp.findMany({
+        where: {
+          userId: ctx.userId,
+          status: done ? "Done" : "Open",
+          ...(kind ? { kind } : {}),
+          ...(done && (between.from || between.to)
+            ? { completedAt: { ...(between.from ? { gte: between.from } : {}), ...(between.to ? { lt: new Date(between.to.getTime() + 86_400_000) } : {}) } }
+            : {}),
+        },
+        orderBy: done ? { completedAt: "desc" } : [{ dueDate: { sort: "asc", nulls: "last" } }, { updatedAt: "desc" }],
+        take: 40,
+        select: ENTRY_SELECT,
+      });
+      return ctx.records.render(entries.map((entry) => entryCandidate(entry, ctx.todayKey, 2)), 400);
+    }
+    case "create_tracker_item": {
+      if (ctx.proposals.length >= MAX_PROPOSALS) return "Error: that's enough for one message.";
+      const item = askProposalSchema.safeParse(args);
+      if (!item.success) return `Error: ${item.error.issues[0]?.message ?? "invalid item"}. Fix it or ask the user.`;
+      if (ctx.proposals.some((p) => p.action === "create" && p.kind === item.data.kind && p.subject.toLowerCase() === item.data.subject.toLowerCase())) return "Already proposed — don't repeat it.";
+      ctx.proposals.push(cleanDue(item.data, ctx.todayKey));
+      return "Proposed. The user will see it and confirm it with one click.";
+    }
+    case "change_tracker_item": {
+      if (ctx.proposals.length >= MAX_PROPOSALS) return "Error: that's enough for one message.";
+      const change = askChangeSchema.safeParse(args);
+      if (!change.success) return `Error: ${change.error.issues[0]?.message ?? "invalid change"}.`;
+      const record = ctx.records.list[change.data.record - 1];
+      if (!record?.entry) return "Error: that number isn't a Tracker to-do, follow-up or note. Search for it first.";
+      const { entry } = record;
+      if (change.data.change === "done" && !entry.open) return "It's already done.";
+      if (change.data.change === "reopen" && entry.open) return "It's already open.";
+      if (change.data.change === "reschedule" && entry.kind === EntryKind.Note) return "Error: notes have no due date.";
+      if (change.data.change === "update" && !change.data.note && !(change.data.fromThem && entry.kind === EntryKind.FollowUp)) return "Error: add_update needs a note.";
+      if (ctx.proposals.some((p) => p.action !== "create" && p.action === change.data.change && p.entryId === entry.id)) return "Already proposed — don't repeat it. Propose any other changes they asked for, then answer.";
+      ctx.proposals.push({
+        action: change.data.change,
+        entryId: entry.id,
+        kind: entry.kind,
+        subject: record.title,
+        dueDate: change.data.change === "reschedule" ? change.data.due : null,
+        note: change.data.change === "update" ? change.data.note : null,
+        fromThem: change.data.change === "update" && entry.kind === EntryKind.FollowUp && change.data.fromThem,
+        currentDue: entry.due,
+      });
+      return "Proposed. The user will see it and confirm it with one click.";
+    }
+    default:
+      return `Error: there's no tool called ${name}.`;
+  }
+}
+
+/** A due date long past is a misread, not a plan; drop it rather than file the item overdue. */
+function cleanDue(item: AskProposal, todayKey: string): AskProposal {
+  if (item.action !== "create" || !item.dueDate) return item;
+  return differenceInCalendarDays(parseISO(item.dueDate), parseISO(todayKey)) < -1 ? { ...item, dueDate: null } : item;
+}
+
+/** The `<items>` block of the no-tools fallback; anything malformed is dropped. */
+function parseItems(text: string, todayKey: string): { rest: string; proposals: AskProposal[]; failed: boolean } {
+  const match = /<items>([\s\S]*?)(?:<\/items>|$)/i.exec(text);
+  if (!match) return { rest: text, proposals: [], failed: false };
+  const rest = text.slice(0, match.index).replace(/```\w*\s*$/, "").trim();
+  let raw: unknown;
+  try {
+    raw = JSON.parse(match[1]!.replace(/```\w*/g, "").trim());
+  } catch {
+    return { rest, proposals: [], failed: true };
+  }
+  const proposals = (Array.isArray(raw) ? raw : [raw])
+    .slice(0, MAX_PROPOSALS)
+    .map((item) => askProposalSchema.safeParse(item))
+    .filter((result) => result.success)
+    .map((result) => cleanDue(result.data, todayKey));
+  return { rest, proposals, failed: proposals.length === 0 };
+}
+
+/** Keep only the records the answer cites, renumbered in order of first mention. */
+function withCitations(text: string, records: Candidate[]) {
+  const order: number[] = [];
+  for (const match of text.matchAll(/\[(\d+)\]/g)) {
+    const n = Number(match[1]);
+    if (n >= 1 && n <= records.length && !order.includes(n)) order.push(n);
+  }
+  const answer = text
     .replace(/\[(\d+)\]/g, (whole, raw: string) => {
       const index = order.indexOf(Number(raw));
       return index === -1 ? "" : `[${index + 1}]`;
     })
     .replace(/[ \t]+([.,;:])/g, "$1")
     .trim();
-  const cited = order.map((n, i) => {
-    const { kind, title, date, href } = sources[n - 1]!;
+  const sources = order.map((n, i) => {
+    const { kind, title, date, href } = records[n - 1]!;
     return { n: i + 1, kind, title, date, href };
   });
-  return { ok: true, answer, sources: cited, model: ai.model };
+  return { answer, sources };
+}
+
+export async function askWorkspace(userId: string, input: { question: string; history: AskTurn[]; today: Date }): Promise<AskResult> {
+  const [saved, settings] = await Promise.all([getOpenRouterConfig(userId), getUserSettings(userId)]);
+  if (!saved) return { ok: false, message: aiFailureMessage({ reason: "not_configured" }) };
+  const onDefault = saved.models.join(",") === DEFAULT_OPENROUTER_MODEL.replace(/\s/g, "");
+  const config = onDefault ? { ...saved, models: ASK_MODELS } : saved;
+
+  const history = input.history.slice(-MAX_HISTORY);
+  const today = new Date(input.today.getTime() + input.today.getTimezoneOffset() * 60_000);
+  const todayKey = format(today, "yyyy-MM-dd");
+  const terms = searchTerms(input.question, history.at(-1)?.question ?? "");
+  const [matched, { candidates: open, counts }, logSpan] = await Promise.all([
+    terms.length ? findCandidates(userId, terms, settings.ticketsEnabled, todayKey).then((found) => rank(found, terms)) : Promise.resolve([]),
+    openTracker(userId, todayKey),
+    prisma.workLog.aggregate({ where: { userId }, _min: { date: true }, _max: { date: true }, _count: true }),
+  ]);
+  // Few keyword hits: add the latest logs too, so broad questions ("what did I do?") have something.
+  const extra = matched.length >= 4 ? [] : (await findCandidates(userId, [], settings.ticketsEnabled, todayKey)).filter((c) => !matched.some((m) => m.href === c.href));
+
+  const records = new Records();
+  const matching = [...matched, ...extra];
+  const context = [
+    `TODAY: ${format(today, "EEEE d MMM yyyy")} (${todayKey})`,
+    // So the AI knows what get_work_logs can find, and never guesses dates.
+    logSpan._count && logSpan._min.date && logSpan._max.date
+      ? `WORK LOGS ON FILE: ${logSpan._count}, from ${day(logSpan._min.date)} to ${day(logSpan._max.date)} (latest). Only a few are in CONTEXT — use get_work_logs for any day or period.`
+      : "WORK LOGS ON FILE: none yet.",
+    `MATCHING RECORDS:\n${records.render(matching, MAX_RECORD_CHARS, false)}`,
+    `OPEN TRACKER COUNTS (exact):\n${counts}`,
+    `OPEN TRACKER:\n${records.render(open.filter((c) => !matching.some((m) => m.href === c.href)), 500, false)}`,
+  ].join("\n\n");
+  const past: ChatMessage[] = history.flatMap((turn) => [
+    { role: "user" as const, content: turn.question },
+    { role: "assistant" as const, content: turn.answer.replace(/\[\d+\]/g, "") },
+  ]);
+  const proposals: AskProposal[] = [];
+  const ctx: ToolContext = { userId, ticketsEnabled: settings.ticketsEnabled, todayKey, records, proposals };
+
+  const messages: ChatMessage[] = [{ role: "system", content: AGENT_PROMPT }, ...past, { role: "user", content: `CONTEXT:\n${context}\n\nMESSAGE: ${input.question}` }];
+  let reply: string | null = null;
+  let model = config.models[0]!;
+  for (let step = 0; step <= MAX_STEPS && reply === null; step++) {
+    // The last round has no tools, so the AI has to answer with what it found.
+    const last = step === MAX_STEPS;
+    const result = await openRouterChat(config, last ? { messages: flatten(messages), maxTokens: 6_000 } : { messages, tools: TOOLS, maxTokens: 6_000 });
+    if (!result.ok) {
+      if (result.noTools && step === 0) return askWithoutTools(config, context, past, input.question, todayKey, records);
+      return { ok: false, message: aiFailureMessage(result) };
+    }
+    model = result.model;
+    if (!result.toolCalls.length) {
+      reply = result.content;
+      break;
+    }
+    messages.push({ role: "assistant", content: result.content || null, tool_calls: result.toolCalls });
+    for (const call of result.toolCalls) {
+      messages.push({ role: "tool", tool_call_id: call.id, content: (await runTool(call.function.name, call.function.arguments, ctx)).slice(0, 24_000) });
+    }
+  }
+
+  // A model that still tries to call a tool in the last round writes it as text; drop it.
+  const text = (reply ?? "").replace(/<tool_call>[\s\S]*$|<function=[\s\S]*$/, "");
+  const { answer, sources } = withCitations(text, records.list);
+  // Models sometimes skip the [n] marks; then list what they looked up, so the answer still links back.
+  if (!sources.length && records.looked.length) {
+    for (const n of records.looked.slice(0, 6)) {
+      const { kind, title, date, href } = records.list[n - 1]!;
+      sources.push({ n: sources.length + 1, kind, title, date, href });
+    }
+  }
+  const fallback = proposals.length ? "Here's what I've set up — confirm below." : "Sorry, I couldn't put an answer together. Try asking again.";
+  return { ok: true, answer: answer || fallback, sources, proposals, model };
+}
+
+/**
+ * The conversation with tool calls turned into plain text, for a final call
+ * without tools (some providers reject tool messages when no tools are sent).
+ */
+function flatten(messages: ChatMessage[]): ChatMessage[] {
+  const flat: ChatMessage[] = messages.map((message) => {
+    if (message.role === "tool") return { role: "user", content: `Lookup result:\n${message.content}` };
+    if (message.role === "assistant" && message.tool_calls?.length) {
+      return { role: "assistant", content: `${message.content ? `${message.content}\n` : ""}(Looked up: ${message.tool_calls.map((call) => `${call.function.name} ${call.function.arguments}`).join("; ")})` };
+    }
+    return message;
+  });
+  return [...flat, { role: "user", content: "Answer my message now from what you found, citing [n] numbers. No more lookups." }];
+}
+
+/** For models without tool calling: one plain completion; it can only add items, via an `<items>` block. */
+async function askWithoutTools(
+  config: NonNullable<Awaited<ReturnType<typeof getOpenRouterConfig>>>,
+  context: string,
+  past: ChatMessage[],
+  question: string,
+  todayKey: string,
+  records: Records,
+): Promise<AskResult> {
+  const conversation = past.length ? `EARLIER IN THIS CHAT:\n${past.map((m) => `${m.role === "user" ? "User" : "You"}: ${m.content}`).join("\n")}\n\n` : "";
+  const ai = await openRouterComplete(config, {
+    system: LEGACY_PROMPT,
+    user: `CONTEXT:\n${context}\n\n${conversation}MESSAGE: ${question}`,
+    maxChars: 6_000,
+    // Free reasoning models think at length; too low a cap cuts them off and costs a retry.
+    maxTokens: 6_000,
+    checkReasoning: false,
+  });
+  if (!ai.ok) return { ok: false, message: aiFailureMessage(ai) };
+  const { rest, proposals, failed } = parseItems(ai.text, todayKey);
+  const { answer, sources } = withCitations(rest, records.list);
+  const note = failed ? "I couldn't put that into a Tracker item — try saying it a little differently." : "";
+  return { ok: true, answer: [answer, note].filter(Boolean).join("\n\n") || "Here you go.", sources, proposals, model: ai.model };
 }

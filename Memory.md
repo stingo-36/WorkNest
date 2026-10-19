@@ -27,6 +27,33 @@
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
 
+**2026-10-19 — Ask is a tool-calling agent; every Tracker change is confirmed by click.**
+Owner: "make it a proper AI assistant". Native OpenRouter tool calls (tested working on
+free models) in a loop of up to 4 rounds: search, work logs by date range, Tracker by
+status, and create/change proposals. The AI refers to records by number; the server maps
+numbers to ids, so it can't touch anything it wasn't shown. Changes come back as cards
+and run through the existing Tracker actions on click — same validation and history as
+the UI. Chat kept in sessionStorage per user so a reload doesn't lose it. The no-tools
+path (one completion + `<items>` block) stays as a fallback for custom models.
+*Rejected:* applying changes straight away (free models pick the wrong duplicate);
+a JSON "ReAct" protocol of our own (native tools worked); delete via chat (destructive,
+owner didn't ask); localStorage (would outlive sign-out on a shared machine).
+
+**2026-10-19 — Ask drafts Tracker items; the user clicks Add (reverses "Ask never writes").**
+Owner wants Ask to create to-dos, follow-ups and notes, Tracker first (work logs,
+resources, notebooks later). The AI returns an `<items>` JSON block instead of using
+tool calls (the free OpenRouter models often lack tool support); the server validates
+it (`askProposalSchema`) and the chat saves a draft through the existing
+`createFollowUp` action only on click, so a misread date or name never lands silently.
+Ask also always sees every open Tracker entry (answers "upcoming"/"overdue" regardless of
+wording — before, the word "task" matched old done to-dos and crowded them out) and the
+prompt describes its abilities instead of fixed replies. Exact open-Tracker counts are
+computed server-side (models miscounted 18 items); "upcoming" includes no-date to-dos
+(the Tracker's Upcoming column does); `maxTokens` 6000 because a free reasoning model
+cut off at 3000 and the retry doubled the wait. *Rejected:* saving straight away
+(free models misparse dates/names); OpenRouter tool calling; canned answers for
+"what can you do".
+
 **2026-10-19 — Ask doesn't read stored work-log summaries; overdue is computed.** Owner
 asked "What's overdue?" and got two to-dos done on 7 Oct, quoted from the 6 Oct log's
 AI summary ("Overdue: push AI module…"). Summaries are a snapshot that goes stale when a
@@ -681,6 +708,15 @@ is done on the real rendered app.
 
 ## Gotchas
 
+- **2026-10-19 — Free OpenRouter models: tool support and quality vary wildly.** The
+  default list's first pick (`google/gemma-4-31b-it:free`) returned "Provider returned
+  error" with tools, so `openrouter/free` landed on tiny models (2.6B) that looped on
+  searches or wrote tool calls as text (`<function=…><parameter=…>`, now parsed). Ask
+  uses `ASK_MODELS` (Nemotron Ultra/Super, ~4 s per tool call) on the default list. The
+  free roster changes: list current ones with
+  `curl -s https://openrouter.ai/api/v1/models` and filter `:free` + `tools` in
+  `supported_parameters`. Some models also skip `[n]` citations — Ask then lists what
+  its tools looked up.
 - **2026-10-17 — TipTap `getJSON()` can't go straight into a Server Action.** ProseMirror
   builds node `attrs` with `Object.create(null)` and `getJSON()` reuses them; React only
   serialises plain-prototype objects, so those arrive as temporary client references and
@@ -845,6 +881,8 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-19 — Ask became an agent: looks things up itself (search, logs by date range, done items), proposes done/reopen/reschedule/update as well as new items, chat survives reload — `lib/ask.ts`, `lib/ai-summary.ts` (`openRouterChat`), `lib/validation.ts`, `components/ask/ask-widget.tsx`, `app-shell.tsx`, PRD §4/§5.13/§7, Architecture §4, Design-System §8
+- 2026-10-19 — Ask drafts to-dos/follow-ups/notes (Add to Tracker / Skip cards), always sees open Tracker entries with due wording, describes its abilities; new placeholder and suggestions — `lib/ask.ts`, `actions/ask.ts`, `components/ask/ask-widget.tsx`, `lib/validation.ts`, PRD §4/§5.13/§7, Architecture §4
 - 2026-10-19 — Ask no longer reports to-dos done since as overdue (drops stale log summaries, flags real overdue); every struck to-do on Work Logs shows its done date; summaries note "since done" and go stale when a to-do is finished later — `lib/ask.ts`, `lib/day-tracker.ts`, `lib/worklog-summary.ts`, `sprint-deck.tsx`, `day-todos.tsx`, `work-log-summary.tsx`, PRD §5.1/§5.13
 - 2026-10-17 — Ask your workspace: bottom-right chat answering from your own records with source links; Tracker `?open=` and Tickets `?ticket=` deep links; toasts lifted above it — `lib/ask.ts`, `actions/ask.ts`, `components/ask/ask-widget.tsx`, `components/shell/app-shell.tsx`, `components/ui/toast.tsx`, `tracker-board.tsx`, `ticket-board.tsx`, `globals.css`, PRD §4/§5.13/§7, Architecture §3/§4, Design-System §8
 - 2026-10-17 — To-dos finished later show struck through with "done <date>" on older Work Log days; ticking/reopening a to-do appends a "Marked done"/"Reopened" timeline entry — `lib/day-tracker.ts`, `components/work-log/sprint-deck.tsx`, `components/work-log/day-todos.tsx`, `lib/follow-ups.ts`, `lib/rich-text.ts`, `components/tracker/tracker-board.tsx`, PRD §5.1/§5.3

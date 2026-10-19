@@ -4,7 +4,7 @@
 > delete a module, route, model or script, update the relevant section in the same
 > change.
 >
-> Last synced with the codebase: **2026-10-17**
+> Last synced with the codebase: **2026-10-19**
 
 ---
 
@@ -155,9 +155,9 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `lib/worklogs.ts` | work logs, meetings (3 defaults), learning notes, attachments, days off, UTC-date helpers, `touchWorkLog`, `saveWorkLogSummaryRow` (modes manual/auto/background; skips unchanged content via `aiInputHash`; retitles only default/AI titles) |
 | `lib/worklog-summary.ts` | AI input for one log: `workLogHasContent`, `workLogAsText` (tickets, Work done, the day's Tracker to-dos / follow-ups / notes; **no meetings**). No code-built summary |
 | `lib/day-tracker.ts` | `trackerOnDay` — sorts `listTrackerForRange` entries into one day (to-dos done/due/overdue/created, follow-ups, notes); shared by the Work Logs day card and the AI input |
-| `lib/ai-summary.ts` | `openRouterComplete` → `AiResult` (text/model, or an `AiFailure`: not_configured/auth/credits/rate_limited/unavailable/cut_off/bad_reply, with the model when one answered); optional `accept` to tidy/reject; `checkReasoning: false` for JSON replies (skips the reasoning-leak regex, `accept` validates instead); one automatic retry on cut_off/bad_reply; `aiFailureMessage`; `summarizeWithOpenRouter`, `titleWithOpenRouter`. **AI only — no fallback** |
+| `lib/ai-summary.ts` | `openRouterComplete` → `AiResult` (text/model, or an `AiFailure`: not_configured/auth/credits/rate_limited/unavailable/cut_off/bad_reply, with the model when one answered); optional `accept` to tidy/reject; `checkReasoning: false` for JSON replies (skips the reasoning-leak regex, `accept` validates instead); one automatic retry on cut_off/bad_reply; `aiFailureMessage`; `summarizeWithOpenRouter`, `titleWithOpenRouter`; `openRouterChat` (messages + tools, `require_parameters`, reads tool calls incl. ones written as text by some free models, `noTools` when no model can call tools). **AI only — no fallback** |
 | `lib/tickets.ts` | **the critical piece** — ticket lookup/upsert, `addTicketWorkUpdate` (upsert on `(ticketId, workLogId)`), detach, standalone history, project names, `findTicketsByKeyHint` (Quick log: exact key or bare number → `*-1233`) |
-| `lib/ask.ts` | Ask your workspace (read-only): `searchTerms` (question words minus stopwords), keyword retrieval across work logs (+meetings, ticket updates), Tracker entries (+updates), tickets (if enabled), resources and notebook pages (raw `ILIKE ANY` over `content::text`, owner via `Note.userId`); ranks by words matched, tops up with open Tracker entries + latest logs when < 4 hits; one `openRouterComplete` call; keeps only cited sources, renumbered |
+| `lib/ask.ts` | Ask your workspace — a tool-using agent. Starts with CONTEXT (keyword matches via `searchTerms`/`findCandidates`/`rank`, every open Tracker entry via `openTracker` with exact counts and due wording, the work-log date span), then up to 4 tool rounds via `openRouterChat`: `search_workspace`, `get_work_logs` (≤ 62 days), `list_tracker` (open/done, done-in-range), `create_tracker_item`, `change_tracker_item` (done/reopen/reschedule/add_update by record number → id mapped server-side by `Records`). Last round goes without tools (`flatten`). Proposals are returned, never applied. Uses `ASK_MODELS` (tool-capable free models) while the user is on the default model list; falls back to one plain completion with an `<items>` block (`askWithoutTools`/`parseItems`) when no model supports tools. Cites `[n]`; if none, lists what the tools looked up |
 | `lib/quick-log.ts` | Quick log: `draftQuickLog` (AI → JSON read leniently with Zod, then matched to the user's tickets / meeting cards / people / channels; to-dos fall back to one per line without AI) `workLogTemplate` (headings: the day's meetings, open tickets, Work done), and `applyQuickLog` (writes via `worklogs`/`tickets`/`follow-ups` lib functions; same-day re-apply appends) |
 | `lib/workflow-status.ts` | 5-stage workflow + legacy status normalisation |
 | `lib/follow-ups.ts` | Tracker entries + append-only updates, pin, status, reschedule, tags, `listTodosAroundDay` (work-log to-dos card) |
@@ -195,7 +195,7 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `actions/profile.ts` | `updateProfile`, self-service `changePassword`, `saveAiKey`, `removeAiKey`, `saveAiModel` |
 | `actions/user-lists.ts` | Profile lists: set/reset ordered list, resource-type icon, add/remove project, add/rename/delete/delete-all tags |
 | `actions/reports.ts` | `generateReport` |
-| `actions/ask.ts` | `askWorkspace` ({ question, history, today } → { answer, sources }; no writes; AI failure → `AI_UNAVAILABLE`) |
+| `actions/ask.ts` | `askWorkspace` ({ question, history, today } → { answer, sources, proposals }; no writes — the chat applies a confirmed proposal via `createFollowUp` / `setFollowUpStatus` / `rescheduleFollowUp` / `addFollowUpUpdate`; AI failure → `AI_UNAVAILABLE`) |
 | `actions/quick-log.ts` | `getWorkLogTemplate`, `draftQuickLog` (no writes; AI failure → `AI_UNAVAILABLE`), `applyQuickLog` (re-validated draft; revalidates work logs, tickets, tracker) |
 | `components/reports/report-format.ts` | client-safe: parse report Markdown → title/sections/groups; `reportToHtml` (doc-styled clipboard HTML), `reportToText` |
 | `actions/achievements.ts` | create, update, delete achievement; delete achievement file |

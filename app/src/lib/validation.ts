@@ -629,8 +629,68 @@ export const achievementIdSchema = z.object({ achievementId: idSchema });
 export const achievementFileIdSchema = z.object({ fileId: idSchema });
 
 /** Ask your workspace: one question, plus a few earlier turns for follow-ups. */
+/**
+ * A Tracker item the Ask AI drafted. Checked here so a malformed reply never
+ * reaches the chat; adding it still goes through `createFollowUpSchema`.
+ */
+export const askProposalSchema = z
+  .object({
+    kind: z.enum(["todo", "followup", "note"]),
+    subject: z.string().trim().min(1).max(300),
+    person: z.string().trim().max(120).nullish(),
+    note: z.string().trim().max(2_000).nullish(),
+    due: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+    tags: z.array(z.string().trim().max(40)).max(8).nullish(),
+  })
+  .refine((item) => item.kind !== "followup" || Boolean(item.person), "A follow-up needs a person")
+  .transform((item) => ({
+    action: "create" as const,
+    kind: item.kind === "todo" ? ("Task" as const) : item.kind === "followup" ? ("FollowUp" as const) : ("Note" as const),
+    subject: item.subject.replace(/\s+/g, " "),
+    person: item.kind === "followup" ? item.person!.trim() : null,
+    note: item.note || null,
+    dueDate: item.kind === "note" ? null : (item.due ?? null),
+    tags: (item.tags ?? []).map((tag) => tag.replace(/^#/, "").toLowerCase()).filter(Boolean),
+  }));
+/** A change to an existing Tracker entry the Ask AI proposed, by record number (the server maps it to an id). */
+export const askChangeSchema = z
+  .object({
+    record: z.coerce.number().int().min(1),
+    change: z.enum(["done", "reopen", "reschedule", "add_update"]),
+    due: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+    note: z.string().trim().max(2_000).nullish(),
+    from_them: z.boolean().nullish(),
+  })
+  .transform((value) => ({
+    record: value.record,
+    change: value.change === "add_update" ? ("update" as const) : value.change,
+    due: value.due ?? null,
+    note: value.note || null,
+    fromThem: Boolean(value.from_them),
+  }));
+
+/** Ask's work-log lookup: a date range of at most 62 days. */
+export const askRangeSchema = z
+  .object({ from: dateOnlySchema, to: dateOnlySchema })
+  .refine((range) => range.from <= range.to && range.to.getTime() - range.from.getTime() <= 62 * 86_400_000, "At most 62 days, from before to");
+
+type AskCreate = z.output<typeof askProposalSchema>;
+type AskChange = {
+  action: "done" | "reopen" | "reschedule" | "update";
+  entryId: string;
+  kind: AskCreate["kind"];
+  subject: string;
+  dueDate: string | null;
+  note: string | null;
+  fromThem: boolean;
+  /** The item's due date now, so two same-named items can be told apart on the card. */
+  currentDue: string | null;
+};
+/** One thing Ask proposes; the chat applies it through the normal Tracker actions when the user confirms. */
+export type AskProposal = AskCreate | AskChange;
+
 export const askWorkspaceSchema = z.object({
-  question: z.string().trim().min(2, "Type a question first").max(500, "Keep the question under 500 characters"),
+  question: z.string().trim().min(2, "Type a message first").max(500, "Keep the message under 500 characters"),
   history: z
     .array(z.object({ question: z.string().max(500), answer: z.string().max(4_000) }))
     .max(10)

@@ -60,7 +60,7 @@ placeholder page) · **Retired** (redirects).
 | Notes | `/notes`, `/notes/new`, `/notes/[id]`, `/notes/[id]/edit` | Live | Notebooks: note → sections → pages — see §5.4. |
 | Resources | `/resources` | Live | Typed personal library — see §5.5. |
 | Favourites | `/favourites` | Live | Everything starred in one place — see §5.6. |
-| Ask | floating button, bottom-right of every app page | Live | Chat that answers questions about your own records, with numbered links to the sources — see §5.13. |
+| Ask | floating button, bottom-right of every app page | Live | Chat that answers questions about your own records, with numbered links to the sources, looks things up across your logs and Tracker, and proposes Tracker changes (add, done, reopen, reschedule, update) you confirm with one click — see §5.13. |
 | Quick log | dialog (nav button, Work Logs header) | Live | Paste rough text → AI draft → review → apply, for a work log, to-dos or follow-ups — see §5.10. |
 | Profile | `/profile` (account menu) | Live | Name, sprint calendar, tickets on/off, AI summary key — see §5.7. |
 | Achievements | `/achievements` (account menu) | Live | Certifications/courses/awards timeline with certificates — see §5.8. |
@@ -486,30 +486,42 @@ How the text is read — the AI does the fuzzy part, code the exact part:
   email. The signed-in admin cannot reset or delete its own account here, and the final
   Admin account can never be deleted; self-service password change lives in Profile.
 
-### 5.13 Ask your workspace (added 2026-10-17)
+### 5.13 Ask your workspace (added 2026-10-17, agent 2026-10-19)
 
 A chat bubble (**Ask**, ink pill) in the bottom-right of every signed-in page opens a
-panel (bottom-right card on md+, a bottom sheet on phones). You type a question —
-"What did I tell Ashwini about SPAM?", "What's overdue?" — and get a short answer
-built **only** from your own records, with numbered citation chips and a source list.
-Each source links to the record: Tracker entries open in their dialog
-(`/tracker?open=`), tickets are selected (`/tickets?ticket=`), work logs and notebooks
-open their page, resources go to Resources.
+panel (bottom-right card on md+, a bottom sheet on phones). It's an assistant over your
+own workspace: you write naturally — "What's due this week?", "What did I do in the last
+week of September?", "What did I tell Ashwini about SPAM?", "Remind me to check the VBO
+export on Friday", "Ravi replied, staging access is granted — close it", "What can you
+do?" — and get a short reply. Facts come **only** from your own records, with numbered
+citation chips and a source list linking to each record (Tracker entries open in their
+dialog via `/tracker?open=`, tickets via `/tickets?ticket=`, work logs and notebooks
+open their page, resources go to Resources).
 
-- **Read-only.** It answers; it never creates, edits or sends anything.
-- **Your data only.** Searches the signed-in user's work logs (incl. meetings and
-  ticket updates), Tracker entries and their history, tickets (if enabled),
-  resources and notebook pages. The AI sees only the few records that matched.
-- **Says when it doesn't know** instead of guessing. Few or no keyword matches →
-  your open Tracker entries and latest logs are added, so broad questions work.
-- Follow-up questions use the last few turns. The chat survives moving between pages
-  and is gone on reload (nothing is stored). New chat clears it.
-- Uses the same OpenRouter key as AI summaries; without one it says how to set it up.
-- Keyword search (not embeddings): "email" won't find a note that only says "SMTP".
-- A to-do/follow-up's current state comes only from the Tracker: open ones past their
-  due date are flagged overdue for the AI. Work logs are read as history and their
-  stored AI summaries are not sent (they can be stale), so a to-do that was overdue
-  on an old log but done since is never reported as overdue.
+- **Looks things up itself.** Starts with your open Tracker (exact counts, due dates
+  spelled out) and keyword matches, then searches again with other words, reads your
+  work logs for any day or period, or lists finished Tracker items — up to 4 lookups
+  per message. Work logs are history; their stored AI summaries are not used (they
+  can be stale).
+- **Changes the Tracker, with your OK.** It can propose: new to-dos (due dates from
+  "tomorrow", "Friday"…), follow-ups (person + what you said) and notes; mark done or
+  reopen; move or clear a due date; add an update, or log the other person's reply on a
+  follow-up. Each shows as a card (current due date shown, so duplicates are told apart)
+  with a confirm button and **Skip**; nothing changes until you confirm, through the
+  normal Tracker actions. Up to 5 per message. Ambiguous ("which one?") → it asks.
+- **Can't yet:** delete anything; create or edit work logs, tickets, resources or
+  notebook pages.
+- **Your data only.** Every lookup is scoped to the signed-in user; the AI never sees
+  record ids (numbers map to ids on the server).
+- Follow-ups use the last 6 turns, including what it proposed and whether you
+  confirmed. The chat is kept in the browser tab (sessionStorage, per user) so it
+  survives a reload; New chat clears it.
+- Uses the same OpenRouter key as AI summaries. On the default model list, Ask uses
+  free models that handle tool calls well; a custom model in Profile is used as-is
+  (without tool support it can only answer and add items). Replies take ~5–60 s on
+  free models.
+- Keyword search (not embeddings): it tries other words itself, but a record that
+  shares no words with any of them won't be found.
 
 ## 6. Non-functional requirements
 
@@ -527,7 +539,7 @@ open their page, resources go to Resources.
 
 ## 7. Out of scope (don't build, don't promise)
 
-AI beyond the per-log summary, sprint report, Quick log reading and read-only Ask (§5.13); Jira / GitHub / Slack / Calendar integrations; PDF/Markdown export;
+AI beyond the per-log summary, sprint report, Quick log reading and Ask (§5.13; it only changes the Tracker, and only on your click); Jira / GitHub / Slack / Calendar integrations; PDF/Markdown export;
 emailed reports; team workspaces; sharing; global search (not built yet);
 dark mode (removed).
 

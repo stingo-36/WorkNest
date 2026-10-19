@@ -45,7 +45,7 @@ export function AppShell({
             </div>
           </main>
           <InstallAppDialog />
-          <AskWidget />
+          <AskWidget userId={user.id} />
         </QuickLogProvider>
       </div>
     </>

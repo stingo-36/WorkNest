@@ -162,3 +162,108 @@ export function summarizeWithOpenRouter(logText: string, config: OpenRouterConfi
     maxTokens: 3000,
   });
 }
+
+export type ToolCall = { id: string; type: "function"; function: { name: string; arguments: string } };
+export type ChatMessage =
+  | { role: "system" | "user"; content: string }
+  | { role: "assistant"; content: string | null; tool_calls?: ToolCall[] }
+  | { role: "tool"; tool_call_id: string; content: string };
+export type ToolSpec = { type: "function"; function: { name: string; description: string; parameters: Record<string, unknown> } };
+/** `noTools`: none of the configured models can call tools — the caller falls back to a plain completion. */
+export type ChatResult = { ok: true; content: string; toolCalls: ToolCall[]; model: string } | { ok: false; reason: AiFailure; model?: string; noTools?: boolean };
+
+/**
+ * One turn of a tool-using conversation (Ask's agent loop). With `tools`,
+ * OpenRouter only routes to models that support them (`require_parameters`).
+ * A reply cut off by the token limit is retried once, like `openRouterComplete`.
+ */
+export async function openRouterChat(
+  config: OpenRouterConfig,
+  options: ChatOptions,
+): Promise<ChatResult> {
+  const first = await chatOnce(config, options);
+  if (first.ok || first.reason !== "cut_off") return first;
+  return chatOnce(config, options);
+}
+
+type ChatOptions = { messages: ChatMessage[]; tools?: ToolSpec[]; maxTokens: number };
+
+async function chatOnce({ apiKey, models }: OpenRouterConfig, { messages, tools, maxTokens }: ChatOptions): Promise<ChatResult> {
+  try {
+    const response = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "X-Title": "WorkNest" },
+      body: JSON.stringify({
+        model: models[0],
+        ...(models.length > 1 ? { models } : {}),
+        messages,
+        ...(tools?.length ? { tools, provider: { require_parameters: true } } : {}),
+        temperature: 0.2,
+        max_tokens: maxTokens,
+        reasoning: { exclude: true },
+      }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!response.ok) {
+      const body = (await response.text()).slice(0, 300);
+      console.warn(`[ai] OpenRouter ${response.status}: ${body}`);
+      // 404 "No endpoints found that support tool use" (or 400 from a model that rejects `tools`).
+      if (tools?.length && (response.status === 404 || (response.status === 400 && /tool/i.test(body)))) return { ok: false, reason: "unavailable", noTools: true };
+      const reason: AiFailure =
+        response.status === 401 || response.status === 403 ? "auth"
+        : response.status === 402 ? "credits"
+        : response.status === 429 ? "rate_limited"
+        : "unavailable";
+      return { ok: false, reason };
+    }
+    const json = (await response.json()) as { model?: string; choices?: Array<{ finish_reason?: string; message?: { content?: string | null; tool_calls?: ToolCall[] } }> };
+    const choice = json.choices?.[0];
+    const model = json.model ?? models[0]!;
+    let content = choice?.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim() ?? "";
+    let toolCalls = choice?.message?.tool_calls ?? [];
+    // Some free models write the call as text instead of using the API's tool calls.
+    if (!toolCalls.length && tools?.length && /<tool_call>|<function=/.test(content)) {
+      toolCalls = textToolCalls(content);
+      if (toolCalls.length) content = content.slice(0, content.search(/<tool_call>|<function=/)).trim();
+    }
+    if (choice?.finish_reason === "length" && !toolCalls.length) {
+      console.warn(`[ai] ${model} hit the token limit (${content.length} chars)`);
+      return { ok: false, reason: "cut_off", model };
+    }
+    if (!content && !toolCalls.length) return { ok: false, reason: "bad_reply", model };
+    return { ok: true, content, toolCalls, model };
+  } catch (error) {
+    console.warn("[ai] OpenRouter request failed:", error instanceof Error ? error.message : error);
+    return { ok: false, reason: "unavailable" };
+  }
+}
+
+/**
+ * Tool calls written as text: Qwen-style `<function=name><parameter=key>value</parameter></function>`
+ * or `<tool_call>{"name": …, "arguments": {…}}</tool_call>`.
+ */
+function textToolCalls(content: string): ToolCall[] {
+  const calls: ToolCall[] = [];
+  for (const match of content.matchAll(/<function=([\w-]+)>([\s\S]*?)(?:<\/function>|$)/g)) {
+    const args: Record<string, unknown> = {};
+    for (const param of match[2]!.matchAll(/<parameter=([\w-]+)>([\s\S]*?)<\/parameter>/g)) {
+      const raw = param[2]!.trim();
+      try {
+        args[param[1]!] = JSON.parse(raw);
+      } catch {
+        args[param[1]!] = raw;
+      }
+    }
+    calls.push({ id: `text-${calls.length + 1}`, type: "function", function: { name: match[1]!, arguments: JSON.stringify(args) } });
+  }
+  if (calls.length) return calls;
+  for (const match of content.matchAll(/<tool_call>\s*(\{[\s\S]*?\})\s*<\/tool_call>/g)) {
+    try {
+      const parsed = JSON.parse(match[1]!) as { name?: string; arguments?: unknown };
+      if (parsed.name) calls.push({ id: `text-${calls.length + 1}`, type: "function", function: { name: parsed.name, arguments: typeof parsed.arguments === "string" ? parsed.arguments : JSON.stringify(parsed.arguments ?? {}) } });
+    } catch {
+      // Not a call after all.
+    }
+  }
+  return calls;
+}
