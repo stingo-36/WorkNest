@@ -5,7 +5,7 @@
 > and `app/src/app/(auth)/auth-motion.css` (login / register). This file explains the system and the rules. If you change a token,
 > update the table here in the same change.
 >
-> Last synced with the codebase: **2026-10-17**
+> Last synced with the codebase: **2026-10-19**
 
 ---
 
@@ -499,7 +499,7 @@ over a hairline.
 Other feature components: `tickets/ticket-board`, `tracker/tracker-board`
 (all per-kind wording lives in `KIND_META`), `notes/*` (TipTap editors, icon picker,
 viewer, TOC), `resources/resource-library`, `profile/profile-form`, `auth/*`,
-`ask/ask-widget` (`AskWidget`, mounted once in `AppShell`: fixed bottom-right ink pill `h-12` → panel `md:w-[26rem]`, `md:h-[min(40rem,100dvh-7rem)]`, phones a `85dvh` bottom sheet; `shadow-lg` as a floating layer; question bubbles ink, answers plain text with `primary-subtle` citation chips, sources as bordered rows; `.ask-panel` rise + `.ask-thinking` breathe, both off under reduced motion), `home/*` (homepage), `quick-log/quick-log` (`QuickLogProvider` + `useQuickLog().open(kind?)`,
+`ask/ask-widget` (`AskWidget`, mounted once in `AppShell`: fixed bottom-right ink pill `h-12` → panel `md:w-[26rem]`, `md:h-[min(40rem,100dvh-7rem)]`, phones a `85dvh` bottom sheet; `shadow-lg` as a floating layer; question bubbles ink, answers plain text with `primary-subtle` citation chips, sources as bordered rows; proposal cards `surface-2` + `border-strong` with a primary confirm pill and a ghost Skip, applied state `status-completed-fg` tick, skipped at 60% opacity; `.ask-panel` rise + `.ask-thinking` breathe, both off under reduced motion), `home/*` (homepage), `quick-log/quick-log` (`QuickLogProvider` + `useQuickLog().open(kind?)`,
 `QuickLogButton`; a `Modal size="lg"` with Choose → Paste → Review steps; review rows =
 tick box + label pill (new = success-subtle, update = primary-subtle, needs you =
 warning-subtle) + inline editor). Dialogs must render inside `.app-shell` or they fall
