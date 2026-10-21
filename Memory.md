@@ -4,7 +4,7 @@
 > (with the *why*), gotchas that cost time before, and a changelog. Newest first in
 > every section. Update rules are in `AGENTS.md` §2.
 >
-> Last synced with the codebase: **2026-10-19**
+> Last synced with the codebase: **2026-10-21**
 
 ---
 
@@ -26,6 +26,21 @@
 ## Decisions
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
+
+**2026-10-21 — Sticky notes are multi-line and editable; work to-dos are not.**
+Owner: Shift+Enter for a new line, and "give option to edit". The text lives in `subject`
+(line breaks kept, ≤1000) so the sticky shows it whole; editing rewrites only that field via
+`editPersonalTodo`, which matches `personal: true` — the append-only updates are untouched.
+Other kinds still collapse whitespace to one line ≤300 (a transform on `createFollowUpSchema`).
+*Rejected:* extra lines as a first update (couldn't be edited without breaking append-only).
+
+**2026-10-21 — Personal to-dos are a `personal` flag on `FollowUp` (Task), shown as sticky notes.**
+Owner asked for "sticky notes" for personal tasks and a Work/Personal toggle on To-do,
+Work by default. One flag keeps tick/done history, dialog, star, delete and search for
+free. Personal is kept out of Work Logs, AI summaries and sprint reports (they're work
+records); Ask still sees them, labelled personal. The toggle isn't remembered — Work on
+every visit, as asked. *Rejected:* a new `EntryKind` (would need a fourth tab and every
+kind switch touched); a separate sticky-notes table (duplicates the to-do machinery).
 
 **2026-10-19 — Ask is a tool-calling agent; every Tracker change is confirmed by click.**
 Owner: "make it a proper AI assistant". Native OpenRouter tool calls (tested working on
@@ -881,6 +896,8 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-21 — Personal sticky notes: Shift+Enter new line in the add field, line breaks kept, inline Edit (Enter saves, Escape cancels) — `lib/validation.ts` (`noteLines`, `editPersonalTodoSchema`), `lib/follow-ups.ts`, `actions/follow-ups.ts`, `components/tracker/tracker-board.tsx`, PRD §5.3, Architecture §4/§5, Design-System
+- 2026-10-21 — To-do tab gets a Work / Personal toggle (Work default); personal to-dos show as sticky notes and stay out of Work Logs / sprint reports — `prisma/schema.prisma` + migration `tracker_personal_todos`, `lib/follow-ups.ts`, `lib/reports.ts`, `lib/ask.ts`, `lib/validation.ts`, `components/tracker/tracker-board.tsx`, `app/globals.css`, PRD §4/§5.3, Architecture §5, Design-System
 - 2026-10-19 — Ask became an agent: looks things up itself (search, logs by date range, done items), proposes done/reopen/reschedule/update as well as new items, chat survives reload — `lib/ask.ts`, `lib/ai-summary.ts` (`openRouterChat`), `lib/validation.ts`, `components/ask/ask-widget.tsx`, `app-shell.tsx`, PRD §4/§5.13/§7, Architecture §4, Design-System §8
 - 2026-10-19 — Ask drafts to-dos/follow-ups/notes (Add to Tracker / Skip cards), always sees open Tracker entries with due wording, describes its abilities; new placeholder and suggestions — `lib/ask.ts`, `actions/ask.ts`, `components/ask/ask-widget.tsx`, `lib/validation.ts`, PRD §4/§5.13/§7, Architecture §4
 - 2026-10-19 — Ask no longer reports to-dos done since as overdue (drops stale log summaries, flags real overdue); every struck to-do on Work Logs shows its done date; summaries note "since done" and go stale when a to-do is finished later — `lib/ask.ts`, `lib/day-tracker.ts`, `lib/worklog-summary.ts`, `sprint-deck.tsx`, `day-todos.tsx`, `work-log-summary.tsx`, PRD §5.1/§5.13

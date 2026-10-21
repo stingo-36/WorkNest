@@ -372,6 +372,9 @@ model FollowUp {
   pinned      Boolean        @default(false)
   /// Lowercase labels for grouping and searching. Used by Notes; empty elsewhere.
   tags        String[]       @default([])
+  /// A personal to-do (Tracker → To-do → Personal sticky notes). Only ever true
+  /// for a Task; kept out of Work Logs, AI summaries and sprint reports.
+  personal    Boolean        @default(false)
   /// When the next nudge is due. Null = logged for the record, no date attached.
   dueDate     DateTime?      @db.Date
   completedAt DateTime?

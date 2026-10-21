@@ -70,10 +70,10 @@ const contains = (value: string) => ({ contains: value, mode: "insensitive" as c
 const day = (date: Date) => format(date, "d MMM yyyy");
 
 const ENTRY_SELECT = {
-  id: true, kind: true, subject: true, person: true, ticketKey: true, status: true, dueDate: true, completedAt: true, createdAt: true, updatedAt: true, tags: true,
+  id: true, kind: true, subject: true, person: true, ticketKey: true, status: true, dueDate: true, completedAt: true, createdAt: true, updatedAt: true, tags: true, personal: true,
   updates: { orderBy: { occurredAt: "desc" as const }, take: 8, select: { note: true, occurredAt: true, fromThem: true, channel: true } },
 };
-type EntryRow = { id: string; kind: EntryKind; subject: string; person: string | null; ticketKey: string | null; status: string; dueDate: Date | null; completedAt: Date | null; createdAt: Date; updatedAt: Date; tags: string[]; updates: Array<{ note: string; occurredAt: Date; fromThem: boolean; channel: string }> };
+type EntryRow = { id: string; kind: EntryKind; subject: string; person: string | null; ticketKey: string | null; status: string; dueDate: Date | null; completedAt: Date | null; createdAt: Date; updatedAt: Date; tags: string[]; personal: boolean; updates: Array<{ note: string; occurredAt: Date; fromThem: boolean; channel: string }> };
 
 /** "21 Oct 2026 (in 2 days)" — said in words, so the AI never has to do date maths. */
 function dueText(dueDate: Date, open: boolean, todayKey: string) {
@@ -93,6 +93,7 @@ function entryCandidate(entry: EntryRow, todayKey: string, maxUpdates: number): 
   const facts = [
     entry.person ? `Person: ${entry.person}` : "",
     entry.ticketKey ? `Ticket: ${entry.ticketKey}` : "",
+    entry.personal ? "List: personal (not work)" : "",
     `Status: ${open ? (entry.kind === EntryKind.Note ? "active" : "open") : `done${entry.completedAt ? ` on ${day(entry.completedAt)}` : ""}`}${waiting}`,
     entry.dueDate ? `Due: ${dueText(entry.dueDate, open, todayKey)}` : entry.kind === EntryKind.Task && open ? "Due: no date" : "",
     `Created: ${day(entry.createdAt)}`,

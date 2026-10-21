@@ -5,7 +5,7 @@
 > and `app/src/app/(auth)/auth-motion.css` (login / register). This file explains the system and the rules. If you change a token,
 > update the table here in the same change.
 >
-> Last synced with the codebase: **2026-10-19**
+> Last synced with the codebase: **2026-10-21**
 
 ---
 
@@ -116,6 +116,15 @@ needs you, else subtle) over a 2px rule (solid amber `--c-wl-dash` / ink). Rows:
 separators, an uppercase `.tk-label` status eyebrow above the title, a 22px round tick on
 to-dos and upcoming rows. Finished entries collapse under "✓ N completed today · Show". The note composer is
 a `.tk-field` card (title · hairline · body · toolbar). Entry dialogs use `Modal size="xl"`.
+To-do's **Work / Personal** toggle (2026-10-21) is a white pill group (`--c-tk-rule` edge) of
+two 40px segments, the active one ink `bg-sidebar`. Personal to-dos are `.tk-sticky` cards:
+`--c-sticky-1…5` paper tints (`#fff1b8` yellow, `#ffdbe4` pink, `#d8f2e0` green, `#d9ecfa`
+blue, `#ebe2fb` lilac; ink text), `--radius-md`, `--sh-md`, a ±1.2° tilt picked from the id
+that straightens (and lifts to `--sh-lg`) on hover/focus — no motion under reduced motion.
+Text keeps its line breaks (`whitespace-pre-line`). Edit (pencil) shows on hover/focus from md
+like Delete; editing swaps the card's content for a `bg-surface/70` textarea, a key hint and
+Cancel / Save (`Button size="sm"`). The add field becomes an auto-growing textarea with a
+"Enter to add · Shift+Enter for a new line" hint under the rule.
 The `.tk-*` type classes are scoped under `.tk-focus` so they beat `.app-shell main hN`.
 Sizes: see Type scale.
 
