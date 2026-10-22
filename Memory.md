@@ -4,7 +4,7 @@
 > (with the *why*), gotchas that cost time before, and a changelog. Newest first in
 > every section. Update rules are in `AGENTS.md` §2.
 >
-> Last synced with the codebase: **2026-10-21**
+> Last synced with the codebase: **2026-10-22**
 
 ---
 
@@ -26,6 +26,15 @@
 ## Decisions
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
+
+**2026-10-22 — Vercel Production builds run `prisma migrate deploy` before `next build`.**
+After PR #16 went live without its migration, the owner asked to make it automatic. A
+`vercel-build` script (Vercel prefers it over `build`) keeps local builds unchanged. Only
+`VERCEL_ENV=production` migrates: a Preview of an unmerged branch must never change the live
+schema. A failed migration fails the build, so the last good deploy keeps serving.
+Migrations must stay backward-compatible with the deploy still serving during the build.
+*Rejected:* migrating in `postinstall` (runs for every install, Previews too); a GitHub
+Action (another place to keep the DB secret); keeping it manual (it was forgotten once).
 
 **2026-10-21 — Sticky notes are multi-line and editable; work to-dos are not.**
 Owner: Shift+Enter for a new line, and "give option to edit". The text lives in `subject`
@@ -723,6 +732,12 @@ is done on the real rendered app.
 
 ## Gotchas
 
+- **2026-10-22 — A deploy without its migration crashes the pages that use the new column.**
+  Prisma selects a column that isn't there and the page shows "This page couldn't load"
+  (PR #16 → live `/tracker`, fixed by `npm --prefix app run db:hosted`). Production builds
+  now migrate first (`scripts/vercel-build.mjs`); if the Vercel Build Command is ever
+  overridden, that step is skipped and this comes back.
+
 - **2026-10-19 — Free OpenRouter models: tool support and quality vary wildly.** The
   default list's first pick (`google/gemma-4-31b-it:free`) returned "Provider returned
   error" with tools, so `openrouter/free` landed on tiny models (2.6B) that looped on
@@ -896,6 +911,8 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-22 — Vercel Production builds apply migrations before building (Preview skips) — `app/scripts/vercel-build.mjs`, `app/package.json`, Architecture §2/§8/§9, skills.md §11
+- 2026-10-22 — Applied `tracker_personal_todos` to the hosted DB; live `/tracker` was erroring after PR #16 deployed without it — `npm run db:hosted`, Memory Gotchas
 - 2026-10-21 — Personal sticky notes: Shift+Enter new line in the add field, line breaks kept, inline Edit (Enter saves, Escape cancels) — `lib/validation.ts` (`noteLines`, `editPersonalTodoSchema`), `lib/follow-ups.ts`, `actions/follow-ups.ts`, `components/tracker/tracker-board.tsx`, PRD §5.3, Architecture §4/§5, Design-System
 - 2026-10-21 — To-do tab gets a Work / Personal toggle (Work default); personal to-dos show as sticky notes and stay out of Work Logs / sprint reports — `prisma/schema.prisma` + migration `tracker_personal_todos`, `lib/follow-ups.ts`, `lib/reports.ts`, `lib/ask.ts`, `lib/validation.ts`, `components/tracker/tracker-board.tsx`, `app/globals.css`, PRD §4/§5.3, Architecture §5, Design-System
 - 2026-10-19 — Ask became an agent: looks things up itself (search, logs by date range, done items), proposes done/reopen/reschedule/update as well as new items, chat survives reload — `lib/ask.ts`, `lib/ai-summary.ts` (`openRouterChat`), `lib/validation.ts`, `components/ask/ask-widget.tsx`, `app-shell.tsx`, PRD §4/§5.13/§7, Architecture §4, Design-System §8

@@ -5,7 +5,7 @@
 > **Update the docs** (`AGENTS.md` §2). If you find a better way, or a new task
 > repeats, add or edit a recipe here.
 >
-> Last synced with the codebase: **2026-10-11**
+> Last synced with the codebase: **2026-10-22**
 
 ## Index
 
@@ -212,9 +212,14 @@ hosted service.
 2. Put the Neon **direct** URL in `app/.env` as `HOSTED_DATABASE_URL`.
 3. Apply migrations: `npm --prefix app run db:hosted` (`migrate deploy`).
    `-- --seed` also seeds and **wipes all users** — only on an empty database.
-4. Push → Vercel builds (`postinstall` generates the client; build uses `--webpack`).
+4. Push → Vercel builds (`postinstall` generates the client; `vercel-build` runs
+   `migrate deploy` on **Production only**, then `next build --webpack`). Keep the
+   project's Build Command on the default, or `vercel-build` is skipped.
 5. Smoke test: register, open today's log, add a ticket update, upload an attachment.
-6. Every schema change after that: run step 3 again **before** the new code goes live.
+6. Every schema change after that: merging to `main` migrates the live DB during the
+   Production build. Keep migrations additive (new nullable/defaulted columns) — the old
+   deployment keeps serving while the new one builds. If a build fails on the migration,
+   the old deploy stays live; fix and redeploy, or run step 3 by hand.
 
 ## 11a. Copy live (Neon) data into the local database
 
