@@ -5,6 +5,7 @@ import TextField from "@mui/material/TextField";
 import {
   ArrowRight,
   CalendarDays,
+  Pencil,
   Check,
   ChevronDown,
   Hash,
@@ -24,6 +25,7 @@ import {
   addFollowUpUpdate,
   createFollowUp,
   deleteFollowUp,
+  editPersonalTodo,
   rescheduleFollowUp,
   setFollowUpPinned,
   setFollowUpStatus,
@@ -73,6 +75,8 @@ export type TrackerEntry = {
   pinned: boolean;
   /** Lowercase labels; only notes use them. */
   tags: string[];
+  /** A personal to-do — shown as a sticky note under To-do → Personal. */
+  personal: boolean;
   /** "YYYY-MM-DD" or null. A plain calendar day — no time, no timezone. */
   dueDate: string | null;
   completedAt: string | null;
@@ -97,6 +101,11 @@ const VIEWS: Array<{ id: TrackerView; kind: EntryKind; label: string }> = [
 ];
 
 const KIND_LABEL: Record<EntryKind, string> = { Task: "To-do", FollowUp: "Follow-up", Note: "Note" };
+
+/** The To-do tab's two lists. Work is the default every time the page opens (owner, 2026-10-21). */
+type TodoScope = "work" | "personal";
+
+const entryLabel = (entry: TrackerEntry) => (entry.personal ? "Personal to-do" : KIND_LABEL[entry.kind]);
 
 /**
  * The user's lists from Profile, read deep in the tree (add forms, popups)
@@ -292,6 +301,7 @@ export function TrackerBoard({
   loadError?: string;
 }) {
   const [view, setView] = useState<TrackerView>(initialView);
+  const [scope, setScope] = useState<TodoScope>("work");
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const today = useSyncExternalStore(subscribeNever, todayIso, () => serverToday);
@@ -302,10 +312,16 @@ export function TrackerBoard({
     for (const entry of entries) next[entry.kind].push(entry);
     return next;
   }, [entries]);
+  const workEntries = useMemo(() => entries.filter((entry) => !entry.personal), [entries]);
+  const personalTodos = useMemo(() => byKind.Task.filter((entry) => entry.personal), [byKind]);
+  const scopeCounts: Record<TodoScope, number> = {
+    work: byKind.Task.filter((entry) => !entry.personal && isOpen(entry)).length,
+    personal: personalTodos.filter(isOpen).length,
+  };
 
   // Tab badges: what's still open, not the grand total.
   const badge: Record<TrackerView, number> = {
-    todo: byKind.Task.filter(isOpen).length,
+    todo: scopeCounts.work + scopeCounts.personal,
     followups: byKind.FollowUp.filter(isOpen).length,
     notes: byKind.Note.filter(isOpen).length,
   };
@@ -324,6 +340,7 @@ export function TrackerBoard({
     setHandledLink(linked?.id ?? null);
     if (linked) {
       setView(linkedTab);
+      if (linked.kind === "Task") setScope(linked.personal ? "personal" : "work");
       setOpenId(linked.id);
     }
   }
@@ -388,8 +405,9 @@ export function TrackerBoard({
         </div>
         <div className="flex flex-wrap items-end gap-x-10 gap-y-5">
           <h1 className="page-title">Tracker</h1>
+          {view === "todo" ? <ScopeToggle value={scope} counts={scopeCounts} onChange={(next) => { setScope(next); setQuery(""); }} /> : null}
           <div className="min-w-0 flex-[1_1_20rem]">
-            {view === "todo" ? <AddTodo today={today} /> : null}
+            {view === "todo" ? <AddTodo key={scope} today={today} personal={scope === "personal"} /> : null}
             {view === "followups" ? <AddFollowUp people={people} today={today} /> : null}
             {view === "notes" ? <p className="pb-3 text-md text-text-muted">Write a note below — the newest update shows on each card.</p> : null}
           </div>
@@ -404,7 +422,8 @@ export function TrackerBoard({
             <button type="button" onClick={() => setQuery("")} className="min-h-11 cursor-pointer font-semibold text-accent-text hover:underline">Clear</button>
           </p>
         ) : null}
-        {view === "todo" ? <TodoQueue entries={entries} today={today} needle={needle} onOpen={openEntry} /> : null}
+        {view === "todo" && scope === "work" ? <TodoQueue entries={workEntries} today={today} needle={needle} onOpen={openEntry} /> : null}
+        {view === "todo" && scope === "personal" ? <StickyBoard entries={personalTodos} today={today} needle={needle} onOpen={openEntry} /> : null}
         {view === "followups" ? <FollowUpQueue entries={byKind.FollowUp} today={today} needle={needle} onOpen={openEntry} /> : null}
         {view === "notes" ? <NoteQueue entries={byKind.Note} suggestions={tagSuggestions} today={today} needle={needle} onOpen={openEntry} onTag={(tag) => setQuery(`#${tag}`)} /> : null}
       </section>
@@ -802,11 +821,28 @@ function NudgePill({ entry, ink }: { entry: TrackerEntry; ink: boolean }) {
 
 // --- add pill ------------------------------------------------------------------
 
+/** Grow a textarea with its text (one line when empty). */
+function fitHeight(field: HTMLTextAreaElement | null) {
+  if (!field) return;
+  field.style.height = "auto";
+  field.style.height = `${field.scrollHeight}px`;
+}
+
+/** Enter saves, Shift+Enter starts a new line (not while an IME is composing). */
+function onEnterSave(save: () => void) {
+  return (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    save();
+  };
+}
+
 /**
  * The dashed pill at the top of each queue: a text field, a few tool buttons
- * (each may open a small panel under the pill) and Add. Enter saves.
+ * (each may open a small panel under the pill) and Add. Enter saves;
+ * `multiline` (sticky notes) makes Shift+Enter a new line.
  */
-function AddPill({ label, inputId, placeholder, value, onChange, onSubmit, pending, error, tools, panel }: {
+function AddPill({ label, inputId, placeholder, value, onChange, onSubmit, pending, error, tools, panel, multiline = false }: {
   label: string;
   inputId: string;
   placeholder: string;
@@ -817,22 +853,42 @@ function AddPill({ label, inputId, placeholder, value, onChange, onSubmit, pendi
   error?: string;
   tools: React.ReactNode;
   panel: React.ReactNode;
+  multiline?: boolean;
 }) {
+  const area = useRef<HTMLTextAreaElement>(null);
+  // Shrink back to one line once a saved note clears the field.
+  useEffect(() => fitHeight(area.current), [value]);
   return (
     <form aria-label={label} onSubmit={(event) => { event.preventDefault(); onSubmit(); }} className="relative">
-      <div className="tk-add flex items-center gap-0.5 py-2 pl-1">
-        <label htmlFor={inputId} className="flex h-11 min-w-0 flex-1 items-center gap-3.5 text-text-muted">
-          <Plus className="size-5 shrink-0" strokeWidth={2.2} aria-hidden="true" />
+      <div className="tk-add flex items-end gap-0.5 py-2 pl-1">
+        <label htmlFor={inputId} className={cn("flex min-h-11 min-w-0 flex-1 gap-3.5 text-text-muted", multiline ? "items-start py-2.5" : "items-center")}>
+          <Plus className={cn("size-5 shrink-0", multiline && "mt-0.5")} strokeWidth={2.2} aria-hidden="true" />
           <span className="sr-only">{label}</span>
-          <input
-            id={inputId}
-            value={value}
-            maxLength={300}
-            placeholder={placeholder}
-            aria-invalid={error ? true : undefined}
-            onChange={(event) => onChange(event.target.value)}
-            className="min-w-0 flex-1 bg-transparent text-lg text-text outline-none placeholder:text-text-muted"
-          />
+          {multiline ? (
+            <textarea
+              ref={area}
+              id={inputId}
+              rows={1}
+              value={value}
+              maxLength={1000}
+              placeholder={placeholder}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={`${inputId}-keys`}
+              onChange={(event) => onChange(event.target.value)}
+              onKeyDown={onEnterSave(onSubmit)}
+              className="max-h-60 min-w-0 flex-1 resize-none bg-transparent text-lg leading-snug text-text outline-none placeholder:text-text-muted"
+            />
+          ) : (
+            <input
+              id={inputId}
+              value={value}
+              maxLength={300}
+              placeholder={placeholder}
+              aria-invalid={error ? true : undefined}
+              onChange={(event) => onChange(event.target.value)}
+              className="min-w-0 flex-1 bg-transparent text-lg text-text outline-none placeholder:text-text-muted"
+            />
+          )}
         </label>
         {tools}
         <button type="submit" disabled={pending} className="ml-1 h-11 shrink-0 cursor-pointer rounded-full bg-sidebar px-5 text-md font-semibold text-sidebar-fg transition-colors duration-150 hover:bg-sidebar-3 disabled:cursor-wait disabled:opacity-60 md:px-6">
@@ -840,6 +896,7 @@ function AddPill({ label, inputId, placeholder, value, onChange, onSubmit, pendi
         </button>
       </div>
       {panel}
+      {multiline ? <p id={`${inputId}-keys`} className="mt-1.5 px-1 text-sm text-text-muted">Enter to add · Shift+Enter for a new line</p> : null}
       {error ? <p className="mt-2 px-1 text-base font-medium text-danger" role="alert">{error}</p> : null}
     </form>
   );
@@ -927,7 +984,7 @@ function useCreate(onSaved: () => void) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string>();
   function create(
-    input: { kind: EntryKind; subject: string; person?: string; note?: string; doc?: unknown; channel?: string; dueDate?: string | null; occurredAt?: string | null; tags?: string[] },
+    input: { kind: EntryKind; subject: string; person?: string; note?: string; doc?: unknown; channel?: string; dueDate?: string | null; occurredAt?: string | null; tags?: string[]; personal?: boolean },
     pinned: boolean,
   ) {
     startTransition(async () => {
@@ -938,7 +995,7 @@ function useCreate(onSaved: () => void) {
         return;
       }
       if (pinned) await setFollowUpPinned({ followUpId: result.data.id, pinned: true });
-      toast.success(`${KIND_LABEL[input.kind]} added`);
+      toast.success(input.personal ? "Sticky note added" : `${KIND_LABEL[input.kind]} added`);
       setError(undefined);
       onSaved();
       router.refresh();
@@ -1018,25 +1075,28 @@ function TodoQueue({ entries, today, needle, onOpen }: { entries: TrackerEntry[]
   );
 }
 
-function AddTodo({ today }: { today: string }) {
+/** Personal sticky notes start without a date — they're jotted, not scheduled. */
+function AddTodo({ today, personal = false }: { today: string; personal?: boolean }) {
+  const startDate = personal ? "" : today;
   const [subject, setSubject] = useState("");
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(startDate);
   const [pinned, setPinned] = useState(false);
   const [panel, setPanel] = useState(false);
-  const { create, pending, error, setError } = useCreate(() => { setSubject(""); setDate(today); setPinned(false); setPanel(false); });
+  const { create, pending, error, setError } = useCreate(() => { setSubject(""); setDate(startDate); setPinned(false); setPanel(false); });
 
   function save() {
     if (pending) return;
     // The button is always live (a greyed CTA reads as broken); empty → point at the field.
     if (!subject.trim()) { setError("Write the to-do first"); document.getElementById("add-todo")?.focus(); return; }
-    create({ kind: "Task", subject: subject.trim().slice(0, 300), dueDate: date || null }, pinned);
+    create({ kind: "Task", subject: subject.trim().slice(0, personal ? 1000 : 300), dueDate: date || null, personal }, pinned);
   }
 
   return (
     <AddPill
-      label="Add a to-do"
+      label={personal ? "Add a personal to-do" : "Add a to-do"}
       inputId="add-todo"
-      placeholder="Add a to-do…"
+      multiline={personal}
+      placeholder={personal ? "Jot a personal to-do…" : "Add a to-do…"}
       value={subject}
       onChange={(value) => { setSubject(value); setError(undefined); }}
       onSubmit={save}
@@ -1075,6 +1135,184 @@ function TodoRow({ entry, today, mode, onOpen }: { entry: TrackerEntry; today: s
       meta={<LatestLine entry={entry} />}
       actions={<><DeleteEntry entry={entry} /><FavouriteToggle entry={entry} /></>}
     />
+  );
+}
+
+// --- personal to-dos ---------------------------------------------------------------
+
+/** Work | Personal, shown on the To-do tab. Arrow keys move between the two. */
+function ScopeToggle({ value, counts, onChange }: { value: TodoScope; counts: Record<TodoScope, number>; onChange: (next: TodoScope) => void }) {
+  const options: Array<{ id: TodoScope; label: string }> = [
+    { id: "work", label: "Work" },
+    { id: "personal", label: "Personal" },
+  ];
+  function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+    event.preventDefault();
+    const next = value === "work" ? "personal" : "work";
+    onChange(next);
+    event.currentTarget.querySelector<HTMLElement>(`[data-scope="${next}"]`)?.focus();
+  }
+  return (
+    <div role="radiogroup" aria-label="To-do list" onKeyDown={onKeyDown} className="mb-1 inline-flex shrink-0 rounded-full border border-[var(--c-tk-rule)] bg-surface p-0.5">
+      {options.map((option) => {
+        const on = option.id === value;
+        return (
+          <button
+            key={option.id}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            tabIndex={on ? 0 : -1}
+            data-scope={option.id}
+            onClick={() => onChange(option.id)}
+            className={cn(
+              "flex h-10 cursor-pointer items-center gap-2 rounded-full px-4.5 text-md font-semibold whitespace-nowrap transition-colors duration-150",
+              on ? "bg-sidebar text-sidebar-fg" : "text-text-muted hover:text-text",
+            )}
+          >
+            {option.label}
+            <span className={cn("text-sm tabular-nums", on ? "text-sidebar-muted" : "text-text-subtle")}>{counts[option.id]}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+const STICKY_TILTS = ["-1.2deg", "0.8deg", "-0.5deg", "1.1deg", "-0.9deg"];
+
+/** A stable pick from the id, so a note keeps its colour and tilt between visits. */
+function stickyLook(id: string) {
+  let hash = 0;
+  for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return { "--sticky": `var(--c-sticky-${(hash % 5) + 1})`, "--tilt": STICKY_TILTS[(hash >>> 3) % STICKY_TILTS.length] } as React.CSSProperties;
+}
+
+/** "Overdue · 8 Oct", "Today", "Thu 22 Oct" — or nothing for an undated note. */
+function stickyDue(entry: TrackerEntry, today: string) {
+  if (!entry.dueDate) return null;
+  if (entry.dueDate < today) return { text: `Overdue · ${format(parseISO(entry.dueDate), "d MMM")}`, needs: true };
+  if (entry.dueDate === today) return { text: "Today", needs: true };
+  return { text: dayLabel(entry.dueDate), needs: false };
+}
+
+/**
+ * Personal to-dos as a wall of sticky notes: favourites first, then the soonest
+ * date, then the newest. Finished ones fold into the usual collapsed line.
+ */
+function StickyBoard({ entries, today, needle, onOpen }: { entries: TrackerEntry[]; today: string; needle: string; onOpen: (entry: TrackerEntry) => void }) {
+  const { open, done } = useMemo(() => {
+    const groups = { open: [] as TrackerEntry[], done: [] as TrackerEntry[] };
+    for (const entry of entries) {
+      if (!matches(entry, needle)) continue;
+      (isOpen(entry) ? groups.open : groups.done).push(entry);
+    }
+    groups.open.sort((a, b) => important(a, b) || (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999") || b.createdAt.localeCompare(a.createdAt));
+    groups.done.sort(byCompleted);
+    return groups;
+  }, [entries, needle]);
+
+  return (
+    <div className="flex min-w-0 flex-col gap-6">
+      <Column title="Personal" count={open.length} aside="Just for you · kept out of Work Logs">
+        {open.length ? (
+          <ol className="grid grid-cols-1 gap-6 pt-7 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {open.map((entry) => <StickyNote key={entry.id} entry={entry} today={today} onOpen={() => onOpen(entry)} />)}
+          </ol>
+        ) : (
+          <Empty>{needle ? "Nothing matches." : "No personal to-dos. Jot one above — it lands here as a sticky note."}</Empty>
+        )}
+      </Column>
+      <div className="lg:max-w-[calc(50%-1.75rem)]">
+        <FinishedGroup verb="done" entries={done} today={today} needle={needle} render={(entry) => <TodoRow key={entry.id} entry={entry} today={today} mode="done" onOpen={() => onOpen(entry)} />} />
+      </div>
+    </div>
+  );
+}
+
+function StickyNote({ entry, today, onOpen }: { entry: TrackerEntry; today: string; onOpen: () => void }) {
+  const due = stickyDue(entry, today);
+  const [editing, setEditing] = useState(false);
+  return (
+    <li style={stickyLook(entry.id)} className="tk-sticky group flex min-h-44 min-w-0 flex-col gap-3 p-5">
+      {editing ? (
+        <StickyEditor entry={entry} onDone={() => setEditing(false)} />
+      ) : (
+        <>
+          <div className="flex min-w-0 items-start gap-3">
+            <DoneCircle entry={entry} />
+            <button type="button" onClick={onOpen} className="tk-row-title line-clamp-6 min-w-0 flex-1 cursor-pointer text-left whitespace-pre-line [overflow-wrap:anywhere] decoration-2 underline-offset-4 hover:underline">
+              {entry.subject}
+            </button>
+          </div>
+          <LatestLine entry={entry} />
+          <div className="mt-auto flex items-center justify-between gap-2">
+            {due ? <p className={cn("tk-label", due.needs ? "text-warning" : "text-text-muted")} suppressHydrationWarning>{due.text}</p> : <span />}
+            <div className="-mr-2 -mb-2 flex items-center">
+              <button
+                type="button"
+                aria-label={`Edit: ${entry.subject}`}
+                title="Edit"
+                onClick={() => setEditing(true)}
+                className="grid size-11 shrink-0 cursor-pointer place-items-center rounded-full text-text-subtle transition-[color,background-color,opacity] duration-150 hover:bg-surface-2 hover:text-text md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+              >
+                <Pencil className="size-4.5" strokeWidth={1.8} aria-hidden="true" />
+              </button>
+              <DeleteEntry entry={entry} />
+              <FavouriteToggle entry={entry} />
+            </div>
+          </div>
+        </>
+      )}
+    </li>
+  );
+}
+
+/** The note's text in place: Enter saves, Shift+Enter is a new line, Escape cancels. */
+function StickyEditor({ entry, onDone }: { entry: TrackerEntry; onDone: () => void }) {
+  const { run, pending } = useRun();
+  const [text, setText] = useState(entry.subject);
+  const [error, setError] = useState<string>();
+  const id = `sticky-edit-${entry.id}`;
+
+  function save() {
+    if (pending) return;
+    const next = text.trim();
+    if (!next) { setError("Write something, or delete the note"); return; }
+    if (next === entry.subject) { onDone(); return; }
+    run(() => editPersonalTodo({ followUpId: entry.id, subject: next }), "Saved", onDone);
+  }
+
+  return (
+    <form onSubmit={(event) => { event.preventDefault(); save(); }} className="flex min-w-0 flex-1 flex-col gap-3">
+      <label htmlFor={id} className="sr-only">Edit the note</label>
+      <textarea
+        id={id}
+        ref={(field) => fitHeight(field)}
+        autoFocus
+        rows={2}
+        value={text}
+        maxLength={1000}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={`${id}-keys`}
+        onFocus={(event) => event.currentTarget.setSelectionRange(text.length, text.length)}
+        onChange={(event) => { setText(event.target.value); setError(undefined); fitHeight(event.target); }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") { event.preventDefault(); onDone(); return; }
+          onEnterSave(save)(event);
+        }}
+        className="tk-row-title max-h-72 min-h-20 w-full resize-none rounded-md bg-surface/70 p-2 outline-none focus-visible:shadow-[var(--sh-focus)]"
+      />
+      {error ? <p className="text-sm font-medium text-danger" role="alert">{error}</p> : null}
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
+        <p id={`${id}-keys`} className="text-sm text-text-muted">Enter saves · Shift+Enter new line</p>
+        <div className="flex gap-1.5">
+          <Button size="sm" variant="secondary" onClick={onDone}>Cancel</Button>
+          <Button size="sm" type="submit" disabled={pending}>Save</Button>
+        </div>
+      </div>
+    </form>
   );
 }
 
@@ -1407,14 +1645,14 @@ function NoteRow({ entry, today, onOpen, onTag }: { entry: TrackerEntry; today: 
 function EntryEyebrow({ entry }: { entry: TrackerEntry }) {
   return (
     <span className="flex items-center gap-1.5">
-      {KIND_LABEL[entry.kind]}
+      {entryLabel(entry)}
       {entry.pinned ? <><span aria-hidden="true">·</span><Star className="size-3.5 fill-current text-warning" aria-hidden="true" />Favourite</> : null}
     </span>
   );
 }
 
 function EntryTitle({ entry }: { entry: TrackerEntry }) {
-  return <span className={cn("[overflow-wrap:anywhere]", entry.status === "Done" && entry.kind !== "Note" && "text-text-muted line-through")}>{entry.subject}</span>;
+  return <span className={cn("[overflow-wrap:anywhere]", entry.personal && "whitespace-pre-line", entry.status === "Done" && entry.kind !== "Note" && "text-text-muted line-through")}>{entry.subject}</span>;
 }
 
 

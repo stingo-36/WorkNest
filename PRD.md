@@ -4,7 +4,7 @@
 > changes scope, or is retired, update the matching section here (see
 > `AGENTS.md → Keeping the docs current`).
 >
-> Last synced with the codebase: **2026-10-19**
+> Last synced with the codebase: **2026-10-21**
 
 ---
 
@@ -56,7 +56,7 @@ placeholder page) · **Retired** (redirects).
 | Auth | `/login`, `/register` | Live (public) | Email + password. Direct admin sign-ins land on `/admin`; regular users land on `/tracker`. |
 | Work Logs | `/work-logs`, `/work-logs/[id]`, `/work-logs/[id]/edit` | Live | The core workflow — see §5.1. |
 | Tickets | `/tickets` | Live · hidden when *Tickets* is off in Profile | Master-detail ticket manager — see §5.2. |
-| Tracker | `/tracker` | Live — **post-login landing page** | To-do · Follow-ups · Notes tabs (`?view=`), two-column layout from the owner's mockup (2026-10-14) — see §5.3. |
+| Tracker | `/tracker` | Live — **post-login landing page** | To-do · Follow-ups · Notes tabs (`?view=`), two-column layout from the owner's mockup (2026-10-14); To-do has a **Work / Personal** toggle (Work by default), Personal shows sticky notes — see §5.3. |
 | Notes | `/notes`, `/notes/new`, `/notes/[id]`, `/notes/[id]/edit` | Live | Notebooks: note → sections → pages — see §5.4. |
 | Resources | `/resources` | Live | Typed personal library — see §5.5. |
 | Favourites | `/favourites` | Live | Everything starred in one place — see §5.6. |
@@ -211,6 +211,18 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
 | **Follow-ups** (`FollowUp`) | replies + nudges due | title · who + where (channel) · nudge date | left **Needs you** (*Your turn* · *Nudge due*) + collapsed closed line; right **Waiting** | Mark nudged · Got it (= close); replied: Got it · Open |
 | **Notes** (`Note`) | open notes | left **New note** composer: title · body · formatting · tags · ★ (+ collapsed archive) | right **Notes** (favourites first, then recently updated; title, tags and "Updated …" only — the text stays inside) | Open · ★ |
 
+- **Work / Personal** (2026-10-21): the To-do tab has a two-option toggle beside the title,
+  **Work** selected every time the page opens. *Work* is the Today | Upcoming queue above.
+  *Personal* is a wall of **sticky notes** (yellow/pink/green/blue/lilac paper, slight tilt;
+  1 → 2 → 3 → 4 columns at 375/768/1024/1440): tick, title (opens the dialog), last note,
+  date if any (amber when overdue/today), delete and ★. The add field there says "Jot a
+  personal to-do…" and starts with **no date**; **Enter adds, Shift+Enter starts a new line**
+  (the field grows; line breaks are kept on the note). Each sticky has **Edit** (pencil):
+  the text becomes an in-place editor — Enter saves, Shift+Enter new line, Escape cancels.
+  Only personal to-dos are editable this way; work to-dos stay one-line and as recorded.
+  Done ones fold into "✓ N done · Show".
+  Personal to-dos count in the To-do badge, but are **kept out of Work Logs** (day cards,
+  log to-dos, AI summary input) and the sprint report; Ask still sees them, marked personal.
 - **Mark nudged** appends an "I followed up" update ("Nudged", last channel) and clears
   the nudge date, so the row moves to *Waiting*.
 - Ticking a to-do done (or reopening it) appends a dated **"Marked done" / "Reopened"**

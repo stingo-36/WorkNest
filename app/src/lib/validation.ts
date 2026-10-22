@@ -98,6 +98,20 @@ const cleanLine = (max: number) =>
     .max(max)
     .transform((s) => s.replace(/\s+/g, " "));
 
+/** Sticky-note text: keeps line breaks (at most one blank line), tidies spaces inside each line. */
+const noteLines = (max: number) =>
+  z
+    .string()
+    .transform((s) =>
+      s
+        .split(/\r?\n/)
+        .map((line) => line.replace(/\s+/g, " ").trim())
+        .join("\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim(),
+    )
+    .pipe(z.string().min(1, "Required").max(max));
+
 const optionalCleanLine = (max: number) =>
   z
     .string()
@@ -401,7 +415,8 @@ export const createFollowUpSchema = z
     kind: entryKindSchema.default("FollowUp"),
     /** Optional here, then required for FollowUp in the refinement below. */
     person: z.string().trim().max(120).optional(),
-    subject: cleanLine(300),
+    /** Line breaks survive only on a personal to-do (a sticky note); see the transform below. */
+    subject: noteLines(1_000),
     ticketKey: z.string().trim().max(64).nullish().or(z.literal("")),
     dueDate: followUpDueDateSchema,
     /** Optional: a thread can be opened before there is anything to record. */
@@ -410,6 +425,8 @@ export const createFollowUpSchema = z
     channel: followUpChannelSchema.optional(),
     occurredAt: optionalDateSchema,
     tags: tagsSchema,
+    /** A personal to-do (sticky note). Ignored for anything but a Task. */
+    personal: z.boolean().optional(),
   })
   .superRefine((value, ctx) => {
     // Only a follow-up is addressed to someone. A task or a note is yours, so
@@ -428,7 +445,17 @@ export const createFollowUpSchema = z
         message: "Notes have no due date — add it as a to-do instead",
       });
     }
-  });
+    if (!(value.kind === "Task" && value.personal) && value.subject.length > 300) {
+      ctx.addIssue({ code: "custom", path: ["subject"], message: "Keep it under 300 characters" });
+    }
+  })
+  // Everything but a sticky note is a one-line title.
+  .transform((value) =>
+    value.kind === "Task" && value.personal ? value : { ...value, subject: value.subject.replace(/\s+/g, " ") },
+  );
+
+/** Rewrite a personal to-do's text (sticky notes are editable; work records aren't). */
+export const editPersonalTodoSchema = z.object({ followUpId: idSchema, subject: noteLines(1_000) });
 
 /**
  * Appending is the only write that touches history, so `note` is required —

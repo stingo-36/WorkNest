@@ -9,6 +9,7 @@ import {
   addFollowUpUpdateSchema,
   createFollowUpSchema,
   deleteFollowUpSchema,
+  editPersonalTodoSchema,
   rescheduleFollowUpSchema,
   setFollowUpPinnedSchema,
   setFollowUpStatusSchema,
@@ -66,6 +67,17 @@ export async function setFollowUpTags(input: unknown) {
   if (!parsed.ok) return parsed;
   const followUp = await followUps.setFollowUpTags(userId, parsed.data.followUpId, parsed.data.tags);
   if (!followUp) return notFound("Entry not found");
+  revalidatePath("/tracker");
+  return ok(followUp);
+}
+
+/** Rewrite a sticky note's text. Input: { followUpId, subject } */
+export async function editPersonalTodo(input: unknown) {
+  const userId = await requireUserId();
+  const parsed = parseOrFail(editPersonalTodoSchema, input);
+  if (!parsed.ok) return parsed;
+  const followUp = await followUps.editPersonalTodo(userId, parsed.data.followUpId, parsed.data.subject);
+  if (!followUp) return notFound("Personal to-do not found");
   revalidatePath("/tracker");
   return ok(followUp);
 }

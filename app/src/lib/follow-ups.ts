@@ -35,6 +35,8 @@ export type FollowUpInput = {
   occurredAt?: Date | null;
   /** Labels — used by Notes. Normalised by `normalizeTags`. */
   tags?: string[];
+  /** A personal to-do (sticky note). Only kept on a Task. */
+  personal?: boolean;
 };
 
 /** Lowercase, no "#", spaces → dashes, de-duplicated — same rule as resources. */
@@ -97,6 +99,7 @@ const FOLLOW_UP_SELECT = {
   status: true,
   pinned: true,
   tags: true,
+  personal: true,
   dueDate: true,
   completedAt: true,
   createdAt: true,
@@ -124,6 +127,7 @@ export async function createFollowUp(userId: string, input: FollowUpInput) {
       ticketKey: input.ticketKey?.trim() || null,
       dueDate: input.dueDate ?? null,
       tags: normalizeTags(input.tags),
+      personal: (input.kind ?? EntryKind.FollowUp) === EntryKind.Task && Boolean(input.personal),
       // A first note is written as a real update row, not as a field on the
       // thread, so day one is history in exactly the same shape as day ten.
       ...(note || doc
@@ -248,6 +252,19 @@ export async function setFollowUpTags(userId: string, followUpId: string, tags: 
 }
 
 /**
+ * Rewrite a sticky note's text. Only a personal to-do: its text is a scribble,
+ * not a record, and its timeline (done / reopened, notes) is left untouched.
+ */
+export async function editPersonalTodo(userId: string, followUpId: string, subject: string) {
+  const result = await prisma.followUp.updateMany({
+    where: { id: followUpId, userId, kind: EntryKind.Task, personal: true },
+    data: { subject },
+  });
+  if (result.count === 0) return null;
+  return getFollowUp(userId, followUpId);
+}
+
+/**
  * To-dos worth showing on one work log's day: finished around that day, or
  * due on/before it and not finished before it. Deliberately a little wide (±1
  * day) — the client narrows it to the user's own local calendar day, which the
@@ -261,6 +278,8 @@ export async function listTodosAroundDay(userId: string, day: Date) {
     where: {
       userId,
       kind: EntryKind.Task,
+      // Work Logs are about work; personal to-dos stay on the Tracker.
+      personal: false,
       OR: [
         { completedAt: { gte: from, lt: to } },
         {
@@ -284,6 +303,7 @@ export async function listTrackerForRange(userId: string, from: Date, to: Date) 
   return prisma.followUp.findMany({
     where: {
       userId,
+      personal: false,
       OR: [
         { createdAt: { gte: from, lt: to } },
         { completedAt: { gte: from, lt: to } },

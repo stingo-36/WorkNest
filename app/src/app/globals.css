@@ -490,6 +490,13 @@ span.wl-face { cursor: default; }
 .tk-focus {
   --c-border-strong: #a9b5b3;   /* the add pill's dashed edge, 2:1 (decorative) */
   --c-tk-rule: #c7d2cf;         /* summary rules and outline pill edges */
+  /* Personal sticky notes (2026-10-21): five paper tints, picked from the note's id.
+     Ink text on all of them is ≥ 12:1. */
+  --c-sticky-1: #fff1b8;        /* yellow */
+  --c-sticky-2: #ffdbe4;        /* pink */
+  --c-sticky-3: #d8f2e0;        /* green */
+  --c-sticky-4: #d9ecfa;        /* blue */
+  --c-sticky-5: #ebe2fb;        /* lilac */
 }
 /* One fluid type scale for every page in this family (2026-10-11, after an audit
    against ui-ux-pro-max / responsive-design): 375px → 1440px.
@@ -514,6 +521,14 @@ span.wl-face { cursor: default; }
 .tk-focus .tk-add { border-bottom: 2px solid var(--c-text); transition: border-color var(--duration-quick); }
 .tk-focus .tk-add:focus-within { border-color: var(--c-primary); }
 .tk-focus .tk-field:focus-within { border-color: var(--c-primary); box-shadow: var(--sh-focus); }
+/* A personal to-do as a sticky note: paper tint, a slight tilt that straightens on
+   hover/focus. `--sticky` and `--tilt` are set per note. */
+.tk-focus .tk-sticky { background: var(--sticky, var(--c-sticky-1)); color: var(--c-text); border-radius: var(--radius-md); box-shadow: var(--sh-md); transform: rotate(var(--tilt, 0deg)); transition: transform var(--duration-quick), box-shadow var(--duration-quick); }
+.tk-focus .tk-sticky:hover, .tk-focus .tk-sticky:focus-within { transform: rotate(0deg) translateY(-2px); box-shadow: var(--sh-lg); }
+@media (prefers-reduced-motion: reduce) {
+  .tk-focus .tk-sticky { transition: none; }
+  .tk-focus .tk-sticky:hover, .tk-focus .tk-sticky:focus-within { transform: rotate(var(--tilt, 0deg)); }
+}
 
 /* Notes bookshelf (2026-10-09): each notebook opens like a book on hover/focus —
    the cover swings on its spine and the contents page shows behind. */

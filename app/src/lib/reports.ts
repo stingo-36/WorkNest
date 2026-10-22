@@ -132,7 +132,7 @@ async function loadSprintData(userId: string, start: Date, end: Date, ticketsEna
       },
     }),
     prisma.followUp.findMany({
-      where: { userId, kind: EntryKind.Task, completedAt: { gte: start, lt: addDays(end, 1) } },
+      where: { userId, kind: EntryKind.Task, personal: false, completedAt: { gte: start, lt: addDays(end, 1) } },
       select: { subject: true },
     }),
     // Due within or before the sprint and still not done when it ended.
@@ -140,6 +140,7 @@ async function loadSprintData(userId: string, start: Date, end: Date, ticketsEna
       where: {
         userId,
         kind: EntryKind.Task,
+        personal: false,
         dueDate: { lte: to },
         OR: [{ status: FollowUpStatus.Open }, { completedAt: { gte: addDays(end, 1) } }],
       },
