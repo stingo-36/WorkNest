@@ -27,6 +27,17 @@
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
 
+**2026-10-22 — The Pulse phone link uses a stateless, Tracker-only HMAC token.**
+The owner wanted the Tracker (not the whole app) in their Pulse mobile app, "similar to
+SpendWise", with adding. Pulse already links SpendWise by trading email + password for a
+token once, so WorkNest copies that shape (`/api/mobile/connect`, bearer token, CORS `*`).
+The token is an HMAC over `userId` + `authVersion` keyed off `AUTH_SECRET`: no table or
+migration, and a password reset / account deletion revokes it like web sessions. The
+routes call `lib/*` directly with the token's `userId` (route handlers, not server
+actions, because a phone can't call actions). *Rejected:* reusing the Auth.js cookie
+(the phone would get the whole app); a token table with per-device revoke (more than a
+single-user app needs today — add it if per-phone revoke is ever wanted).
+
 **2026-10-22 — Vercel Production builds run `prisma migrate deploy` before `next build`.**
 After PR #16 went live without its migration, the owner asked to make it automatic. A
 `vercel-build` script (Vercel prefers it over `build`) keeps local builds unchanged. Only
@@ -911,6 +922,7 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-22 — Pulse phone link: `/api/mobile/connect` + `/api/mobile/tracker` let the owner's Pulse app list, add, tick and edit Tracker entries with a Tracker-only token — `lib/mobile-api.ts`, `lib/auth.ts` (`checkCredentials`), `lib/auth.config.ts`, `lib/validation.ts` (`mobileTrackerPatchSchema`), `app/api/mobile/*`, PRD §4/§5.14, Architecture §3/§4/§6
 - 2026-10-22 — Vercel Production builds apply migrations before building (Preview skips) — `app/scripts/vercel-build.mjs`, `app/package.json`, Architecture §2/§8/§9, skills.md §11
 - 2026-10-22 — Applied `tracker_personal_todos` to the hosted DB; live `/tracker` was erroring after PR #16 deployed without it — `npm run db:hosted`, Memory Gotchas
 - 2026-10-21 — Personal sticky notes: Shift+Enter new line in the add field, line breaks kept, inline Edit (Enter saves, Escape cancels) — `lib/validation.ts` (`noteLines`, `editPersonalTodoSchema`), `lib/follow-ups.ts`, `actions/follow-ups.ts`, `components/tracker/tracker-board.tsx`, PRD §5.3, Architecture §4/§5, Design-System

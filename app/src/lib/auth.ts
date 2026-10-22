@@ -36,6 +36,40 @@ declare module "next-auth" {
  */
 const DUMMY_HASH = "$2a$12$C6UzMDM.H6dfI/f/IKcEeO1SDKzmQ2t0gVcgdYeLHzmtE4jQ2Nz9C";
 
+/**
+ * Email + password → the account, or null. Shared by the web sign-in and the
+ * phone link (`/api/mobile/connect`), so both get the same timing protection.
+ */
+export async function checkCredentials(email: string, password: string) {
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      image: true,
+      passwordHash: true,
+      authVersion: true,
+    },
+  });
+
+  if (!user?.passwordHash) {
+    await bcrypt.compare(password, DUMMY_HASH);
+    return null;
+  }
+
+  const ok = await verifyPassword(password, user.passwordHash);
+  if (!ok) return null;
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    image: user.image,
+    authVersion: user.authVersion,
+  };
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   adapter: PrismaAdapter(prisma),
@@ -50,36 +84,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(rawCredentials) {
         const parsed = loginSchema.safeParse(rawCredentials);
         if (!parsed.success) return null;
-
-        const { email, password } = parsed.data;
-
-        const user = await prisma.user.findUnique({
-          where: { email },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-            passwordHash: true,
-            authVersion: true,
-          },
-        });
-
-        if (!user?.passwordHash) {
-          await bcrypt.compare(password, DUMMY_HASH);
-          return null;
-        }
-
-        const ok = await verifyPassword(password, user.passwordHash);
-        if (!ok) return null;
-
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          image: user.image,
-          authVersion: user.authVersion,
-        };
+        return checkCredentials(parsed.data.email, parsed.data.password);
       },
     }),
   ],

@@ -458,6 +458,14 @@ export const createFollowUpSchema = z
 export const editPersonalTodoSchema = z.object({ followUpId: idSchema, subject: noteLines(1_000) });
 
 /**
+ * A change from the phone (`PATCH /api/mobile/tracker/:id`): tick/untick, or
+ * rewrite a sticky note's text — the same two edits the Tracker allows inline.
+ */
+export const mobileTrackerPatchSchema = z
+  .object({ status: followUpStatusSchema.optional(), subject: noteLines(1_000).optional() })
+  .refine((value) => (value.status === undefined) !== (value.subject === undefined), "Send a status or a subject");
+
+/**
  * Appending is the only write that touches history, so `note` is required —
  * except for their reply, where "they replied" is itself the fact worth keeping.
  */

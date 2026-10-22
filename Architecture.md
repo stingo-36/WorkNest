@@ -96,6 +96,9 @@ authenticated shell.
 | `GET /api/attachments/[attachmentId]` | route handler | owner-only download |
 | `POST /api/achievements/[achievementId]/files` | route handler | certificate upload (field `files`) |
 | `GET /api/achievement-files/[fileId]` | route handler | owner-only certificate download |
+| `POST /api/mobile/connect` | route handler | Pulse phone link: `{ email, password }` → `{ token, email, name }` (Tracker-only bearer token, no cookie) |
+| `GET/POST /api/mobile/tracker` | route handler | bearer token → `{ entries }` (open + done in the last 48 h); POST takes `createFollowUpSchema` and answers with the fresh list |
+| `PATCH /api/mobile/tracker/[followUpId]` | route handler | bearer token; `{ status }` (tick/reopen) or `{ subject }` (personal sticky only) → `{ entries }` |
 
 `(app)/layout.tsx` runs `requireUser()` + `getUserSettings()` once, wraps children in
 `MuiProvider` + `AppShell`, and passes `ticketsEnabled` and `isAdmin` to the nav. `AppShell` mounts
@@ -132,14 +135,16 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 ```
 
 - **`proxy.ts`** uses the Prisma-free `lib/auth.config.ts` (`authorized` callback,
-  `PUBLIC_ROUTES = ["/", "/login", "/register"]` + `/api/auth/*`). It also
+  `PUBLIC_ROUTES = ["/", "/login", "/register"]` + `/api/auth/*` + `/api/mobile/*`, whose
+  handlers check their own bearer token). It also
   **clears undecryptable session cookies** (e.g. after an `AUTH_SECRET` change) so a
   stale cookie can't loop forever. Its matcher skips static files by extension (svg/png/jpg/…/woff2) — add any
   new public asset type there or it gets redirected to `/login`. The manifest,
   service worker and offline page are also explicitly public so installation works
   before sign-in.
 - **`lib/auth.ts`** adds the Node-only pieces: Credentials provider, PrismaAdapter,
-  bcrypt. Unknown emails are compared against a dummy hash (no enumeration).
+  bcrypt. `checkCredentials` (shared by sign-in and the phone link) compares unknown
+  emails against a dummy hash (no enumeration).
 - **`lib/session.ts`**: `getCurrentUser` (request-memoised; treats a bad cookie as
   signed out), `requireUser`, `requireUserId`. **Every action and query starts here.**
 - **`lib/result.ts`**: `ActionResult<T> = {ok:true,data} | {ok:false,error:{code,message,fields?}}`;
@@ -181,6 +186,7 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `lib/account-security.ts` | self-service password change: verifies the current bcrypt hash, writes a new cost-12 hash and increments `authVersion` |
 | `lib/ai-settings.ts` | per-user OpenRouter key/model: `getAiSettings` (client-safe view, never the key), `getOpenRouterConfig` (user key → env fallback), `checkOpenRouterKey`, save/clear |
 | `lib/secret-box.ts` | AES-256-GCM `seal`/`open` for stored secrets, keyed off `AUTH_SECRET` |
+| `lib/mobile-api.ts` | Pulse phone link: stateless HMAC token (`wn1.<userId>.<authVersion>.<sig>`, keyed off `AUTH_SECRET`) `createMobileToken` / `verifyMobileToken`, CORS `mobileJson` / `preflight`, `listMobileTracker` (the phone's list shape) |
 | `lib/validation.ts` | all Zod schemas |
 | `lib/prisma.ts` | Prisma client singleton with the pg adapter |
 
@@ -256,7 +262,8 @@ writes), `TaskPriority`, `TaskStatus`, `FollowUpStatus`, `EntryKind`,
    `findFirst({ id, userId })`). Use `updateMany`/`deleteMany` with `userId` in the
    WHERE for single-row mutations. Cross-account exceptions live only in `lib/admin.ts`,
    must call `requireAdmin()` first, never trust a client-supplied role, and require the
-   exact target email for destructive operations.
+   exact target email for destructive operations. The `/api/mobile/*` handlers take the
+   `userId` from a verified bearer token (`verifyMobileToken`) instead of the session.
 2. **Append-only ticket history.** All work-update writes go through
    `prisma.ticketWorkUpdate.upsert` keyed on `(ticketId, workLogId)`:
    same log → in-place (autosave-safe), different log → new row. No code path may

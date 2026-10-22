@@ -24,6 +24,8 @@ export const PUBLIC_ROUTES = ["/", "/login", "/register"] as const;
 
 export function isPublicPath(pathname: string): boolean {
   if (pathname.startsWith("/api/auth")) return true;
+  // The phone link authenticates every request with its own bearer token.
+  if (pathname.startsWith("/api/mobile/")) return true;
   return PUBLIC_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`),
   );
