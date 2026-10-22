@@ -4,7 +4,7 @@
 > delete a module, route, model or script, update the relevant section in the same
 > change.
 >
-> Last synced with the codebase: **2026-10-21**
+> Last synced with the codebase: **2026-10-22**
 
 ---
 
@@ -43,10 +43,11 @@
     ├── components.json        shadcn config (utils alias → @/components/cn)
     ├── prisma/
     │   ├── schema.prisma      the data model (§5)
-    │   ├── migrations/        26 migrations, init 2026-09-11 → account_session_version 2026-10-11
+    │   ├── migrations/        28 migrations, init 2026-09-11 → tracker_personal_todos 2026-10-21
     │   └── seed*.ts           seed scripts (§8)
     ├── scripts/
-    │   └── hosted-db.mjs      migrate (+ optional seed) the hosted DB
+    │   ├── hosted-db.mjs      migrate (+ optional seed) the hosted DB
+    │   └── vercel-build.mjs   Vercel's build: Production migrates, then `next build`
     ├── public/
     │   ├── home/              3D character art: hero-1…4.webp, recap-avatar.webp, auth art
     │   ├── icons/             install icons: 192, 512 and Android maskable 512
@@ -317,6 +318,7 @@ App (`/app/package.json`):
 | `db:seed:workspace [-- email]` | fill one account's Notes + Resources with study content (re-runnable) |
 | `db:seed:achievements [-- email]` | fill one account's Achievements (7 items; replaces only its own titles) |
 | `db:hosted [-- --seed]` | `prisma migrate deploy` (+ seed, which wipes users) against `HOSTED_DATABASE_URL` |
+| `vercel-build` | Vercel only (it runs this instead of `build`): `VERCEL_ENV=production` → `prisma migrate deploy` (`DATABASE_URL_UNPOOLED` or `DATABASE_URL`), then `next build --webpack`; Preview skips migrating. A failed migration fails the build, so the previous deploy stays live |
 
 ## 9. Deployment
 
@@ -326,8 +328,10 @@ App (`/app/package.json`):
 - **Hosted:** Vercel with **Root Directory = `app`** + Neon Postgres. Its HTTPS origin
   makes the web app installable. Vercel env:
   `DATABASE_URL` (pooled), `AUTH_SECRET`, `AUTH_TRUST_HOST=true`. `postinstall`
-  generates the client. Migrations are **not** run in the Vercel build — run
-  `npm --prefix app run db:hosted` from a laptop against the direct URL.
+  generates the client. **Production builds apply migrations** (`vercel-build`,
+  2026-10-22) before `next build`; Preview builds never do. `db:hosted` from a laptop
+  still works for a manual run or `--seed`. If the Vercel project overrides the Build
+  Command, `vercel-build` is ignored — leave it on the default.
 - Attachments live in Postgres, so they survive serverless hosting.
 
 ## 10. Legacy / dormant code
