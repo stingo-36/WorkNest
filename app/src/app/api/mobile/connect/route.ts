@@ -3,7 +3,7 @@ import { createMobileToken, mobileJson, preflight } from "@/lib/mobile-api";
 import { loginSchema } from "@/lib/validation";
 
 /**
- * Link the Pulse mobile app to a WorkNest account. Takes the email and
+ * Link the Kaizen mobile app to a WorkNest account. Takes the email and
  * password once and returns a phone token for the Tracker and Resources; the
  * phone stores the token, never the password. Sets no cookie, so the phone
  * gets the phone API and nothing more.

@@ -9,7 +9,7 @@ import { isStatusNote } from "@/lib/rich-text";
 import { getOrderedList } from "@/lib/user-lists";
 
 /**
- * The phone link: the Pulse mobile app reads and adds Tracker entries and
+ * The phone link: the Kaizen mobile app reads and adds Tracker entries and
  * Resources through `/api/mobile/*`, and nothing else in WorkNest.
  *
  * Connecting trades the WorkNest email and password for a token once; the

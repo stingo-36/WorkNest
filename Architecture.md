@@ -96,7 +96,7 @@ authenticated shell.
 | `GET /api/attachments/[attachmentId]` | route handler | owner-only download |
 | `POST /api/achievements/[achievementId]/files` | route handler | certificate upload (field `files`) |
 | `GET /api/achievement-files/[fileId]` | route handler | owner-only certificate download |
-| `POST /api/mobile/connect` | route handler | Pulse phone link: `{ email, password }` → `{ token, email, name }` (Tracker-only bearer token, no cookie) |
+| `POST /api/mobile/connect` | route handler | Kaizen phone link: `{ email, password }` → `{ token, email, name }` (Tracker-only bearer token, no cookie) |
 | `GET/POST /api/mobile/tracker` | route handler | bearer token → `{ entries }` (open + done in the last 48 h); POST takes `createFollowUpSchema` and answers with the fresh list |
 | `PATCH /api/mobile/tracker/[followUpId]` | route handler | bearer token; `{ status }` (tick/reopen) or `{ subject }` (personal sticky only) → `{ entries }` |
 
@@ -186,7 +186,7 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `lib/account-security.ts` | self-service password change: verifies the current bcrypt hash, writes a new cost-12 hash and increments `authVersion` |
 | `lib/ai-settings.ts` | per-user OpenRouter key/model: `getAiSettings` (client-safe view, never the key), `getOpenRouterConfig` (user key → env fallback), `checkOpenRouterKey`, save/clear |
 | `lib/secret-box.ts` | AES-256-GCM `seal`/`open` for stored secrets, keyed off `AUTH_SECRET` |
-| `lib/mobile-api.ts` | Pulse phone link: stateless HMAC token (`wn1.<userId>.<authVersion>.<sig>`, keyed off `AUTH_SECRET`) `createMobileToken` / `verifyMobileToken`, CORS `mobileJson` / `preflight`, `listMobileTracker` (the phone's list shape) |
+| `lib/mobile-api.ts` | Kaizen phone link: stateless HMAC token (`wn1.<userId>.<authVersion>.<sig>`, keyed off `AUTH_SECRET`) `createMobileToken` / `verifyMobileToken`, CORS `mobileJson` / `preflight`, `listMobileTracker` (the phone's list shape) |
 | `lib/validation.ts` | all Zod schemas |
 | `lib/prisma.ts` | Prisma client singleton with the pg adapter |
 

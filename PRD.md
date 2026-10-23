@@ -65,7 +65,7 @@ placeholder page) · **Retired** (redirects).
 | Profile | `/profile` (account menu) | Live | Name, sprint calendar, tickets on/off, AI summary key — see §5.7. |
 | Achievements | `/achievements` (account menu) | Live | Certifications/courses/awards timeline with certificates — see §5.8. |
 | Reports | `/reports` (account menu) | Live | "5-15 Report" per sprint, ready to paste into a doc — see §5.9. |
-| Pulse phone link | `/api/mobile/*` (no page) | Live | The owner's Pulse mobile app signs in once and shows the Tracker (Work / Personal to-dos, follow-ups, notes), can add entries, tick them and edit sticky notes. Nothing else in WorkNest is reachable — see §5.14. |
+| Kaizen phone link | `/api/mobile/*` (no page) | Live | The owner's Kaizen mobile app signs in once and shows the Tracker (Work / Personal to-dos, follow-ups, notes), can add entries, tick them and edit sticky notes, and lists and adds Resources. Nothing else in WorkNest is reachable — see §5.14. |
 | Installable app | manifest + account menu | Live | Install WorkNest on a phone or desktop and launch it in its own app window — see §5.11. |
 | Admin dashboard | `/admin` (Admin account menu only) | Live · Admin only | Searchable account operations: statistics, password reset, record erasure and account deletion — see §5.12. |
 | Dashboard | `/dashboard` | **Retired 2026-09-25** | Redirects to `/tracker`. |
@@ -536,22 +536,28 @@ open their page, resources go to Resources).
 - Keyword search (not embeddings): it tries other words itself, but a record that
   shares no words with any of them won't be found.
 
-### 5.14 Pulse phone link (added 2026-10-22)
+### 5.14 Kaizen phone link (added 2026-10-22)
 
-The owner's own mobile app, **Pulse** (Expo, a separate repo), has a **Tracker** tab and a
-Home card fed by WorkNest — the same pattern Pulse already uses for SpendWise.
+The owner's own mobile app, **Kaizen** (Expo, a separate repo), has a **Tracker** tab and a
+Home card fed by WorkNest — the same pattern Kaizen already uses for SpendWise.
 
-- **Connect once:** Pulse asks for the WorkNest email and password, posts them to
+- **Connect once:** Kaizen asks for the WorkNest email and password, posts them to
   `/api/mobile/connect` and keeps only the returned token (Keychain/Keystore). The
-  password is not stored. *Disconnect* in Pulse forgets the token.
-- **Tracker only:** the token reaches `/api/mobile/tracker` and nothing else — no Work
-  Logs, Tickets, Notes notebooks, Resources, AI or account settings. It sets no cookie.
+  password is not stored. *Disconnect* in Kaizen forgets the token.
+- **Tracker and Resources only:** the token reaches `/api/mobile/tracker` and
+  `/api/mobile/resources` and nothing else — no Work Logs, Tickets, Notes notebooks, AI
+  or account settings. It sets no cookie.
 - **What the phone can do:** list open to-dos (Work with Today / upcoming / no date,
   Personal as sticky notes), follow-ups and notes, plus anything finished in the last
   48 h; add a work to-do (Today / Tomorrow / No date), a personal sticky note, a
   follow-up (person + what you told them) or a note title; tick / reopen; rewrite a
   sticky note's text. Same validation and rules as the Tracker page; the history
   stays append-only.
+- **Resources (added 2026-10-23):** list the library (newest first) with the user's
+  resource types, and save a resource. Kaizen uses it for reels shared from Instagram:
+  it reads the post's caption and the user's screenshots into a title, type, Markdown
+  description (each tool, what it does, its link) and tags, then saves here with the
+  same validation as the Resources page. Screenshots never reach WorkNest.
 - **Revoking:** an administrator password reset or account deletion (both bump
   `authVersion`) stops the phone at its next request, like web sessions. Rotating
   `AUTH_SECRET` cuts off every phone.
