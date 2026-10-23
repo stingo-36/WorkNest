@@ -551,8 +551,12 @@ Home card fed by WorkNest — the same pattern Kaizen already uses for SpendWise
   Personal as sticky notes), follow-ups and notes, plus anything finished in the last
   48 h; add a work to-do (Today / Tomorrow / No date), a personal sticky note, a
   follow-up (person + what you told them) or a note title; tick / reopen; rewrite a
-  sticky note's text. Same validation and rules as the Tracker page; the history
-  stays append-only.
+  sticky note's text. Since 2026-10-23 the phone's add forms match the Tracker's: a
+  follow-up takes who (saved names), where (the channel list) and a reminder date, a
+  note takes its body, date and tags, and anything can be starred. Each entry opens
+  with its whole history, and the phone can add to it ("I followed up" / "they
+  replied", or a note), star it or move its due date. Same validation and rules as the
+  Tracker page; the history stays append-only.
 - **Resources (added 2026-10-23):** list the library (newest first) with the user's
   resource types, and save a resource. Kaizen uses it for reels shared from Instagram:
   it reads the post's caption and the user's screenshots into a title, type, Markdown

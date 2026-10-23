@@ -4,9 +4,10 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { FollowUpStatus } from "@/generated/prisma/enums";
 import { listResources } from "@/lib/content";
+import { getFollowUp, listFollowUpPeople } from "@/lib/follow-ups";
 import { prisma } from "@/lib/prisma";
 import { isStatusNote } from "@/lib/rich-text";
-import { getOrderedList } from "@/lib/user-lists";
+import { getOrderedList, getSavedTags } from "@/lib/user-lists";
 
 /**
  * The phone link: the Kaizen mobile app reads and adds Tracker entries and
@@ -148,3 +149,36 @@ export async function listMobileResources(userId: string) {
 }
 
 export type MobileResource = Awaited<ReturnType<typeof listMobileResources>>["resources"][number];
+
+/** What the phone's add forms offer, same as the Tracker page: channels, people already logged, saved note tags. */
+export async function listMobileOptions(userId: string) {
+  const [channels, people, noteTags] = await Promise.all([
+    getOrderedList(userId, "FollowUpChannel"),
+    listFollowUpPeople(userId),
+    getSavedTags(userId, "NoteTag"),
+  ]);
+  return { channels, people, noteTags };
+}
+
+/** One entry with its whole history (newest first), for the phone's detail page. Status bookkeeping rows are left out. */
+export async function getMobileEntry(userId: string, followUpId: string) {
+  const entry = await getFollowUp(userId, followUpId);
+  if (!entry) return null;
+  const { updates, dueDate, completedAt, createdAt, updatedAt, ...rest } = entry;
+  return {
+    ...rest,
+    dueDate: dueDate ? dueDate.toISOString().slice(0, 10) : null,
+    completedAt: completedAt?.toISOString() ?? null,
+    createdAt: createdAt.toISOString(),
+    updatedAt: updatedAt.toISOString(),
+    updates: updates
+      .filter((update) => !isStatusNote(update))
+      .map((update) => ({
+        id: update.id,
+        note: update.note,
+        channel: update.channel,
+        fromThem: update.fromThem,
+        occurredAt: update.occurredAt.toISOString(),
+      })),
+  };
+}
