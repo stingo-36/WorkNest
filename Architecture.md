@@ -4,7 +4,7 @@
 > delete a module, route, model or script, update the relevant section in the same
 > change.
 >
-> Last synced with the codebase: **2026-10-22**
+> Last synced with the codebase: **2026-10-23**
 
 ---
 
@@ -32,9 +32,12 @@
 /                              repo root (git)
 ├── AGENTS.md  CLAUDE.md       agent instructions (CLAUDE.md imports AGENTS.md)
 ├── PRD.md  Design-System.md  Architecture.md  Memory.md  skills.md
-├── .claude/skills/            project design skills (design-taste-frontend, redesign-existing-projects, ui-ux-pro-max)
+├── .claude/skills/            worknest-* agent skills (codemap, ui, backend, docs-sync) + design skills (design-taste-frontend, redesign-existing-projects, ui-ux-pro-max, responsive-design)
+├── .claude/agents/            worknest-* subagents (explorer, designer, backend, memory-keeper, reviewer)
+├── .claude/settings.json      Stop hook → scripts/check-docs.mjs --hook
 ├── README.md                  clone → `npm run dev` quick start
 ├── scripts/setup.mjs          one-command, idempotent local setup (zero deps)
+├── scripts/check-docs.mjs     `npm run docs:check`: code map ↔ codebase drift check (also the Stop hook)
 ├── package.json               root convenience scripts → delegate to app/
 ├── docker-compose.yml         Postgres 16, container workspace-db, host port 5434
 └── app/                       the Next.js application
@@ -97,8 +100,11 @@ authenticated shell.
 | `POST /api/achievements/[achievementId]/files` | route handler | certificate upload (field `files`) |
 | `GET /api/achievement-files/[fileId]` | route handler | owner-only certificate download |
 | `POST /api/mobile/connect` | route handler | Kaizen phone link: `{ email, password }` → `{ token, email, name }` (Tracker-only bearer token, no cookie) |
-| `GET/POST /api/mobile/tracker` | route handler | bearer token → `{ entries }` (open + done in the last 48 h); POST takes `createFollowUpSchema` and answers with the fresh list |
-| `PATCH /api/mobile/tracker/[followUpId]` | route handler | bearer token; `{ status }` (tick/reopen) or `{ subject }` (personal sticky only) → `{ entries }` |
+| `GET/POST /api/mobile/tracker` | route handler | bearer token → `{ entries, options }` (open + done in the last 48 h; `options` = channels, people, saved note tags); POST takes `createFollowUpSchema` (+ optional `pinned`) and answers with the fresh list |
+| `GET/PATCH /api/mobile/tracker/[followUpId]` | route handler | bearer token; GET → one entry with its history; PATCH takes exactly one of `{ status }` (tick/reopen), `{ subject }` (personal sticky only), `{ pinned }`, `{ dueDate }` (`mobileTrackerPatchSchema`) |
+| `POST /api/mobile/tracker/[followUpId]/updates` | route handler | bearer token; `addFollowUpUpdateSchema` — append to the entry's history |
+| `GET/POST /api/mobile/resources` | route handler | bearer token; GET → library (newest first) + the user's resource types; POST saves with `createResourceSchema` |
+| `PATCH /api/mobile/resources/[resourceId]` | route handler | bearer token; star/unstar (`toggleResourceFavoriteSchema`) |
 
 `(app)/layout.tsx` runs `requireUser()` + `getUserSettings()` once, wraps children in
 `MuiProvider` + `AppShell`, and passes `ticketsEnabled` and `isAdmin` to the nav. `AppShell` mounts
@@ -308,7 +314,9 @@ Root (`/package.json`, `engines.node >=20.9`):
 lock changed → `docker compose up -d --wait` → `prisma migrate deploy` → `db:seed`
 **only when the `User` table is empty**; every step is idempotent), `dev` (runs `setup`
 then app dev), `build`, `start`, `lint`, `typecheck`,
-`install:app`, `db:up`, `db:down`, `db:seed`, `db:studio`, `db:migrate`.
+`install:app`, `db:up`, `db:down`, `db:seed`, `db:studio`, `db:migrate`, `docs:check`
+(`scripts/check-docs.mjs`: every `app/src` file is in the code map skill and every map
+path exists; `--hook` also flags code changes with no doc change).
 
 App (`/app/package.json`):
 

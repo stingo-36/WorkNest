@@ -16,7 +16,7 @@ recorded as it happens so the record can answer *"what did I do, when, and in wh
 order?"* months later.
 
 > Naming: the product was called **Personal Workspace** until the rebrand. The repo
-> folder, the Docker container (`workspace-db`) and root `package.json` still use the
+> folder and the Docker container (`workspace-db`) still use the
 > old name. The UI, metadata and homepage say **WorkNest**.
 
 ## 2. Users & situation

@@ -3,7 +3,24 @@
 Instructions for any coding agent (Claude Code, Codex, …) working in this repo.
 `CLAUDE.md` imports this file.
 
-## 1. Read first (every session)
+## 1. Read first — the map, then only what the task needs
+
+Don't re-scan the repo, and don't read every doc end to end (they're ~3,300 lines).
+
+1. **Always:** `.claude/skills/worknest-codemap/SKILL.md` — every source file, grouped
+   by feature, with the doc section that explains it. Open only the files it names.
+2. **Then, by task type** (Claude Code loads these as skills):
+
+| Task | Read | Agent to delegate to |
+|---|---|---|
+| Find / explain code | the code map | `worknest-explorer` |
+| UI, styling, responsive, redesign | `.claude/skills/worknest-ui/SKILL.md` → named `Design-System.md` sections | `worknest-designer` |
+| Actions, lib, schema, API routes | `.claude/skills/worknest-backend/SKILL.md` → matching `skills.md` recipe | `worknest-backend` |
+| Finishing any change | `.claude/skills/worknest-docs-sync/SKILL.md` | `worknest-memory-keeper` |
+| Before committing / a PR | `AGENTS.md` §4 | `worknest-reviewer` |
+
+3. **Only the section you need** from the big docs — `grep -n "^## \|^### " <doc>`
+   lists them. Before re-deciding anything, `grep -n -i "<keyword>" Memory.md`.
 
 | File | Answers |
 |---|---|
@@ -13,16 +30,19 @@ Instructions for any coding agent (Claude Code, Codex, …) working in this repo
 | `Memory.md` | Decisions already made (and why), gotchas, recent changes |
 | `skills.md` | Step-by-step recipes for recurring tasks in this codebase |
 
-Use `Architecture.md` instead of re-scanning the repo. If it turns out to be wrong,
-fix it as part of your task.
+If a doc or the map turns out to be wrong, fix it as part of your task.
 
 ## 2. Keeping the docs current (required)
 
-These six files are the project's memory. **Any change that alters what they say must
-update them in the same piece of work**, before you report the task as done.
+These files and the code map are the project's memory. **Any change that alters what
+they say must update them in the same piece of work**, before you report the task as
+done (`worknest-docs-sync` skill / `worknest-memory-keeper` agent). A Claude Code Stop
+hook (`.claude/settings.json`) runs `scripts/check-docs.mjs --hook` and won't let a session
+finish while the map has drifted or code changed with no doc change.
 
 | If you… | Update |
 |---|---|
+| Add, move, rename or delete any file under `app/src` | `.claude/skills/worknest-codemap/SKILL.md` (then `npm run docs:check`) |
 | Add, remove, hide, retire or materially change a user-facing feature or route | `PRD.md` §4 inventory + the feature's §5 section; `Architecture.md` §3 routes |
 | Add/move/delete a module, action, lib file, route handler or script | `Architecture.md` (§2 layout, §4 modules, §8 scripts) |
 | Change the Prisma schema or add a migration | `Architecture.md` §5 (and §6 if an invariant changes); `PRD.md` if behaviour changes |
@@ -30,7 +50,7 @@ update them in the same piece of work**, before you report the task as done.
 | Make a choice someone could later second-guess, reverse an earlier decision, or discover a gotcha | `Memory.md` → Decisions (newest first) / Gotchas |
 | Finish any task | `Memory.md` → Changelog: one line, `YYYY-MM-DD — what changed — key files` |
 | Establish a new repeatable procedure, or change an existing one | `skills.md` |
-| Change how agents should work | `AGENTS.md` |
+| Change how agents should work, or add/remove a skill or agent | `AGENTS.md`, `skills.md` §13, the matching `.claude/skills/worknest-*` / `.claude/agents/worknest-*` file |
 
 Also bump the **"Last synced"** date at the top of each file you touch. Keep edits
 surgical — update the affected rows/sections, don't rewrite whole files. Use absolute
@@ -48,6 +68,7 @@ npm run lint         # eslint for app/
 npm run build        # next build --webpack
 npm run db:migrate   # prisma migrate dev (creates + applies a migration)
 npm run db:studio    # browse the DB
+npm run docs:check   # code map ↔ codebase drift check
 ```
 
 App-only scripts: `npm --prefix app run <script>` — see `Architecture.md` §8.
