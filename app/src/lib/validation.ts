@@ -458,12 +458,22 @@ export const createFollowUpSchema = z
 export const editPersonalTodoSchema = z.object({ followUpId: idSchema, subject: noteLines(1_000) });
 
 /**
- * A change from the phone (`PATCH /api/mobile/tracker/:id`): tick/untick, or
- * rewrite a sticky note's text — the same two edits the Tracker allows inline.
+ * A change from the phone (`PATCH /api/mobile/tracker/:id`), one at a time, the
+ * same edits the Tracker allows inline: tick/untick, rewrite a sticky note's
+ * text, star/unstar, or move the due date.
  */
 export const mobileTrackerPatchSchema = z
-  .object({ status: followUpStatusSchema.optional(), subject: noteLines(1_000).optional() })
-  .refine((value) => (value.status === undefined) !== (value.subject === undefined), "Send a status or a subject");
+  .object({
+    status: followUpStatusSchema.optional(),
+    subject: noteLines(1_000).optional(),
+    pinned: z.boolean().optional(),
+    /** "YYYY-MM-DD", or null to clear. Kept raw so "absent" and "clear" differ; parse with `followUpDueDateSchema`. */
+    dueDate: z.union([z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a YYYY-MM-DD date"), z.null()]).optional(),
+  })
+  .refine(
+    (value) => [value.status, value.subject, value.pinned, value.dueDate].filter((field) => field !== undefined).length === 1,
+    "Send one change: a status, a subject, pinned or a due date",
+  );
 
 /**
  * Appending is the only write that touches history, so `note` is required —

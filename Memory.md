@@ -922,6 +922,7 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-23 — Phone Tracker parity: `GET /api/mobile/tracker` also returns `options` (channels, people, saved note tags); `POST` takes `pinned`; `GET`/`PATCH /api/mobile/tracker/:id` (detail with history; PATCH also stars or reschedules); `POST /api/mobile/tracker/:id/updates`; `PATCH /api/mobile/resources/:id` stars a resource — `app/src/lib/mobile-api.ts`, `app/src/app/api/mobile/**`, `mobileTrackerPatchSchema`
 - 2026-10-23 — Phone Resources API: `GET`/`POST /api/mobile/resources` (library + the user's resource types; saves with `createResourceSchema`), same token as the Tracker API. The owner's phone app was renamed from Pulse to Kaizen; docs and comments follow — `app/src/app/api/mobile/resources/route.ts`, `app/src/lib/mobile-api.ts`
 - 2026-10-22 — Kaizen phone link: `/api/mobile/connect` + `/api/mobile/tracker` let the owner's Kaizen app list, add, tick and edit Tracker entries with a Tracker-only token — `lib/mobile-api.ts`, `lib/auth.ts` (`checkCredentials`), `lib/auth.config.ts`, `lib/validation.ts` (`mobileTrackerPatchSchema`), `app/api/mobile/*`, PRD §4/§5.14, Architecture §3/§4/§6
 - 2026-10-22 — Vercel Production builds apply migrations before building (Preview skips) — `app/scripts/vercel-build.mjs`, `app/package.json`, Architecture §2/§8/§9, skills.md §11
