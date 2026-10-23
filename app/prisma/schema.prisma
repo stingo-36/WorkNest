@@ -1,4 +1,4 @@
-// Personal Workspace — data model (spec section 20)
+// WorkNest — data model (spec section 20)
 // Prisma 7: connection URL lives in prisma.config.ts, not here.
 
 generator client {

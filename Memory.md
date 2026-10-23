@@ -4,19 +4,19 @@
 > (with the *why*), gotchas that cost time before, and a changelog. Newest first in
 > every section. Update rules are in `AGENTS.md` §2.
 >
-> Last synced with the codebase: **2026-10-22**
+> Last synced with the codebase: **2026-10-23**
 
 ---
 
 ## Current state (snapshot)
 
-- **Repo:** https://github.com/stingo-36/WorkNest (`main`). The local repository metadata
-  was reinitialized for this remote on 2026-10-11; its first commit and push are still
-  pending owner approval. The prior local Git metadata was preserved temporarily for
-  recovery. Typecheck, lint and build pass.
+- **Repo:** https://github.com/stingo-36/WorkNest (`main`; work lands via PRs, #21 merged
+  2026-10-23). Local folder is still named `Personal Workspace`.
+- **Agent kit:** start every task from the `worknest-codemap` skill; `worknest-*` skills
+  and agents live in `.claude/`; `npm run docs:check` + a Stop hook keep the map honest.
 - **Live features:** homepage, auth, Work Logs, Tickets (toggleable), Tracker (landing
   page), Notes, Resources, Favourites, Profile, Achievements, Reports (5-15), optional AI
-  summaries, Quick log. Coming soon: Tasks, Links, Settings. Retired: Dashboard, `/banner`. Details in
+  summaries, Quick log, Ask your workspace, Kaizen phone API. Coming soon: Tasks, Links, Settings. Retired: Dashboard, `/banner`. Details in
   `PRD.md` §4.
 - **Hosting:** prepared for Vercel Hobby (root dir `app`) + Neon Free — the owner wants
   zero cost; deploy steps are theirs to run (see `skills.md` → Deploy). Before relying on
@@ -26,6 +26,16 @@
 ## Decisions
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
+
+**2026-10-23 — Agents start from a code map, not the codebase or all five docs.**
+Sessions were told to read ~3,300 lines of docs and still grepped the repo to find files.
+`AGENTS.md` §1 now points at the `worknest-codemap` skill (every `app/src` file by feature,
+with its doc section) plus task skills/agents; the big docs are read by section. A map
+is only trustworthy if complete, so `scripts/check-docs.mjs` enforces it and a Stop hook
+runs it with `--hook`, also refusing to finish when code changed but no doc did; it
+honours `stop_hook_active`, so it asks once and never loops. *Rejected:* splitting the
+docs into many small files (more to keep in sync); generating the map automatically
+(file names alone don't say which feature owns a file or where its rules live).
 
 **2026-10-22 — The Kaizen phone link uses a stateless, Tracker-only HMAC token.**
 The owner wanted the Tracker (not the whole app) in their Kaizen mobile app, "similar to
@@ -922,6 +932,7 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-23 — Agent kit: code map + ui/backend/docs-sync skills, explorer/designer/backend/memory-keeper/reviewer agents, `docs:check` script and Stop hook; AGENTS.md reads the map first; Architecture §3 gained the missing phone routes; snapshot refreshed; leftover "Personal Workspace" names → WorkNest (root package name, README clone URL, schema header, PRD naming note) — `.claude/skills/worknest-*`, `.claude/agents/*`, `.claude/settings.json`, `scripts/check-docs.mjs`, `package.json`, AGENTS.md, Architecture §2/§3/§8, skills.md §12/§13
 - 2026-10-23 — Phone Tracker parity: `GET /api/mobile/tracker` also returns `options` (channels, people, saved note tags); `POST` takes `pinned`; `GET`/`PATCH /api/mobile/tracker/:id` (detail with history; PATCH also stars or reschedules); `POST /api/mobile/tracker/:id/updates`; `PATCH /api/mobile/resources/:id` stars a resource — `app/src/lib/mobile-api.ts`, `app/src/app/api/mobile/**`, `mobileTrackerPatchSchema`
 - 2026-10-23 — Phone Resources API: `GET`/`POST /api/mobile/resources` (library + the user's resource types; saves with `createResourceSchema`), same token as the Tracker API. The owner's phone app was renamed from Pulse to Kaizen; docs and comments follow — `app/src/app/api/mobile/resources/route.ts`, `app/src/lib/mobile-api.ts`
 - 2026-10-22 — Kaizen phone link: `/api/mobile/connect` + `/api/mobile/tracker` let the owner's Kaizen app list, add, tick and edit Tracker entries with a Tracker-only token — `lib/mobile-api.ts`, `lib/auth.ts` (`checkCredentials`), `lib/auth.config.ts`, `lib/validation.ts` (`mobileTrackerPatchSchema`), `app/api/mobile/*`, PRD §4/§5.14, Architecture §3/§4/§6

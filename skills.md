@@ -5,7 +5,7 @@
 > **Update the docs** (`AGENTS.md` §2). If you find a better way, or a new task
 > repeats, add or edit a recipe here.
 >
-> Last synced with the codebase: **2026-10-22**
+> Last synced with the codebase: **2026-10-23**
 
 ## Index
 
@@ -260,9 +260,32 @@ After any task, walk the table in `AGENTS.md` §2:
 - Decision or gotcha → `Memory.md` Decisions / Gotchas.
 - **Always** → one line in the `Memory.md` Changelog.
 - New repeatable procedure → this file.
+- New/moved/deleted `app/src` file → `.claude/skills/worknest-codemap/SKILL.md`, then `npm run docs:check`.
 - Bump "Last synced" on each file you touched.
 
 ## 13. Claude Code skills worth using here
+
+**WorkNest agent kit** (added 2026-10-23) — so a session reads a map, not the codebase:
+
+| Skill (`.claude/skills/`) | When |
+|---|---|
+| `worknest-codemap` | First, on every task: every `app/src` file by feature + the doc section that explains it |
+| `worknest-ui` | Before UI/styling work: the design rules in one page, pointers into `Design-System.md` |
+| `worknest-backend` | Before actions / lib / schema / API work: layering + never-break rules |
+| `worknest-docs-sync` | End of every change: which doc/section to update, then `npm run docs:check` |
+
+| Agent (`.claude/agents/`) | Delegate when |
+|---|---|
+| `worknest-explorer` | "Where is / how does X work" — read-only, map first |
+| `worknest-designer` | UI, layout, responsive, redesign |
+| `worknest-backend` | Actions, lib, Zod, Prisma, route handlers, Kaizen API |
+| `worknest-memory-keeper` | Update the docs and code map from the diff |
+| `worknest-reviewer` | Check a diff against the house rules before committing |
+
+The Stop hook in `.claude/settings.json` runs `scripts/check-docs.mjs --hook`: it blocks
+finishing while a file is missing from the code map, a map path is gone, or code changed
+with no doc change (it asks once per stop, never loops). Change a skill/agent → update
+these tables and `AGENTS.md` §1.
 
 **Project design skills** (installed 2026-09-29 in `.claude/skills/` via
 `npx skills add … -a claude-code`; update with `npx skills update -p`):

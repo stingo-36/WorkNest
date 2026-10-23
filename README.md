@@ -17,8 +17,8 @@ Nothing else — no global packages, no `npm install` at the root (the root has 
 dependencies; the app's are installed for you).
 
 ```bash
-git clone https://github.com/stingo-36/Personal-Workspace---WorkNest.git
-cd Personal-Workspace---WorkNest
+git clone https://github.com/stingo-36/WorkNest.git
+cd WorkNest
 npm run dev
 ```
 
@@ -53,8 +53,8 @@ and skips what's already done, so it's safe — and quick — on every start:
 Have PostgreSQL 16 running somewhere you can reach, then:
 
 ```bash
-git clone https://github.com/stingo-36/Personal-Workspace---WorkNest.git
-cd Personal-Workspace---WorkNest/app
+git clone https://github.com/stingo-36/WorkNest.git
+cd WorkNest/app
 cp .env.example .env          # then edit: DATABASE_URL, AUTH_SECRET, SEED_PASSWORD
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"   # a random AUTH_SECRET to paste in
 npm ci                        # installs packages and generates the Prisma client

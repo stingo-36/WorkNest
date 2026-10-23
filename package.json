@@ -1,5 +1,5 @@
 {
-  "name": "personal-workspace",
+  "name": "worknest",
   "private": true,
   "description": "Root convenience scripts. The Next.js app lives in ./app",
   "engines": {
@@ -7,6 +7,7 @@
   },
   "scripts": {
     "setup": "node scripts/setup.mjs",
+    "docs:check": "node scripts/check-docs.mjs",
     "dev": "node scripts/setup.mjs --then-dev && npm --prefix app run dev",
     "build": "npm --prefix app run build",
     "start": "npm --prefix app run start",
