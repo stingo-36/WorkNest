@@ -4,9 +4,9 @@ import { loginSchema } from "@/lib/validation";
 
 /**
  * Link the Pulse mobile app to a WorkNest account. Takes the email and
- * password once and returns a Tracker-only token; the phone stores the token,
- * never the password. Sets no cookie, so the phone gets the Tracker API and
- * nothing more.
+ * password once and returns a phone token for the Tracker and Resources; the
+ * phone stores the token, never the password. Sets no cookie, so the phone
+ * gets the phone API and nothing more.
  */
 export async function POST(request: Request) {
   const parsed = loginSchema.safeParse(await request.json().catch(() => ({})));

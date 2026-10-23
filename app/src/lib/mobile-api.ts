@@ -3,12 +3,14 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { FollowUpStatus } from "@/generated/prisma/enums";
+import { listResources } from "@/lib/content";
 import { prisma } from "@/lib/prisma";
 import { isStatusNote } from "@/lib/rich-text";
+import { getOrderedList } from "@/lib/user-lists";
 
 /**
- * The phone link: the Pulse mobile app reads and adds Tracker entries through
- * `/api/mobile/*`, and nothing else in WorkNest.
+ * The phone link: the Pulse mobile app reads and adds Tracker entries and
+ * Resources through `/api/mobile/*`, and nothing else in WorkNest.
  *
  * Connecting trades the WorkNest email and password for a token once; the
  * phone keeps only the token. It is stateless (an HMAC keyed off AUTH_SECRET)
@@ -18,6 +20,7 @@ import { isStatusNote } from "@/lib/rich-text";
  *
  * Format: `wn1.<userId>.<authVersion>.<base64url signature>`.
  */
+// The signed scope keeps its original name so phones linked before Resources joined stay linked.
 const SCOPE = "mobile-tracker";
 
 function sign(userId: string, authVersion: number) {
@@ -121,3 +124,27 @@ export async function listMobileTracker(userId: string) {
 }
 
 export type MobileEntry = Awaited<ReturnType<typeof listMobileTracker>>[number];
+
+/** How many resources the phone gets; newest first, like the Resources page's default sort. */
+const MOBILE_RESOURCES = 200;
+
+/** The phone's Resources: the library plus the user's type list, so saves from the phone use the same types. */
+export async function listMobileResources(userId: string) {
+  const [rows, types] = await Promise.all([listResources(userId, undefined, undefined, MOBILE_RESOURCES), getOrderedList(userId, "ResourceType")]);
+  const resources = rows
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .map(({ id, title, description, type, url, tags, favorite, createdAt, updatedAt }) => ({
+      id,
+      title,
+      description,
+      type,
+      url,
+      tags,
+      favorite,
+      createdAt: createdAt.toISOString(),
+      updatedAt: updatedAt.toISOString(),
+    }));
+  return { resources, types };
+}
+
+export type MobileResource = Awaited<ReturnType<typeof listMobileResources>>["resources"][number];
