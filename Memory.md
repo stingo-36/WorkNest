@@ -69,7 +69,7 @@ can still save it. *Rejected:* the AI writing page content itself (slow, rewrite
 content, long docs overflow tool arguments); undo after saving (a document update
 deletes pages — confirm-before-save covers it).
 
-**2026-10-26 — Pasted markdown becomes a notebook by parsing, not by the AI.**
+**2026-10-26 — Pasted markdown becomes a notebook by parsing, not by the AI.** *(Superseded 2026-10-27: the AI decides — see above.)*
 Ask treats a message with a `# Title` (and `##` headings or 200+ chars) as a document:
 `#` = notebook with **one section** of the same name, `##` = a page, `###`+ = headings
 inside the page (owner, same day, after trying a section per `##`: "I don't want
