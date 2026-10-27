@@ -191,7 +191,7 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `lib/user-settings.ts` | profile settings (name, sprint config, `ticketsEnabled`), request-memoised |
 | `lib/admin.ts` | persisted-role admin guard, cross-account statistics, password reset, whole-workspace erasure and account deletion; destructive calls verify the target email |
 | `lib/account-security.ts` | self-service password change: verifies the current bcrypt hash, writes a new cost-12 hash and increments `authVersion` |
-| `lib/ai-settings.ts` | per-user OpenRouter key/model: `getAiSettings` (client-safe view, never the key; `groqBackup`), `getOpenRouterConfig` (user key → env fallback, plus the env Groq backup; null only when neither exists), `checkOpenRouterKey`, save/clear |
+| `lib/ai-settings.ts` | per-user OpenRouter key/model and Groq key: `getAiSettings` (client-safe view, never a key; `aiOn`, `keySource`, `groqSource`), `getOpenRouterConfig` (user keys → env fallbacks, for OpenRouter and the Groq backup; null only when neither exists), `checkOpenRouterKey` / `checkGroqKey`, save/clear for each |
 | `lib/secret-box.ts` | AES-256-GCM `seal`/`open` for stored secrets, keyed off `AUTH_SECRET` |
 | `lib/mobile-api.ts` | Kaizen phone link: stateless HMAC token (`wn1.<userId>.<authVersion>.<sig>`, keyed off `AUTH_SECRET`) `createMobileToken` / `verifyMobileToken`, CORS `mobileJson` / `preflight`, `listMobileTracker` (the phone's list shape) |
 | `lib/validation.ts` | all Zod schemas |
@@ -239,7 +239,7 @@ User ─┬─ WorkLog ─┬─ Meeting
 
 | Model | Key fields & invariants |
 |---|---|
-| `User` | `email` unique, `passwordHash`, `role` (`User` default / `Admin`), `authVersion` (incremented on password change/reset to revoke old JWTs), profile: `sprintStartDate` (`@db.Date`, null = default), `sprintLengthDays` (14), `ticketsEnabled` (true), `openRouterKeyEnc` (sealed, never sent to client) + `openRouterKeyHint` + `openRouterModel` |
+| `User` | `email` unique, `passwordHash`, `role` (`User` default / `Admin`), `authVersion` (incremented on password change/reset to revoke old JWTs), profile: `sprintStartDate` (`@db.Date`, null = default), `sprintLengthDays` (14), `ticketsEnabled` (true), `openRouterKeyEnc` (sealed, never sent to client) + `openRouterKeyHint` + `openRouterModel`, `groqKeyEnc` (sealed) + `groqKeyHint` |
 | `WorkLog` | `date` `@db.Date` stored as UTC midnight, **`@@unique([userId, date])`**; `title`, `dayType` (Work/Holiday/Leave), `learningNotes` (Markdown), `summary` (generated Markdown, nullable) + `summaryGeneratedAt` + `summaryModel` (null = built from entries); `aiInputHash` (SHA-256 of the text the AI last read) and `titleGenerated` (title written by the AI; a user edit sets it false) |
 | `Meeting` | `name`, `notes` (Markdown), `order`, `isDefault` |
 | `WorkLogAttachment` | `kind` File/Link, `name`, `url?`, `mimeType?`, `size?`, `data Bytes?` (≤10 MB). **`data` is never selected in lists** — only the download route reads it. |
@@ -303,7 +303,7 @@ writes), `TaskPriority`, `TaskStatus`, `FollowUpStatus`, `EntryKind`,
 | `HOSTED_DATABASE_URL` | Neon **direct/unpooled** URL for `npm run db:hosted` |
 | `OPENROUTER_API_KEY` | optional server-wide key for AI work-log summaries; a user's Profile key takes priority |
 | `OPENROUTER_MODEL` | comma-separated fallback list; default `google/gemma-4-31b-it:free, openrouter/free` |
-| `GROQ_API_KEY` | optional backup AI: used when OpenRouter fails or has no key |
+| `GROQ_API_KEY` | optional server-wide backup AI, used when OpenRouter fails or has no key; a user's Profile Groq key takes priority |
 | `GROQ_MODEL` | comma-separated Groq models, tried in turn when one is rate-limited; default `openai/gpt-oss-120b, qwen/qwen3.8-27b, openai/gpt-oss-20b` (all call tools) |
 
 `app/.env.vercel` (gitignored) holds values to paste into Vercel. Never commit real

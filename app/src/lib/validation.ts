@@ -600,6 +600,10 @@ export const saveOpenRouterKeySchema = z.object({
   apiKey: z.string().trim().min(10, "That doesn't look like an OpenRouter key").max(300).regex(/^\S+$/, "Keys don't contain spaces"),
 });
 
+export const saveGroqKeySchema = z.object({
+  apiKey: z.string().trim().min(10, "That doesn't look like a Groq key").max(300).regex(/^\S+$/, "Keys don't contain spaces"),
+});
+
 /** Comma-separated OpenRouter model ids, or "" for the default. */
 export const saveOpenRouterModelSchema = z.object({
   model: z.string().trim().max(500).regex(/^([\w.\-/:]+(\s*,\s*[\w.\-/:]+)*)?$/, "Use model ids like openrouter/free, separated by commas"),

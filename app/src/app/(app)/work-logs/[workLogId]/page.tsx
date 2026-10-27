@@ -143,7 +143,7 @@ export default async function WorkLogViewPage({ params }: { params: Promise<{ wo
             hasContent={isWork && Boolean(learning || meetingsNoted || (ticketsEnabled && tickets.length))}
             todoDate={dayIso}
             todos={dayTodos}
-            aiOn={ai.keySource !== null}
+            aiOn={ai.aiOn}
           />
 
           {!isWork ? (
