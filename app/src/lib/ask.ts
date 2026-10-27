@@ -5,11 +5,12 @@ import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { EntryKind } from "@/generated/prisma/enums";
 import { aiFailureMessage, type ChatMessage, openRouterChat, openRouterComplete, type ToolSpec } from "@/lib/ai-summary";
 import { DEFAULT_OPENROUTER_MODEL, getOpenRouterConfig } from "@/lib/ai-settings";
-import { type NotebookPlan, parseNotebookMarkdown, planNotebookImport } from "@/lib/note-import";
+import { findIcon, toIconLabel, type IconLibrary } from "@/lib/note-icons";
+import { documentOutline, type ParsedDocument, parseDocument, planDocumentSave, splitMessage } from "@/lib/note-import";
 import { prisma } from "@/lib/prisma";
 import { docToText, markdownPreview } from "@/lib/rich-text";
 import { getUserSettings } from "@/lib/user-settings";
-import { ASK_MESSAGE_MAX, askChangeSchema, askProposalSchema, askRangeSchema, type AskProposal, dateOnlySchema } from "@/lib/validation";
+import { askChangeSchema, askNotebookSchema, askProposalSchema, askRangeSchema, type AskProposal, dateOnlySchema } from "@/lib/validation";
 
 /**
  * Ask: an assistant over your own workspace. Answers come from your records
@@ -27,16 +28,18 @@ import { ASK_MESSAGE_MAX, askChangeSchema, askProposalSchema, askRangeSchema, ty
  * Every query is scoped by `userId`; record numbers map back to ids here on
  * the server, so the AI never handles ids.
  *
- * A pasted markdown document (`# Title`, `##` sections) skips the AI: it comes
- * back as a `notebook` plan — create, or update the notebook with that title —
- * which the chat saves through actions/notes.ts when the user confirms.
+ * Notebooks too: create one, rename it or change its description or icon, and
+ * save a pasted document into a new or existing notebook. The AI decides (and
+ * asks when it's unclear); a document's text is turned into pages by
+ * lib/note-import.ts, never retyped by the model. The chat saves each one
+ * through actions/notes.ts after the user presses Save.
  */
 
 export type AskSource = { n: number; kind: "Work log" | "To-do" | "Follow-up" | "Note" | "Ticket" | "Resource" | "Notebook"; title: string; date: string | null; href: string };
 export type AskTurn = { question: string; answer: string };
 export type { AskProposal };
-export type AskResult = { ok: true; answer: string; sources: AskSource[]; proposals: AskProposal[]; notebook?: NotebookPlan; model: string } | { ok: false; message: string };
-export type { NotebookPlan };
+/** `hasDocument`: this message carried a pasted document, so the chat sends it along with later messages. */
+export type AskResult = { ok: true; answer: string; sources: AskSource[]; proposals: AskProposal[]; hasDocument: boolean; model: string } | { ok: false; message: string };
 
 /** `entry` is set for Tracker entries, so a proposed change can point at one. */
 type Candidate = Omit<AskSource, "n"> & { text: string; at: Date; entry?: { id: string; kind: EntryKind; open: boolean; due: string | null } };
@@ -317,7 +320,7 @@ const ABOUT = `You are Ask, the assistant built into WorkNest — a personal wor
 What you can do (describe this in your own words when asked what you can do or how you can help):
 - Answer anything about their own work: daily work logs (what they did, meetings, ticket updates), their Tracker (to-dos, follow-ups with people, notes), tickets, saved resources and notebooks — who they told what, when something happened, what's due, overdue, upcoming, waiting or finished, summaries of a day, week or month.
 - Work on their Tracker: add to-dos (with due dates), follow-ups (something they told a person) and notes; mark items done or reopen them; move due dates; add an update or log a reply to a follow-up. They confirm each change with one click.
-- Notebooks: when they paste a markdown document whose first heading is "# Title", it's saved as a notebook (created, or updated to match if one has that title): one section, with a page per "##" heading ("###" subtopics stay inside their page). That happens without you — if they ask how to add or update a notebook, tell them to paste the document here.
+- Notebooks: create a new (empty) notebook with a title, a description and an icon (named by a word like "drupal", "database" or "book"); rename one, or change its description or icon. And when they paste a document (notes, a guide, markdown), save it into a new notebook or replace the pages of an existing one: each "##" heading becomes a page, all in one section. The text goes in exactly as they wrote it — you never retype it. Each change shows them a card with Save changes / Revert; nothing is saved until they press Save.
 - You can't delete anything, and you can't create or edit work logs, tickets or resources yet.`;
 
 const ANSWERING = `Answering:
@@ -334,11 +337,18 @@ ${ANSWERING}
 Tools:
 - Anything about what they did on a day or in a period ("last week", "in September", "yesterday", "on 3 Oct") → ALWAYS call get_work_logs for that range first; never answer it from CONTEXT alone.
 - If CONTEXT doesn't cover a question, look further before saying you can't find it: search_workspace with other words (synonyms, names, ticket numbers), list_tracker for finished items ("what did I finish this week?").
-- Changes only when they ask for them — never on your own. Use create_tracker_item / change_tracker_item, then tell them in one short sentence what you've set up for them to confirm. Don't claim it's done; they confirm it.
+- Changes only when they ask for them — never on your own. Use create_tracker_item / change_tracker_item / create_notebook / change_notebook, then tell them in one short sentence what you've set up for them to confirm. Never say it's created, added or done — it isn't until they click the card's button.
+- Earlier turns may end with "[Proposed: … (not confirmed)]": that card is still waiting for their click. If they just agree ("yes", "ok", "create it", "create empty"), tell them to press the button on that card; if they change something, propose it again with the change.
 - Propose every change they asked for, once each: "Ravi replied, close it" is two changes on that item (add_update with from_them, then done). Each item needs its own call.
 - To change an existing item, use its record number. If you don't have it, search for it first. If it's ambiguous, ask which one.
 - Work out dates ("tomorrow", "Friday", "next week") from TODAY as YYYY-MM-DD.
-- If a follow-up's person is missing, ask who instead of drafting it.`;
+- If a follow-up's person is missing, ask who instead of drafting it.
+- Notebooks (NOTEBOOKS lists theirs):
+  - A new notebook needs a title. If they didn't give one, ask what to call it (suggest one from what they said). Once you have it, call create_notebook; it starts empty unless they pasted a document.
+  - If a notebook with that name already exists, ask whether they mean that one (change it, or put the document in it) or a new one with another name — unless they already said.
+  - When they want a description or icon and didn't give one, write a short description yourself and pick the icon word from the topic (e.g. "drupal").
+  - Changing an existing notebook's title, description or icon → change_notebook with its current title.
+- PASTED DOCUMENT in CONTEXT means they've pasted one (in this message or earlier). Work out from their words what they want: a new notebook, or the pages of an existing one replaced. If they said nothing, or it's unclear, ask one short question — e.g. "Create a new notebook 'X', or update your 'Y' notebook?" — using the document's own title and NOTEBOOKS. When it's clear, call save_document with the notebook to update, or a title for a new one (plus a description and icon for a new one).`;
 
 const LEGACY_PROMPT = `${ABOUT}
 
@@ -410,6 +420,56 @@ const TOOLS: ToolSpec[] = [
   {
     type: "function",
     function: {
+      name: "create_notebook",
+      description: "Propose a new, empty notebook; the user confirms it with one click. Only when they ask.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          description: { type: "string", description: "One or two sentences on what it's for" },
+          icon: { type: "string", description: "One word to find an icon by: a technology or brand (drupal, react, aws) or a thing (book, database, rocket)" },
+          empty: { type: "boolean", description: "Only when a PASTED DOCUMENT is in the chat and they want this notebook empty anyway" },
+        },
+        required: ["title"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "save_document",
+      description: "Propose saving the PASTED DOCUMENT as notebook pages (one page per ## heading): into an existing notebook, replacing its pages, or as a new notebook. The user sees what changes and presses Save. Only when they've said what they want.",
+      parameters: {
+        type: "object",
+        properties: {
+          notebook: { type: "string", description: "An existing notebook's current title, to put the document in. Leave out for a new notebook." },
+          title: { type: "string", description: "Title for a new notebook (or a new title for the existing one)" },
+          description: { type: "string", description: "A short description (new notebook, or to replace the existing one's)" },
+          icon: { type: "string", description: "One word to find an icon by (new notebook, or to replace)" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "change_notebook",
+      description: "Propose renaming a notebook or changing its description or icon; the user confirms it with one click. Only when they ask.",
+      parameters: {
+        type: "object",
+        properties: {
+          notebook: { type: "string", description: "The notebook's current title, from NOTEBOOKS" },
+          title: { type: "string", description: "New title, only to rename it" },
+          description: { type: "string", description: "New description" },
+          icon: { type: "string", description: "One word to find the new icon by" },
+        },
+        required: ["notebook"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "change_tracker_item",
       description: "Propose a change to an existing to-do, follow-up or note, by its record number; the user confirms it with one click. Only when they ask.",
       parameters: {
@@ -452,7 +512,20 @@ class Records {
 
 const KIND_OF: Record<string, EntryKind | undefined> = { todo: EntryKind.Task, followup: EntryKind.FollowUp, note: EntryKind.Note };
 
-type ToolContext = { userId: string; ticketsEnabled: boolean; todayKey: string; records: Records; proposals: AskProposal[] };
+type ToolContext = { userId: string; ticketsEnabled: boolean; todayKey: string; records: Records; proposals: AskProposal[]; document: ParsedDocument | null };
+
+type NotebookRow = { id: string; title: string; description: string | null; iconName: string | null; iconLibrary: string | null };
+/** The user's live notebook with this title — exact first, else the only one containing it. */
+async function findNotebookByTitle(userId: string, title: string): Promise<NotebookRow | NotebookRow[]> {
+  const found = await prisma.note.findMany({
+    where: { userId, deletedAt: null, title: contains(title) },
+    orderBy: { updatedAt: "desc" },
+    take: 5,
+    select: { id: true, title: true, description: true, iconName: true, iconLibrary: true },
+  });
+  return found.find((n) => n.title.toLowerCase() === title.trim().toLowerCase()) ?? (found.length === 1 ? found[0]! : found);
+}
+const iconLabelOf = (n: NotebookRow) => (n.iconName && (n.iconLibrary === "si" || n.iconLibrary === "lu" || n.iconLibrary === "fa6") ? toIconLabel(n.iconLibrary as IconLibrary, n.iconName) : null);
 
 async function runTool(name: string, rawArgs: string, ctx: ToolContext): Promise<string> {
   let args: Record<string, unknown>;
@@ -517,6 +590,56 @@ async function runTool(name: string, rawArgs: string, ctx: ToolContext): Promise
       if (ctx.proposals.some((p) => p.action === "create" && p.kind === item.data.kind && p.subject.toLowerCase() === item.data.subject.toLowerCase())) return "Already proposed — don't repeat it.";
       ctx.proposals.push(cleanDue(item.data, ctx.todayKey));
       return "Proposed. The user will see it and confirm it with one click.";
+    }
+    case "create_notebook":
+    case "change_notebook":
+    case "save_document": {
+      if (ctx.proposals.length >= MAX_PROPOSALS) return "Error: that's enough for one message.";
+      const input = askNotebookSchema.safeParse(args);
+      if (!input.success) return `Error: ${input.error.issues[0]?.message ?? "invalid notebook"}.`;
+      const { notebook, title, description, icon } = input.data;
+      if (name === "save_document" && !ctx.document) return "Error: there's no pasted document in this chat. Ask them to paste it.";
+      // A pasted document dropped by picking the wrong tool would be lost content.
+      if (name === "create_notebook" && ctx.document && !input.data.empty) return "Error: there's a PASTED DOCUMENT in this chat. To put it in this new notebook, call save_document with this title (and the description and icon). Only if they want an empty notebook, call create_notebook again with empty: true.";
+
+      let existing: NotebookRow | null = null;
+      if (notebook) {
+        const found = await findNotebookByTitle(ctx.userId, notebook);
+        if (Array.isArray(found)) return found.length ? `Error: more than one notebook matches: ${found.map((n) => `"${n.title}"`).join(", ")}. Ask which.` : `Error: no notebook is called "${notebook}". Check NOTEBOOKS, or ask.`;
+        existing = found;
+      } else if (name === "change_notebook") {
+        return "Error: say which notebook (its current title).";
+      }
+      if (name === "change_notebook" && !title && description == null && !icon) return "Error: say what to change — title, description or icon.";
+
+      const newTitle = title ?? existing?.title ?? (name === "save_document" ? ctx.document!.title : null);
+      if (!newTitle) return "Error: a new notebook needs a title. Ask the user what to call it (suggest one).";
+      if (!existing) {
+        // A new notebook with an existing name is almost always a mix-up; make the AI ask.
+        const clash = await findNotebookByTitle(ctx.userId, newTitle);
+        if (!Array.isArray(clash) && clash.title.toLowerCase() === newTitle.toLowerCase()) {
+          return `Error: they already have a notebook called "${clash.title}". Ask whether to ${name === "save_document" ? "put the document in it" : "change it"} or use a different name for a new one.`;
+        }
+      }
+      const plan = name === "save_document" ? await planDocumentSave(ctx.userId, ctx.document!, existing?.id ?? null, newTitle) : null;
+      if (name === "save_document" && !plan) return "Error: that notebook couldn't be read.";
+      const picked = icon ? await findIcon(icon) : null;
+      ctx.proposals.push({
+        action: "notebook",
+        kind: "Notebook",
+        noteId: existing?.id ?? null,
+        subject: newTitle,
+        currentTitle: existing?.title ?? null,
+        description: description ?? null,
+        iconName: picked?.name ?? null,
+        iconLibrary: picked?.library ?? null,
+        iconLabel: picked?.label ?? null,
+        before: existing ? { title: existing.title, description: existing.description, iconLabel: iconLabelOf(existing) } : null,
+        document: plan,
+        dueDate: null,
+      });
+      const pages = plan ? ` It will ${existing ? `make "${existing.title}" match the document (${plan.changedPages} pages changed, ${plan.newPages} new, ${plan.removedPages} removed)` : `have ${plan.pages} pages`}.` : "";
+      return `Proposed${icon && !picked ? ` (no icon matched "${icon}", so none is set)` : picked ? ` with the ${picked.label} icon` : ""}.${pages} The user will see it and press Save changes or Revert.`;
     }
     case "change_tracker_item": {
       if (ctx.proposals.length >= MAX_PROPOSALS) return "Error: that's enough for one message.";
@@ -593,31 +716,12 @@ function withCitations(text: string, records: Candidate[]) {
   return { answer, sources };
 }
 
-/** A pasted document: what saving it as a notebook would do. No AI involved, so it works with AI off. */
-async function notebookReply(userId: string, question: string): Promise<AskResult | null> {
-  const parsed = parseNotebookMarkdown(question);
-  if (!parsed) return null;
-  const plan = await planNotebookImport(userId, parsed);
-  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
-  const changes = [
-    plan.changedPages ? `${plural(plan.changedPages, "page")} updated` : "",
-    plan.newPages ? plural(plan.newPages, "new page") : "",
-    plan.removedPages ? `${plural(plan.removedPages, "page")} removed (not in what you pasted)` : "",
-    plan.reshaped ? `everything in one section, one page per "##" heading` : "",
-  ].filter(Boolean);
-  const answer =
-    plan.mode === "create" ? `That reads as a notebook: "${plan.title}", one section with ${plural(plan.pages, "page")} (one per "##" heading). You don't have one with that title yet — confirm below to create it.`
-    : changes.length ? `You already have a notebook called "${plan.title}". Saving this makes it match what you pasted: ${changes.join("; ")}. Confirm below.`
-    : `Your notebook "${plan.title}" already matches this — nothing to update.`;
-  return { ok: true, answer, sources: [], proposals: [], notebook: plan.mode === "update" && !changes.length ? undefined : plan, model: "" };
-}
-
-export async function askWorkspace(userId: string, input: { question: string; history: AskTurn[]; today: Date }): Promise<AskResult> {
-  const notebook = await notebookReply(userId, input.question);
-  if (notebook) return notebook;
-  if (input.question.length > ASK_MESSAGE_MAX) {
-    return { ok: false, message: `Keep messages under ${ASK_MESSAGE_MAX} characters. To save a document as a notebook, paste markdown that starts with a "# Title" line.` };
-  }
+export async function askWorkspace(userId: string, input: { question: string; history: AskTurn[]; today: Date; document?: string }): Promise<AskResult> {
+  // A document pasted now, or earlier in the chat (the browser sends that one along).
+  const split = splitMessage(input.question);
+  const documentText = split?.document ?? (input.document ? splitMessage(input.document)?.document ?? input.document : null);
+  const document = documentText ? parseDocument(documentText) : null;
+  const message = split ? split.instruction || "(They pasted the document with no other words.)" : input.question;
 
   const [saved, settings] = await Promise.all([getOpenRouterConfig(userId), getUserSettings(userId)]);
   if (!saved) return { ok: false, message: aiFailureMessage({ reason: "not_configured" }) };
@@ -627,11 +731,12 @@ export async function askWorkspace(userId: string, input: { question: string; hi
   const history = input.history.slice(-MAX_HISTORY);
   const today = new Date(input.today.getTime() + input.today.getTimezoneOffset() * 60_000);
   const todayKey = format(today, "yyyy-MM-dd");
-  const terms = searchTerms(input.question, history.at(-1)?.question ?? "");
-  const [matched, { candidates: open, counts }, logSpan] = await Promise.all([
+  const terms = searchTerms(message, history.at(-1)?.question ?? "");
+  const [matched, { candidates: open, counts }, logSpan, notebooks] = await Promise.all([
     terms.length ? findCandidates(userId, terms, settings.ticketsEnabled, todayKey).then((found) => rank(found, terms)) : Promise.resolve([]),
     openTracker(userId, todayKey),
     prisma.workLog.aggregate({ where: { userId }, _min: { date: true }, _max: { date: true }, _count: true }),
+    prisma.note.findMany({ where: { userId, deletedAt: null }, orderBy: { updatedAt: "desc" }, take: 40, select: { title: true } }),
   ]);
   // Few keyword hits: add the latest logs too, so broad questions ("what did I do?") have something.
   const extra = matched.length >= 4 ? [] : (await findCandidates(userId, [], settings.ticketsEnabled, todayKey)).filter((c) => !matched.some((m) => m.href === c.href));
@@ -645,17 +750,19 @@ export async function askWorkspace(userId: string, input: { question: string; hi
       ? `WORK LOGS ON FILE: ${logSpan._count}, from ${day(logSpan._min.date)} to ${day(logSpan._max.date)} (latest). Only a few are in CONTEXT — use get_work_logs for any day or period.`
       : "WORK LOGS ON FILE: none yet.",
     `MATCHING RECORDS:\n${records.render(matching, MAX_RECORD_CHARS, false)}`,
+    `NOTEBOOKS: ${notebooks.length ? notebooks.map((n) => `"${n.title}"`).join(", ") : "none yet"}`,
+    document && documentText ? `PASTED DOCUMENT (${split ? "in this message" : "from earlier in this chat"}):\n${documentOutline(document, documentText)}` : "",
     `OPEN TRACKER COUNTS (exact):\n${counts}`,
     `OPEN TRACKER:\n${records.render(open.filter((c) => !matching.some((m) => m.href === c.href)), 500, false)}`,
-  ].join("\n\n");
+  ].filter(Boolean).join("\n\n");
   const past: ChatMessage[] = history.flatMap((turn) => [
     { role: "user" as const, content: turn.question },
     { role: "assistant" as const, content: turn.answer.replace(/\[\d+\]/g, "") },
   ]);
   const proposals: AskProposal[] = [];
-  const ctx: ToolContext = { userId, ticketsEnabled: settings.ticketsEnabled, todayKey, records, proposals };
+  const ctx: ToolContext = { userId, ticketsEnabled: settings.ticketsEnabled, todayKey, records, proposals, document };
 
-  const messages: ChatMessage[] = [{ role: "system", content: AGENT_PROMPT }, ...past, { role: "user", content: `CONTEXT:\n${context}\n\nMESSAGE: ${input.question}` }];
+  const messages: ChatMessage[] = [{ role: "system", content: AGENT_PROMPT }, ...past, { role: "user", content: `CONTEXT:\n${context}\n\nMESSAGE: ${message}` }];
   let reply: string | null = null;
   let model = config.models[0]!;
   for (let step = 0; step <= MAX_STEPS && reply === null; step++) {
@@ -663,7 +770,7 @@ export async function askWorkspace(userId: string, input: { question: string; hi
     const last = step === MAX_STEPS;
     const result = await openRouterChat(config, last ? { messages: flatten(messages), maxTokens: 6_000 } : { messages, tools: TOOLS, maxTokens: 6_000 });
     if (!result.ok) {
-      if (result.noTools && step === 0) return askWithoutTools(config, context, past, input.question, todayKey, records);
+      if (result.noTools && step === 0) return askWithoutTools(config, context, past, message, todayKey, records);
       return { ok: false, message: aiFailureMessage(result) };
     }
     model = result.model;
@@ -688,7 +795,7 @@ export async function askWorkspace(userId: string, input: { question: string; hi
     }
   }
   const fallback = proposals.length ? "Here's what I've set up — confirm below." : "Sorry, I couldn't put an answer together. Try asking again.";
-  return { ok: true, answer: answer || fallback, sources, proposals, model };
+  return { ok: true, answer: answer || fallback, sources, proposals, hasDocument: Boolean(split && document), model };
 }
 
 /**
@@ -728,5 +835,5 @@ async function askWithoutTools(
   const { rest, proposals, failed } = parseItems(ai.text, todayKey);
   const { answer, sources } = withCitations(rest, records.list);
   const note = failed ? "I couldn't put that into a Tracker item — try saying it a little differently." : "";
-  return { ok: true, answer: [answer, note].filter(Boolean).join("\n\n") || "Here you go.", sources, proposals, model: ai.model };
+  return { ok: true, answer: [answer, note].filter(Boolean).join("\n\n") || "Here you go.", sources, proposals, hasDocument: false, model: ai.model };
 }

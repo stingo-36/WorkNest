@@ -614,7 +614,7 @@ export function resolveIconSync(
 
 let indexPromise: Promise<IconIndex> | null = null;
 
-/** Builds the searchable index once per session. Client-side only. */
+/** Builds the searchable index once per session (or once per server process, for Ask). */
 export function loadIconIndex(): Promise<IconIndex> {
   if (indexPromise) return indexPromise;
 
@@ -801,4 +801,10 @@ export function searchIcons(
     )
     .slice(0, limit)
     .map((s) => s.entry);
+}
+
+/** The best icon for a word like "drupal" or "database" — how Ask picks a notebook icon. */
+export async function findIcon(query: string): Promise<IconEntry | null> {
+  if (!query.trim()) return null;
+  return searchIcons(await loadIconIndex(), query, ["si", "lu", "fa6"], 1)[0] ?? null;
 }

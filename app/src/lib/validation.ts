@@ -731,8 +731,48 @@ type AskChange = {
   /** The item's due date now, so two same-named items can be told apart on the card. */
   currentDue: string | null;
 };
-/** One thing Ask proposes; the chat applies it through the normal Tracker actions when the user confirms. */
-export type AskProposal = AskCreate | AskChange;
+/**
+ * A notebook Ask proposed to create (`noteId` null) or to rename / re-describe /
+ * re-icon. `subject` is the title it'll have; `currentTitle` the one it has now.
+ * Applied through `saveNotebookDetails` in actions/notes.ts.
+ */
+type AskNotebook = {
+  action: "notebook";
+  kind: "Notebook";
+  noteId: string | null;
+  subject: string;
+  currentTitle: string | null;
+  description: string | null;
+  iconName: string | null;
+  iconLibrary: string | null;
+  iconLabel: string | null;
+  /** The notebook as it is now, for the card's before → after (changes only). */
+  before: { title: string; description: string | null; iconLabel: string | null } | null;
+  /** Set when a pasted document goes into its pages: what that does to them. */
+  document: { pages: number; newPages: number; changedPages: number; removedPages: number; reshaped: boolean } | null;
+  dueDate: null;
+};
+/** One thing Ask proposes; the chat applies it through the normal Tracker (or notebook) actions when the user confirms. */
+export type AskProposal = AskCreate | AskChange | AskNotebook;
+
+/** Ask's create_notebook / change_notebook / save_document tool arguments. `icon` is a word to search the icon sets for. */
+export const askNotebookSchema = z.object({
+  notebook: z.string().trim().max(200).nullish(),
+  title: z.string().trim().min(2, "A notebook title needs at least 2 characters").max(200).nullish(),
+  description: z.string().trim().max(2_000).nullish(),
+  icon: z.string().trim().max(60).nullish(),
+  /** create_notebook while a document is in the chat: they really want it empty. */
+  empty: z.boolean().nullish(),
+});
+
+/** Create a notebook (no `noteId`) or change an existing one's title, description or icon. */
+export const notebookDetailsSchema = z.object({
+  noteId: idSchema.nullish(),
+  title: z.string().trim().min(2, "Give the notebook a title").max(200),
+  description: z.string().trim().max(2_000).nullish(),
+  iconName: z.string().trim().max(100).nullish(),
+  iconLibrary: z.enum(["si", "lu", "fa6"]).nullish(),
+});
 
 /** A pasted markdown document can be long; lib/ask.ts holds ordinary messages to ASK_MESSAGE_MAX. */
 export const ASK_DOCUMENT_MAX = 100_000;
@@ -746,9 +786,16 @@ export const askWorkspaceSchema = z.object({
     .default([]),
   /** The browser's local day, so "today" and "this week" mean the user's day. */
   today: dateOnlySchema,
+  /** A document pasted earlier in the chat, sent again so a later "yes, new one" can save it. */
+  document: z.string().max(ASK_DOCUMENT_MAX).optional(),
 });
 
-/** A markdown document from Ask to save as a notebook (lib/note-import.ts parses it again on the server). */
+/** A document from Ask saved as notebook pages: into `noteId`, or as a new notebook (lib/note-import.ts parses it again here). */
 export const notebookImportSchema = z.object({
   markdown: z.string().trim().min(2).max(ASK_DOCUMENT_MAX, "That document is too long to import in one go"),
+  noteId: idSchema.nullish(),
+  title: z.string().trim().min(2, "Give the notebook a title").max(200),
+  description: z.string().trim().max(2_000).nullish(),
+  iconName: z.string().trim().max(100).nullish(),
+  iconLibrary: z.enum(["si", "lu", "fa6"]).nullish(),
 });

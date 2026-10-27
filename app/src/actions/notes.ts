@@ -3,12 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { importNotebook as importParsedNotebook, parseNotebookMarkdown } from "@/lib/note-import";
+import { parseDocument, saveDocument, splitMessage } from "@/lib/note-import";
 import * as store from "@/lib/note-store";
 import { noteSchema, type NoteInput } from "@/lib/notes";
 import { fail, ok, parseOrFail } from "@/lib/result";
 import { requireUserId } from "@/lib/session";
-import { notebookImportSchema } from "@/lib/validation";
+import { notebookDetailsSchema, notebookImportSchema } from "@/lib/validation";
 
 /**
  * Notes server actions.
@@ -128,21 +128,48 @@ export async function toggleNoteFavorite(formData: FormData) {
 }
 
 /**
- * Save a markdown document pasted into Ask as a notebook: created, or merged
- * into the notebook with the same title (lib/note-import.ts). Unlike the editor
- * actions above this returns an `ActionResult`, because the Ask chat calls it.
- * Input: { markdown }.
+ * Save a document pasted into Ask as notebook pages: into `noteId` (making it
+ * match the document), or as a new notebook — what the chat sends when the user
+ * presses Save on Ask's card. Unlike the editor actions above this returns an
+ * `ActionResult`. Input: { markdown, noteId?, title, description?, iconName?, iconLibrary? }.
  */
 export async function importNotebook(input: unknown) {
   const userId = await requireUserId();
   const parsed = parseOrFail(notebookImportSchema, input);
   if (!parsed.ok) return parsed;
+  const { markdown, noteId, title, description, iconName, iconLibrary } = parsed.data;
 
-  const notebook = parseNotebookMarkdown(parsed.data.markdown);
-  if (!notebook) return fail("VALIDATION_ERROR", "That doesn't read as a notebook — it needs a \"# Title\" line and \"##\" sections.");
+  const document = parseDocument(splitMessage(markdown)?.document ?? markdown);
+  if (!document) return fail("VALIDATION_ERROR", "There's nothing in that document to save.");
 
-  const saved = await importParsedNotebook(userId, notebook);
+  const saved = await saveDocument(userId, document, noteId ?? null, { title, description, iconName, iconLibrary });
+  if (!saved) return fail("NOT_FOUND", "That notebook no longer exists.");
   revalidatePath("/notes");
   revalidatePath(`/notes/${saved.noteId}`);
   return ok({ id: saved.noteId, mode: saved.mode });
+}
+
+/**
+ * Create an empty notebook, or change an existing one's title, description or
+ * icon — what Ask proposes and the chat sends on confirm. Returns an
+ * `ActionResult` like `importNotebook`. Input: { noteId?, title, description?, iconName?, iconLibrary? }.
+ */
+export async function saveNotebookDetails(input: unknown) {
+  const userId = await requireUserId();
+  const parsed = parseOrFail(notebookDetailsSchema, input);
+  if (!parsed.ok) return parsed;
+  const { noteId, title, description, iconName, iconLibrary } = parsed.data;
+  // An icon is a pair; half of one is no icon.
+  const icon = iconName && iconLibrary ? { iconName, iconLibrary } : {};
+
+  if (!noteId) {
+    const id = await store.createNote(userId, { title, description: description ?? "", ...icon, sections: [] });
+    revalidatePath("/notes");
+    return ok({ id, mode: "create" as const });
+  }
+  const saved = await store.updateNoteDetails(userId, noteId, { title, ...(description != null ? { description: description || null } : {}), ...icon });
+  if (!saved) return fail("NOT_FOUND", "That notebook no longer exists.");
+  revalidatePath("/notes");
+  revalidatePath(`/notes/${noteId}`);
+  return ok({ id: noteId, mode: "update" as const });
 }
