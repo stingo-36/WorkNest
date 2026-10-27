@@ -524,17 +524,21 @@ open their page, resources go to Resources).
   follow-up. Each shows as a card (current due date shown, so duplicates are told apart)
   with a confirm button and **Skip**; nothing changes until you confirm, through the
   normal Tracker actions. Up to 5 per message. Ambiguous ("which one?") → it asks.
-- **Saves pasted documents as notebooks** (added 2026-10-26). Paste markdown whose
-  first heading is `# Title`: `#` = the notebook, with **one section** of the same
-  name; each `##` = a page; `###` and deeper stay as headings inside their page; text
-  before the first `##` becomes an "Overview" page. A card says what will happen —
-  **New notebook** (1 section · N pages), or **Update notebook** when one with that
-  title exists. An update makes the notebook **match the paste**: pages updated, new
-  pages, pages not in the paste **removed** (the card counts them), and an older layout
-  folded into one section — nothing is saved until you confirm. The text is converted
-  as written (tables, code blocks, checklists, links), not by the AI, so it works with
-  AI off. Messages are otherwise capped at 500 characters; a long pasted message shows
-  its first lines with **Show all**.
+- **Notebooks, with your OK** (2026-10-27). Ask can create a notebook (title, a
+  description it writes if you want one, an icon it picks — "Drupal" gets the Drupal
+  logo), rename one, or change its description or icon. Paste a document (with or
+  without your own words around it) and it saves it into a **new notebook** or
+  **replaces the pages of an existing one**: each `##` heading becomes a page, all in
+  one section, `###` subtopics stay inside their page, text before the first `##` is an
+  "Overview" page. **The AI decides and asks when it's unclear:** no title → "what should
+  I call it?"; a name you already use → "update that one or make a new one?"; a pasted
+  document with no instructions → "new notebook, or into your X notebook?". The
+  document's text goes into the pages exactly as written (converted by code, never
+  retyped by the model), and the document stays attached for the rest of the chat so a
+  later "a new one, call it X" still saves it. Every notebook change shows a card —
+  what it creates, or **before → after** for title/description/icon, and pages
+  changed/new/removed for a document — with **Save changes** and **Revert**; nothing is
+  saved until Save. A long pasted message shows its first lines with **Show all**.
 - **Can't yet:** delete anything; create or edit work logs, tickets or resources.
 - **Your data only.** Every lookup is scoped to the signed-in user; the AI never sees
   record ids (numbers map to ids on the server).

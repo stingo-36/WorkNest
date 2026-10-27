@@ -70,7 +70,7 @@ Models: `FollowUp`, `FollowUpUpdate` (append-only), `FollowUpFile`
 ### Notes — PRD §5.4 · DS "Notes F layout"
 Models: `Note` → `NoteSection` → `NotePage` (TipTap JSON)
 - Routes: `app/(app)/notes/page.tsx`, `app/(app)/notes/new/page.tsx`, `app/(app)/notes/[noteId]/page.tsx`, `app/(app)/notes/[noteId]/edit/page.tsx`
-- Actions: `actions/notes.ts` (incl. `importNotebook` for Ask) · Lib: `lib/note-store.ts` (data), `lib/notes.ts` (shapes/schemas), `lib/note-import.ts` (markdown → notebook), `lib/note-icons.ts`, `lib/note-colors.ts`
+- Actions: `actions/notes.ts` (incl. `importNotebook` and `saveNotebookDetails` for Ask) · Lib: `lib/note-store.ts` (data), `lib/notes.ts` (shapes/schemas), `lib/note-import.ts` (pasted document → pages), `lib/note-icons.ts`, `lib/note-colors.ts`
 - List: `components/notes/NoteLibrary.tsx` · Read: `NoteReader.tsx`, `NoteViewer.tsx`, `smooth-scroll.ts`, `doc-height.ts`
 - Edit: `components/notes/NoteForm.tsx`, `SectionEditor.tsx`, `PageEditor.tsx`, `RichTextEditor.tsx`, `editor-extensions.ts`, `CodeBlock.tsx`, `NoteIcon.tsx`, `NoteIconPicker.tsx`, `note-field.tsx`
 
@@ -103,7 +103,7 @@ Model: `SprintReport`
 - UI: `components/quick-log/quick-log.tsx`, `components/quick-log/types.ts`
 
 ### Ask your workspace (AI agent) — PRD §5.13
-- Actions: `actions/ask.ts` · Lib: `lib/ask.ts` (tools, context, proposals; pasted documents → `lib/note-import.ts`)
+- Actions: `actions/ask.ts` · Lib: `lib/ask.ts` (tools, context, proposals; notebook tools, pasted documents → `lib/note-import.ts`)
 - UI: `components/ask/ask-widget.tsx`
 
 ### Kaizen phone API — PRD §5.14 · Arch §3

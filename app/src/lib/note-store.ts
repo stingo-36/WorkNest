@@ -210,6 +210,22 @@ export async function updateNote(
   });
 }
 
+/**
+ * Renames a note or changes its description or icon, leaving its sections and
+ * pages alone (Ask's "change notebook"). Fields left undefined stay as they are.
+ */
+export async function updateNoteDetails(
+  userId: string,
+  noteId: string,
+  data: { title?: string; description?: string | null; iconName?: string | null; iconLibrary?: string | null },
+) {
+  const result = await prisma.note.updateMany({
+    where: { id: noteId, userId, deletedAt: null },
+    data,
+  });
+  return result.count > 0;
+}
+
 /** Move to trash. Nothing leaves the database here. */
 export async function trashNote(userId: string, noteId: string) {
   const result = await prisma.note.updateMany({

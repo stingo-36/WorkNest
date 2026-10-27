@@ -40,6 +40,41 @@ misread "remind me to…" as a follow-up and cited unrelated records. A Groq fai
 reports OpenRouter's reason, since that's the key the user manages. Still no non-AI fallback. *Rejected:* a per-user Groq key in Profile (not asked
 for); Groq first (OpenRouter stays the user's choice).
 
+**2026-10-27 — Ask's AI decides what happens to notebooks; code only converts the text.**
+Reverses the same-week "pasted markdown becomes a notebook by parsing, not by the AI"
+(owner: "don't make it rule-wise, use the AI properly" — a fixed `# Title` rule couldn't
+ask anything, and "create a notebook called Drupal" got "paste markdown" back). Now the
+AI gets the document as an outline (its `#` title, the pages it becomes, the start of
+the text) and tools `create_notebook` / `change_notebook` / `save_document`; it asks
+when the title is missing, the name already exists, or a paste has no instructions.
+The server still turns the document into pages with `marked` → TipTap JSON, so the
+model never retypes commands or tables (and long documents don't go through tool
+arguments). Guards come back to the AI as tool errors so it asks rather than the code
+deciding: a new notebook named like an existing one, no title, and `create_notebook`
+while a document is in the chat (Groq's gpt-oss once picked it and would have saved an
+empty notebook — `empty: true` is required for that). Structure: one section named after
+the notebook, a page per `##` (owner, 2026-10-26: "just 1 section"); saving into an
+existing notebook makes it match the document (unmentioned pages removed, counted on
+the card). Every notebook change is a card with before → after and **Save changes /
+Revert** (owner: "before saving any changes it should ask me save changes or revert").
+The chat sends the latest pasted document with later messages so "a new one, call it X"
+can still save it. *Rejected:* the AI writing page content itself (slow, rewrites
+content, long docs overflow tool arguments); undo after saving (a document update
+deletes pages — confirm-before-save covers it).
+
+**2026-10-26 — Groq is a backup AI behind OpenRouter, server key only.**
+The free OpenRouter models are often rate-limited or down (a live 500 during testing).
+Every AI call (summaries, titles, reports, quick log, Ask) tries OpenRouter first, then
+the same request on Groq (`GROQ_API_KEY`). Groq's free tier allows only ~8k tokens a
+minute **per model** and one Ask step is ~2.5k, so a single model ran out after two
+messages (tested 2026-10-27): `GROQ_MODEL` is a list (`openai/gpt-oss-120b,
+qwen/qwen3.8-27b, openai/gpt-oss-20b`, all call tools) tried in turn, plus one wait when
+the `retry-after` is ≤ 15 s — nine back-to-back messages then all answered. With Groq
+present, Ask drops `openrouter/free` from its model list: it landed on small models that
+misread "remind me to…" as a follow-up and cited unrelated records. A Groq failure
+reports OpenRouter's reason, since that's the key the user manages. Still no non-AI fallback. *Rejected:* a per-user Groq key in Profile (not asked
+for); Groq first (OpenRouter stays the user's choice).
+
 **2026-10-26 — Pasted markdown becomes a notebook by parsing, not by the AI.**
 Ask treats a message with a `# Title` (and `##` headings or 200+ chars) as a document:
 `#` = notebook with **one section** of the same name, `##` = a page, `###`+ = headings
@@ -968,6 +1003,7 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-27 — Ask handles notebooks with the AI: create / rename / describe / re-icon a notebook, save a pasted document into a new or existing one, asking when the title is missing or already used; Save changes / Revert cards with before → after; the rule-based paste shortcut is gone — `app/src/lib/ask.ts`, `lib/note-import.ts`, `lib/note-icons.ts` (`findIcon`), `lib/note-store.ts` (`updateNoteDetails`), `actions/notes.ts` (`saveNotebookDetails`, `importNotebook`), `components/ask/ask-widget.tsx`, `lib/validation.ts`
 - 2026-10-27 — Ask: copy buttons on messages/answers, Try again after a failure, slow-AI wait hint, growing message box, inline code; Groq rotates its models and waits out short rate limits; Ask skips `openrouter/free` when Groq is set — `app/src/components/ask/ask-widget.tsx`, `lib/ai-summary.ts`, `lib/ai-settings.ts`, `lib/ask.ts`, `app/.env.example`
 - 2026-10-26 — Pasted notebooks: one section, a page per `##`; updates match the paste (unmentioned pages removed, counted on the card); long pasted messages get Show all — `app/src/lib/note-import.ts`, `ask.ts`, `components/ask/ask-widget.tsx`
 - 2026-10-26 — Groq backup for every AI call when OpenRouter fails; Ask saves a pasted markdown document as a notebook (create, or update the one with that title) after a confirm card; Compose project name pinned after the folder rename — `app/src/lib/ai-summary.ts`, `ai-settings.ts`, `note-import.ts`, `ask.ts`, `actions/notes.ts`, `components/ask/ask-widget.tsx`, `components/profile/ai-settings.tsx`, `docker-compose.yml`, `app/.env.example`

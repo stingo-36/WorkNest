@@ -5,36 +5,38 @@ import { marked, type Token, type Tokens } from "marked";
 
 import { createNote, getNote, updateNote } from "@/lib/note-store";
 import { type NoteInput, noteSchema } from "@/lib/notes";
-import { prisma } from "@/lib/prisma";
+import { ASK_MESSAGE_MAX } from "@/lib/validation";
 
 /**
- * Markdown → notebook, for documents pasted into Ask.
+ * Markdown → notebook pages, for documents pasted into Ask.
  *
- *   # Title           → the notebook (matched by title: created if new, updated if it exists),
- *                       with ONE section of the same name (owner, 2026-10-26: not a section per ##)
- *   ## Heading        → a page
+ * The AI decides what to do with a document — which notebook, new or existing,
+ * its title, description and icon, or to ask first (lib/ask.ts). This file only
+ * turns the text into pages, so commands, tables and links land exactly as
+ * written instead of being retyped by a model:
+ *
+ *   # Title           → the document's own title (a suggestion; the AI picks the notebook's)
+ *   ## Heading        → a page, all in ONE section named after the notebook
+ *                       (owner, 2026-10-26: not a section per ##)
  *   ### / #### …      → headings inside that page
  *   text before the first ## → an "Overview" page
  *
- * Parsing is plain code, not the AI: the pasted text (commands, tables, links)
- * lands in the pages exactly as written. Updating makes the notebook match the
- * paste: pages are matched by title, and pages (and sections) the paste doesn't
- * have are removed — the card says how many before anything is saved.
+ * Saving into an existing notebook makes it match the document: pages are
+ * matched by title, and pages (and sections) the document doesn't have are
+ * removed — the card counts them before anything is saved.
  */
 
-export type ParsedNotebook = { title: string; sections: Array<{ title: string; pages: Array<{ title: string; content: JSONContent }> }> };
+type Page = { title: string; content: JSONContent };
+type ParsedNotebook = { title: string; sections: Array<{ title: string; pages: Page[] }> };
+/** A pasted document: its own `#` title, if it has one, and the pages it becomes. */
+export type ParsedDocument = { title: string | null; pages: Page[]; chars: number };
 
-/** What confirming the import would do — shown on Ask's card before anything is saved. */
-export type NotebookPlan = {
-  mode: "create" | "update";
-  title: string;
-  /** The existing notebook being updated. */
-  noteId: string | null;
-  sections: number;
+/** What saving a document into a notebook would do to its pages — shown on Ask's card first. */
+export type DocumentPlan = {
   pages: number;
   newPages: number;
   changedPages: number;
-  /** Pages in the notebook that the paste doesn't have; confirming removes them. */
+  /** Pages in the notebook that the document doesn't have; saving removes them. */
   removedPages: number;
   /** The notebook's sections or page order change (e.g. a section per heading → one section). */
   reshaped: boolean;
@@ -144,18 +146,28 @@ function pageDoc(tokens: Token[]): JSONContent | null {
 const headingText = (token: Tokens.Heading) => clip(inline(token.tokens).map((node) => node.text ?? "").join(""));
 
 /**
- * The notebook in a pasted document, or null when it isn't one: it needs a
- * `# Title` and either `##` headings or a few lines of text. Anything above the
- * `#` line (e.g. "add this to my notebooks:") is ignored.
+ * The document inside an Ask message, and the words around it: "add this to my
+ * Drupal notebook: # …" → instruction + document. A message counts as carrying
+ * one when it has markdown headings with some body, or is too long to be a chat
+ * message. What to do with it is the AI's call.
  */
-export function parseNotebookMarkdown(markdown: string): ParsedNotebook | null {
+export function splitMessage(message: string): { instruction: string; document: string } | null {
+  const text = message.replace(/\r\n?/g, "\n");
+  const heading = /^#{1,6}[ \t]+\S/m.exec(text);
+  if (heading) {
+    const document = text.slice(heading.index);
+    const headings = document.match(/^#{1,6}[ \t]+\S/gm)?.length ?? 0;
+    if (headings >= 2 || document.length >= 300) return { instruction: text.slice(0, heading.index).trim(), document };
+  }
+  return text.length > ASK_MESSAGE_MAX ? { instruction: "", document: text } : null;
+}
+
+/** The pages a document becomes, or null when there's nothing in it. Anything above its `#` line is skipped. */
+export function parseDocument(markdown: string): ParsedDocument | null {
   const tokens = marked.lexer(markdown.replace(/\r\n?/g, "\n"), { gfm: true });
   const start = tokens.findIndex((t) => t.type === "heading" && t.depth === 1);
-  if (start === -1) return null;
-  const title = headingText(tokens[start] as Tokens.Heading);
-  const body = tokens.slice(start + 1);
-  const hasSections = body.some((t) => t.type === "heading" && t.depth === 2);
-  if (title.length < 2 || (!hasSections && markdown.length < 200)) return null;
+  const title = start === -1 ? null : headingText(tokens[start] as Tokens.Heading) || null;
+  const body = start === -1 ? tokens : tokens.slice(start + 1);
 
   // One page per ## (a second # counts as one too); ### and deeper stay inside the page.
   const chunks: Array<{ title: string; tokens: Token[] }> = [{ title: OVERVIEW, tokens: [] }];
@@ -169,18 +181,17 @@ export function parseNotebookMarkdown(markdown: string): ParsedNotebook | null {
     if (!content && i === 0) return [];
     return [{ title: chunk.title || "Untitled", content: content ?? { type: "doc", content: [{ type: "paragraph" }] } }];
   });
-  return pages.length ? { title, sections: [{ title, pages }] } : null;
+  return pages.length ? { title, pages, chars: markdown.length } : null;
 }
 
-/** The live notebook with this title, most recently touched first. */
-async function findNotebook(userId: string, title: string) {
-  const candidates = await prisma.note.findMany({
-    where: { userId, deletedAt: null, title: { equals: title, mode: "insensitive" } },
-    orderBy: { updatedAt: "desc" },
-    take: 1,
-    select: { id: true },
-  });
-  return candidates[0] ? getNote(userId, candidates[0].id) : null;
+/** What the AI is told about a document: enough to decide, without the whole text. */
+export function documentOutline(doc: ParsedDocument, markdown: string) {
+  const titles = doc.pages.map((page) => `"${page.title}"`);
+  return [
+    `Its own title: ${doc.title ? `"${doc.title}"` : "none (it has no # heading)"}`,
+    `Length: ${doc.chars} characters. Saved, it becomes ${doc.pages.length} page${doc.pages.length === 1 ? "" : "s"}: ${titles.slice(0, 40).join(", ")}${titles.length > 40 ? ` and ${titles.length - 40} more` : ""}`,
+    `Start of the text:\n${markdown.slice(0, 700)}${markdown.length > 700 ? "…" : ""}`,
+  ].join("\n");
 }
 
 /** Postgres `jsonb` reorders object keys, so compare with keys sorted. */
@@ -193,13 +204,19 @@ function canonical(value: unknown): string {
 }
 const sameContent = (a: unknown, b: unknown) => canonical(a) === canonical(b);
 
+type Existing = NonNullable<Awaited<ReturnType<typeof getNote>>>;
+export type NotebookDetails = { title: string; description?: string | null; iconName?: string | null; iconLibrary?: string | null };
+
+/** The document as a one-section notebook named `title`. */
+const asNotebook = (doc: ParsedDocument, title: string): ParsedNotebook => ({ title, sections: [{ title, pages: doc.pages }] });
+
 /**
- * The existing notebook reshaped to match the paste: the tree `updateNote` saves
- * (which deletes whatever it leaves out), and what changes. A page is matched by
- * title anywhere in the notebook, so an old layout (a section per heading) folds
- * into the new one; a matched page in the same section keeps its id.
+ * The existing notebook reshaped to match the document: the tree `updateNote`
+ * saves (which deletes whatever it leaves out), and what changes. A page is
+ * matched by title anywhere in the notebook, so an old layout (a section per
+ * heading) folds into the new one; a matched page in the same section keeps its id.
  */
-function merge(existing: NonNullable<Awaited<ReturnType<typeof getNote>>>, parsed: ParsedNotebook) {
+function merge(existing: Existing, parsed: ParsedNotebook, details: NotebookDetails) {
   const counts = { newPages: 0, changedPages: 0, removedPages: 0 };
   const oldPages = existing.sections.flatMap((section) => section.pages.map((page) => ({ ...page, sectionId: section.id })));
   const usedSections = new Set<string>();
@@ -220,11 +237,13 @@ function merge(existing: NonNullable<Awaited<ReturnType<typeof getNote>>>, parse
     return { ...(match ? { id: match.id } : {}), title: section.title, order, pages };
   });
   counts.removedPages = oldPages.filter((p) => !usedPages.has(p.id)).length;
+  // An icon is a pair; only a whole new one replaces the old.
+  const icon = details.iconName && details.iconLibrary ? { iconName: details.iconName, iconLibrary: details.iconLibrary } : { iconName: existing.iconName, iconLibrary: existing.iconLibrary };
   const input: NoteInput = {
     title: parsed.title,
-    description: existing.description ?? "",
-    iconName: existing.iconName ?? "",
-    iconLibrary: (existing.iconLibrary as NoteInput["iconLibrary"]) ?? undefined,
+    description: details.description ?? existing.description ?? "",
+    iconName: icon.iconName ?? "",
+    iconLibrary: (icon.iconLibrary as NoteInput["iconLibrary"]) ?? undefined,
     sections,
   };
   // A changed layout counts as a change even when every page's text is the same.
@@ -232,28 +251,29 @@ function merge(existing: NonNullable<Awaited<ReturnType<typeof getNote>>>, parse
   return { input, counts, reshaped };
 }
 
-function newNotebook(parsed: ParsedNotebook): NoteInput {
-  return {
-    title: parsed.title,
+/** What saving `doc` would do: into notebook `noteId`, or (null) as a new one. Null when that notebook isn't the user's. */
+export async function planDocumentSave(userId: string, doc: ParsedDocument, noteId: string | null, title: string): Promise<DocumentPlan | null> {
+  if (!noteId) return { pages: doc.pages.length, newPages: doc.pages.length, changedPages: 0, removedPages: 0, reshaped: false };
+  const existing = await getNote(userId, noteId);
+  if (!existing) return null;
+  const { counts, reshaped } = merge(existing, asNotebook(doc, title), { title });
+  return { pages: doc.pages.length, ...counts, reshaped };
+}
+
+/** Saves `doc` into notebook `noteId` (making it match), or as a new notebook. Returns its id. */
+export async function saveDocument(userId: string, doc: ParsedDocument, noteId: string | null, details: NotebookDetails): Promise<{ noteId: string; mode: "create" | "update" } | null> {
+  const parsed = asNotebook(doc, details.title);
+  // Same checks the note editor's save goes through.
+  if (noteId) {
+    const existing = await getNote(userId, noteId);
+    if (!existing || !(await updateNote(userId, noteId, noteSchema.parse(merge(existing, parsed, details).input)))) return null;
+    return { noteId, mode: "update" };
+  }
+  const input: NoteInput = {
+    title: details.title,
+    description: details.description ?? "",
+    ...(details.iconName && details.iconLibrary ? { iconName: details.iconName, iconLibrary: details.iconLibrary as NoteInput["iconLibrary"] } : {}),
     sections: parsed.sections.map((section, order) => ({ title: section.title, order, pages: section.pages.map((page, i) => ({ ...page, order: i })) })),
   };
-}
-
-const pageCount = (parsed: ParsedNotebook) => parsed.sections.reduce((sum, s) => sum + s.pages.length, 0);
-
-/** What importing would do, without saving anything. */
-export async function planNotebookImport(userId: string, parsed: ParsedNotebook): Promise<NotebookPlan> {
-  const existing = await findNotebook(userId, parsed.title);
-  const base = { title: parsed.title, sections: parsed.sections.length, pages: pageCount(parsed) };
-  if (!existing) return { ...base, mode: "create", noteId: null, newPages: base.pages, changedPages: 0, removedPages: 0, reshaped: false };
-  const { counts, reshaped } = merge(existing, parsed);
-  return { ...base, mode: "update", noteId: existing.id, ...counts, reshaped };
-}
-
-/** Creates the notebook, or merges into the one with the same title. Returns its id. */
-export async function importNotebook(userId: string, parsed: ParsedNotebook): Promise<{ noteId: string; mode: "create" | "update" }> {
-  const existing = await findNotebook(userId, parsed.title);
-  // Same checks the note editor's save goes through.
-  if (existing && (await updateNote(userId, existing.id, noteSchema.parse(merge(existing, parsed).input)))) return { noteId: existing.id, mode: "update" };
-  return { noteId: await createNote(userId, noteSchema.parse(newNotebook(parsed))), mode: "create" };
+  return { noteId: await createNote(userId, noteSchema.parse(input)), mode: "create" };
 }

@@ -8,9 +8,10 @@ import { Fragment, useEffect, useRef, useState, useTransition, type ReactNode } 
 
 import { askWorkspace } from "@/actions/ask";
 import { addFollowUpUpdate, createFollowUp, rescheduleFollowUp, setFollowUpStatus } from "@/actions/follow-ups";
-import { importNotebook } from "@/actions/notes";
+import { importNotebook, saveNotebookDetails } from "@/actions/notes";
+import { NoteIcon } from "@/components/notes/NoteIcon";
 import { toast } from "@/components/ui/toast";
-import type { AskProposal, AskSource, NotebookPlan } from "@/lib/ask";
+import type { AskProposal, AskSource } from "@/lib/ask";
 import { ASK_DOCUMENT_MAX, ASK_MESSAGE_MAX } from "@/lib/validation";
 
 /**
@@ -19,19 +20,24 @@ import { ASK_DOCUMENT_MAX, ASK_MESSAGE_MAX } from "@/lib/validation";
  * Messages go to `actions/ask.ts`, which answers from the user's own records
  * with numbered sources. Tracker changes the AI proposes (new items, done,
  * reopen, new due date, an update) show as cards and only happen when the
- * user confirms, through the normal Tracker actions. A pasted markdown
- * document comes back as a notebook card (create, or update the notebook with
- * that title), saved through `importNotebook` on confirm. The chat lives in the
+ * user confirms, through the normal Tracker actions. Notebook changes —
+ * including a pasted document going into a notebook's pages — show what
+ * changes, with Save changes / Revert. A pasted document is sent along with
+ * later messages, so "a new one, please" can still save it. The chat lives in the
  * shell, so it survives moving between pages, and in sessionStorage (per
  * user, per tab), so it survives a reload.
  */
 
 /** Per proposal: waiting, being applied, applied (with the entry's id), skipped, or failed. */
 type DraftState = { status: "draft" | "adding" | "skipped" } | { status: "added"; id: string } | { status: "failed"; message: string };
-type Turn = { question: string; answer?: string; sources?: AskSource[]; proposals?: AskProposal[]; drafts?: DraftState[]; notebook?: NotebookPlan | null; notebookState?: DraftState; error?: string };
+/** `documentText`: the pasted document this turn's notebook cards save (its own, or one from earlier). */
+type Turn = { question: string; answer?: string; sources?: AskSource[]; proposals?: AskProposal[]; drafts?: DraftState[]; hasDocument?: boolean; documentText?: string; error?: string };
+type NotebookProposal = Extract<AskProposal, { action: "notebook" }>;
 
-const KIND_LABEL: Record<AskProposal["kind"], string> = { Task: "To-do", FollowUp: "Follow-up", Note: "Note" };
-const KIND_VIEW: Record<AskProposal["kind"], string> = { Task: "todo", FollowUp: "followups", Note: "notes" };
+const KIND_LABEL: Record<AskProposal["kind"], string> = { Task: "To-do", FollowUp: "Follow-up", Note: "Note", Notebook: "Notebook" };
+/** Where an applied proposal opens: its Tracker tab, or the notebook. */
+const appliedHref = (item: AskProposal, id: string) =>
+  item.kind === "Notebook" ? `/notes/${id}` : `/tracker?view=${item.kind === "Task" ? "todo" : item.kind === "FollowUp" ? "followups" : "notes"}&open=${id}`;
 
 /** Card heading, confirm button and the line once applied, per kind of change. */
 function proposalCopy(item: AskProposal) {
@@ -42,6 +48,9 @@ function proposalCopy(item: AskProposal) {
     case "reopen": return { heading: `Reopen ${kind.toLowerCase()}`, button: "Reopen", applied: "Reopened" };
     case "reschedule": return { heading: item.dueDate ? "Move due date" : "Clear due date", button: item.dueDate ? "Move it" : "Clear it", applied: "Due date changed" };
     case "update": return { heading: item.fromThem ? "Log their reply" : `Add update to ${kind.toLowerCase()}`, button: "Add update", applied: "Update added" };
+    case "notebook": return item.noteId
+      ? { heading: item.document ? "Update notebook pages" : "Change notebook", button: "Save changes", applied: "Saved" }
+      : { heading: "New notebook", button: "Save changes", applied: "Notebook created" };
   }
 }
 
@@ -51,7 +60,6 @@ function historyAnswer(turn: Turn) {
     const state = turn.drafts?.[i]?.status === "added" ? "confirmed" : "not confirmed";
     return `${proposalCopy(item).heading}: "${item.subject}"${item.dueDate ? ` due ${item.dueDate}` : ""} (${state})`;
   });
-  if (turn.notebook) proposed.push(`${turn.notebook.mode === "create" ? "Create" : "Update"} notebook "${turn.notebook.title}" (${turn.notebookState?.status === "added" ? "confirmed" : "not confirmed"})`);
   return `${turn.answer ?? ""}${proposed.length ? `\n[Proposed: ${proposed.join("; ")}]` : ""}`.slice(0, 4_000);
 }
 
@@ -76,7 +84,6 @@ function saveTurns(userId: string, turns: Turn[]) {
       .map((turn) => ({
         ...turn,
         drafts: turn.drafts?.map((d) => (d.status === "adding" ? { status: "draft" as const } : d)),
-        notebookState: turn.notebookState?.status === "adding" ? { status: "draft" as const } : turn.notebookState,
       }));
     window.sessionStorage.setItem(storageKey(userId), JSON.stringify(settled.slice(-30)));
   } catch {
@@ -139,11 +146,13 @@ export function AskWidget({ userId }: { userId: string }) {
     if (pending) return;
     // A pasted document is far longer than a message; the AI only needs its start.
     const history = earlier.filter((turn) => turn.answer).map((turn) => ({ question: turn.question.slice(0, ASK_MESSAGE_MAX), answer: historyAnswer(turn) }));
+    // The latest document pasted in this chat, so a reply like "new one" can still save it.
+    const attached = earlier.findLast((turn) => turn.hasDocument)?.question;
     setTurns((current) => [...current, { question }]);
     setDraft("");
     setInputError("");
     startAsking(async () => {
-      const result = await askWorkspace({ question, history, today: localDay() });
+      const result = await askWorkspace({ question, history, today: localDay(), document: attached });
       setTurns((current) => {
         const next = [...current];
         next[next.length - 1] = result.ok
@@ -153,8 +162,8 @@ export function AskWidget({ userId }: { userId: string }) {
               sources: result.data.sources,
               proposals: result.data.proposals,
               drafts: result.data.proposals.map(() => ({ status: "draft" as const })),
-              notebook: result.data.notebook,
-              notebookState: { status: "draft" as const },
+              hasDocument: result.data.hasDocument,
+              documentText: result.data.hasDocument ? question : attached,
             }
           : { question, error: result.error.message };
         return next;
@@ -177,8 +186,16 @@ export function AskWidget({ userId }: { userId: string }) {
   /** Applies one confirmed proposal through the same actions the Tracker uses. */
   async function applyProposal(turnIndex: number, itemIndex: number, item: AskProposal) {
     setDraftState(turnIndex, itemIndex, { status: "adding" });
+    const details = item.action === "notebook" ? { noteId: item.noteId, title: item.subject, description: item.description, iconName: item.iconName, iconLibrary: item.iconLibrary } : null;
+    const documentText = turns[turnIndex]?.documentText;
     const result =
-      item.action === "create"
+      item.action === "notebook"
+        ? item.document
+          ? documentText
+            ? await importNotebook({ ...details, markdown: documentText })
+            : ({ ok: false, error: { code: "VALIDATION_ERROR", message: "The pasted document is no longer in this chat — paste it again." } } as const)
+          : await saveNotebookDetails(details)
+        : item.action === "create"
         ? await createFollowUp({ kind: item.kind, subject: item.subject, person: item.person ?? undefined, dueDate: item.dueDate, note: item.note ?? undefined, tags: item.tags })
         : item.action === "done" || item.action === "reopen"
           ? await setFollowUpStatus({ followUpId: item.entryId, status: item.action === "done" ? "Done" : "Open" })
@@ -190,22 +207,6 @@ export function AskWidget({ userId }: { userId: string }) {
       return;
     }
     setDraftState(turnIndex, itemIndex, { status: "added", id: result.data.id });
-    router.refresh();
-  }
-
-  function setNotebookState(turnIndex: number, state: DraftState) {
-    setTurns((current) => current.map((turn, i) => (i === turnIndex ? { ...turn, notebookState: state } : turn)));
-  }
-
-  /** Saves the pasted document; the server parses it again rather than trusting the card. */
-  async function applyNotebook(turnIndex: number, markdown: string) {
-    setNotebookState(turnIndex, { status: "adding" });
-    const result = await importNotebook({ markdown });
-    if (!result.ok) {
-      setNotebookState(turnIndex, { status: "failed", message: result.error.message });
-      return;
-    }
-    setNotebookState(turnIndex, { status: "added", id: result.data.id });
     router.refresh();
   }
 
@@ -260,7 +261,7 @@ export function AskWidget({ userId }: { userId: string }) {
             {turns.length === 0 ? (
               <div className="flex flex-col gap-3">
                 <p className="text-base text-text-muted">
-                  Ask about anything you&rsquo;ve recorded &mdash; who you told what, what&rsquo;s due, what&rsquo;s still open &mdash; or tell me to add a to-do, follow-up or note. Answers link to where they came from. Paste a markdown document with a &ldquo;# Title&rdquo; to save it as a notebook.
+                  Ask about anything you&rsquo;ve recorded &mdash; who you told what, what&rsquo;s due, what&rsquo;s still open &mdash; or tell me to add a to-do, follow-up or note. Answers link to where they came from. Create or change notebooks, or paste a document to save it into one.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {SUGGESTIONS.map((suggestion) => (
@@ -289,7 +290,16 @@ export function AskWidget({ userId }: { userId: string }) {
                         {turn.proposals?.length ? (
                           <ul aria-label="Proposed Tracker changes" className="flex flex-col gap-2">
                             {turn.proposals.map((item, i) => (
-                              <DraftCard
+                              item.action === "notebook" ? (
+                                <NotebookCard
+                                  key={i}
+                                  item={item}
+                                  state={turn.drafts?.[i] ?? { status: "draft" }}
+                                  onSave={() => applyProposal(index, i, item)}
+                                  onRevert={() => setDraftState(index, i, { status: "skipped" })}
+                                  onFollow={followSource}
+                                />
+                              ) : <DraftCard
                                 key={i}
                                 item={item}
                                 state={turn.drafts?.[i] ?? { status: "draft" }}
@@ -300,15 +310,7 @@ export function AskWidget({ userId }: { userId: string }) {
                             ))}
                           </ul>
                         ) : null}
-                        {turn.notebook ? (
-                          <NotebookCard
-                            plan={turn.notebook}
-                            state={turn.notebookState ?? { status: "draft" }}
-                            onSave={() => applyNotebook(index, turn.question)}
-                            onSkip={() => setNotebookState(index, { status: "skipped" })}
-                            onFollow={followSource}
-                          />
-                        ) : null}
+
                       </>
                     ) : turn.error ? (
                       <div className="flex flex-col items-start gap-1.5">
@@ -374,24 +376,29 @@ export function AskWidget({ userId }: { userId: string }) {
 
 /** One Tracker change the AI proposed: shown in full, applied only on confirm. */
 function DraftCard({ item, state, onAdd, onSkip, onFollow }: { item: AskProposal; state: DraftState; onAdd: () => void; onSkip: () => void; onFollow: () => void }) {
-  const Icon = item.action === "done" ? Check : item.kind === "Task" ? CheckSquare : item.kind === "FollowUp" ? MessageSquareReply : FileText;
+  const Icon = item.action === "done" ? Check : item.kind === "Task" ? CheckSquare : item.kind === "FollowUp" ? MessageSquareReply : item.kind === "Notebook" ? BookOpen : FileText;
   const copy = proposalCopy(item);
   const dueLine = item.dueDate ? `Due ${format(parseISO(item.dueDate), "EEE d MMM")}` : null;
   const meta =
-    item.action === "create"
-      ? [item.person, dueLine ?? (item.kind === "Task" ? "No due date" : null), ...item.tags.map((tag) => `#${tag}`)]
-      : item.action === "reschedule"
-        ? [item.currentDue ? `Was ${format(parseISO(item.currentDue), "d MMM")}` : "No date yet", dueLine ? `New: ${dueLine.slice(4)}` : "No due date"]
-        : [KIND_LABEL[item.kind], item.currentDue ? `due ${format(parseISO(item.currentDue), "d MMM")}` : null];
+    item.action === "notebook"
+      ? []
+      : item.action === "create"
+        ? [item.person, dueLine ?? (item.kind === "Task" ? "No due date" : null), ...item.tags.map((tag) => `#${tag}`)]
+        : item.action === "reschedule"
+          ? [item.currentDue ? `Was ${format(parseISO(item.currentDue), "d MMM")}` : "No date yet", dueLine ? `New: ${dueLine.slice(4)}` : "No due date"]
+          : [KIND_LABEL[item.kind], item.currentDue ? `due ${format(parseISO(item.currentDue), "d MMM")}` : null];
+  const note = item.action === "notebook" ? item.description : item.note;
   return (
     <li className={state.status === "skipped" ? "rounded-xl border border-border px-3.5 py-3 opacity-60" : "rounded-xl border border-border-strong bg-surface-2 px-3.5 py-3"}>
       <p className="flex items-center gap-1.5 text-xs font-bold tracking-[0.06em] text-text-muted uppercase">
         <Icon className="size-3.5" aria-hidden="true" style={{ color: "inherit" }} />
         {copy.heading}
       </p>
-      <p className="mt-1 text-base font-semibold text-text">{item.subject}</p>
+      <p className="mt-1 flex items-center gap-2 text-base font-semibold text-text">
+        {item.subject}
+      </p>
       {meta.filter(Boolean).length ? <p className="mt-0.5 text-sm text-text-muted">{meta.filter(Boolean).join(" · ")}</p> : null}
-      {item.note ? <p className="mt-1 text-sm whitespace-pre-line text-text">{item.note}</p> : null}
+      {note ? <p className="mt-1 text-sm whitespace-pre-line text-text">{note}</p> : null}
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
         {state.status === "added" ? (
           <>
@@ -399,7 +406,7 @@ function DraftCard({ item, state, onAdd, onSkip, onFollow }: { item: AskProposal
               <Check className="size-4" aria-hidden="true" style={{ color: "inherit" }} />
               {copy.applied}
             </span>
-            <Link href={`/tracker?view=${KIND_VIEW[item.kind]}&open=${state.id}`} onClick={onFollow} className="tap-area ml-auto text-sm font-semibold text-accent-text hover:underline">Open</Link>
+            <Link href={appliedHref(item, state.id)} onClick={onFollow} className="tap-area ml-auto text-sm font-semibold text-accent-text hover:underline">Open</Link>
           </>
         ) : state.status === "skipped" ? (
           <span className="text-sm text-text-muted">Skipped</span>
@@ -470,51 +477,81 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
-/** A pasted document to save as a notebook: what it creates or changes, saved only on confirm. */
-function NotebookCard({ plan, state, onSave, onSkip, onFollow }: { plan: NotebookPlan; state: DraftState; onSave: () => void; onSkip: () => void; onFollow: () => void }) {
+/**
+ * A notebook change the AI proposed: what it'll be (and was), the page changes
+ * when a pasted document goes in, then Save changes or Revert — nothing is saved
+ * before Save.
+ */
+function NotebookCard({ item, state, onSave, onRevert, onFollow }: { item: NotebookProposal; state: DraftState; onSave: () => void; onRevert: () => void; onFollow: () => void }) {
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
-  const meta =
-    plan.mode === "create"
-      ? [plural(plan.sections, "section"), plural(plan.pages, "page")]
-      : [
-          plan.changedPages ? `${plural(plan.changedPages, "page")} updated` : null,
-          plan.newPages ? plural(plan.newPages, "new page") : null,
-          plan.removedPages ? `${plural(plan.removedPages, "page")} removed` : null,
-          plan.reshaped ? `${plural(plan.sections, "section")} · ${plural(plan.pages, "page")}` : null,
-        ];
+  const copy = proposalCopy(item);
+  const { before, document } = item;
+  // Before → after, for each field this change touches.
+  const changes = before
+    ? [
+        item.subject !== before.title ? { label: "Title", from: before.title, to: item.subject } : null,
+        item.description != null && item.description !== (before.description ?? "") ? { label: "Description", from: before.description || "none", to: item.description || "none" } : null,
+        item.iconLabel && item.iconLabel !== before.iconLabel ? { label: "Icon", from: before.iconLabel ?? "none", to: item.iconLabel } : null,
+      ].filter((change) => change !== null)
+    : [];
+  const pages = document
+    ? item.noteId
+      ? [document.changedPages ? `${plural(document.changedPages, "page")} changed` : null, document.newPages ? plural(document.newPages, "new page") : null, document.removedPages ? `${plural(document.removedPages, "page")} removed` : null, document.reshaped ? "all in one section" : null].filter(Boolean).join(" · ") || "No page changes"
+      : `${plural(document.pages, "page")} from your document, in one section`
+    : item.noteId ? null : "Empty — add sections and pages after";
   return (
-    <div className={state.status === "skipped" ? "rounded-xl border border-border px-3.5 py-3 opacity-60" : "rounded-xl border border-border-strong bg-surface-2 px-3.5 py-3"}>
+    <li className={state.status === "skipped" ? "rounded-xl border border-border px-3.5 py-3 opacity-60" : "rounded-xl border border-border-strong bg-surface-2 px-3.5 py-3"}>
       <p className="flex items-center gap-1.5 text-xs font-bold tracking-[0.06em] text-text-muted uppercase">
         <BookOpen className="size-3.5" aria-hidden="true" style={{ color: "inherit" }} />
-        {plan.mode === "create" ? "New notebook" : "Update notebook"}
+        {copy.heading}
       </p>
-      <p className="mt-1 text-base font-semibold text-text">{plan.title}</p>
-      <p className="mt-0.5 text-sm text-text-muted">{meta.filter(Boolean).join(" · ")}</p>
+      <p className="mt-1 flex items-center gap-2 text-base font-semibold text-text">
+        {item.iconName && item.iconLibrary ? <NoteIcon icon={{ library: item.iconLibrary, name: item.iconName }} className="size-5 shrink-0 text-accent-text" /> : null}
+        {before && changes.every((change) => change.label !== "Title") ? before.title : item.subject}
+      </p>
+      {!before && (item.description || item.iconLabel) ? (
+        <p className="mt-1 text-sm text-text">{[item.description, item.iconLabel ? `Icon: ${item.iconLabel}` : null].filter(Boolean).join(" · ")}</p>
+      ) : null}
+      {changes.length ? (
+        <dl className="mt-1.5 flex flex-col gap-1 text-sm">
+          {changes.map((change) => (
+            <div key={change.label}>
+              <dt className="font-semibold text-text-muted">{change.label}</dt>
+              <dd className="text-text">
+                <span className="text-text-muted line-through">{change.from}</span> → {change.to}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      {pages ? <p className="mt-1 text-sm text-text-muted">{pages}</p> : null}
+      {document && item.noteId && document.removedPages ? <p className="mt-1 text-sm text-danger">Pages not in your document are deleted when you save.</p> : null}
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
         {state.status === "added" ? (
           <>
             <span className="inline-flex items-center gap-1 text-sm font-semibold text-status-completed-fg">
               <Check className="size-4" aria-hidden="true" style={{ color: "inherit" }} />
-              {plan.mode === "create" ? "Notebook created" : "Notebook updated"}
+              {copy.applied}
             </span>
-            <Link href={`/notes/${state.id}`} onClick={onFollow} className="tap-area ml-auto text-sm font-semibold text-accent-text hover:underline">Open</Link>
+            <Link href={appliedHref(item, state.id)} onClick={onFollow} className="tap-area ml-auto text-sm font-semibold text-accent-text hover:underline">Open</Link>
           </>
         ) : state.status === "skipped" ? (
-          <span className="text-sm text-text-muted">Skipped</span>
+          <span className="text-sm text-text-muted">Reverted — nothing was saved</span>
         ) : (
           <>
             <button type="button" onClick={onSave} disabled={state.status === "adding"} className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full bg-primary px-3.5 text-sm font-semibold text-primary-fg hover:bg-primary-hover disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-              {plan.mode === "create" ? <Plus className="size-4" aria-hidden="true" style={{ color: "inherit" }} /> : <Check className="size-4" aria-hidden="true" style={{ color: "inherit" }} />}
-              {state.status === "adding" ? "Saving…" : plan.mode === "create" ? "Create notebook" : "Update notebook"}
+              <Check className="size-4" aria-hidden="true" style={{ color: "inherit" }} />
+              {state.status === "adding" ? "Saving…" : copy.button}
             </button>
-            <button type="button" onClick={onSkip} disabled={state.status === "adding"} className="h-9 cursor-pointer rounded-full px-3 text-sm font-semibold text-text-muted hover:bg-surface-3 hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-              Skip
+            <button type="button" onClick={onRevert} disabled={state.status === "adding"} className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-text-muted hover:bg-surface-3 hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+              <RotateCcw className="size-4" aria-hidden="true" style={{ color: "inherit" }} />
+              Revert
             </button>
           </>
         )}
       </div>
       {state.status === "failed" ? <p role="alert" className="mt-1.5 text-sm text-danger">{state.message}</p> : null}
-    </div>
+    </li>
   );
 }
 
