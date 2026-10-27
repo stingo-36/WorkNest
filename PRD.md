@@ -373,8 +373,10 @@ two columns.
 - **AI summaries** (a card under Account): the user's own **OpenRouter API key** (checked with OpenRouter on
   save, stored encrypted, never shown again — only its last 4 characters) and an
   optional model list (empty = free Gemma, then any free model). Saves on its own, not via the bar.
-  The user's key takes priority over the server's `OPENROUTER_API_KEY`; a server
-  `GROQ_API_KEY` is the backup when OpenRouter fails (the card says so). With none,
+  The user's key takes priority over the server's `OPENROUTER_API_KEY`. Below it, a
+  **Groq (backup)** part (2026-10-27): the user's own Groq key (checked with Groq, stored
+  encrypted, last 4 shown, Remove), else the server's `GROQ_API_KEY`; Groq answers
+  whenever OpenRouter fails, or everything when there's no OpenRouter key. With none,
   AI is off and no summaries or reports are generated (§5.1, §5.9). Shows a privacy note about what is sent.
 - Layout (redesigned 2026-10-08): an identity header (avatar, name, email, sprint
   length, tickets on/off); **one horizontal tab bar** for every section, grouped

@@ -29,7 +29,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       }))}
       report={report ? { content: report.content, model: report.model, generatedAt: report.generatedAt.toISOString() } : null}
       stale={stale}
-      aiOn={ai.keySource !== null}
+      aiOn={ai.aiOn}
     />
   );
 }

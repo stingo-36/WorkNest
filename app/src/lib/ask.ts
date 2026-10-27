@@ -725,7 +725,8 @@ export async function askWorkspace(userId: string, input: { question: string; hi
 
   const [saved, settings] = await Promise.all([getOpenRouterConfig(userId), getUserSettings(userId)]);
   if (!saved) return { ok: false, message: aiFailureMessage({ reason: "not_configured" }) };
-  const onDefault = saved.models.join(",") === DEFAULT_OPENROUTER_MODEL.replace(/\s/g, "");
+  // "openrouter/free" on its own means "any free model" — not a real choice of model, so Ask's picks apply too.
+  const onDefault = saved.models.join(",") === DEFAULT_OPENROUTER_MODEL.replace(/\s/g, "") || saved.models.join(",") === ANY_FREE_MODEL;
   const config = onDefault ? { ...saved, models: saved.groq ? ASK_MODELS : [...ASK_MODELS, ANY_FREE_MODEL] } : saved;
 
   const history = input.history.slice(-MAX_HISTORY);

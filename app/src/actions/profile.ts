@@ -2,12 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 
-import { checkOpenRouterKey, clearOpenRouterKey, getAiSettings, saveOpenRouterKey, saveOpenRouterModel } from "@/lib/ai-settings";
+import { checkGroqKey, checkOpenRouterKey, clearGroqKey, clearOpenRouterKey, getAiSettings, saveGroqKey, saveOpenRouterKey, saveOpenRouterModel } from "@/lib/ai-settings";
 import { changeUserPassword } from "@/lib/account-security";
 import { prisma } from "@/lib/prisma";
 import { fail, ok, parseOrFail } from "@/lib/result";
 import { requireUserId } from "@/lib/session";
-import { changePasswordSchema, saveOpenRouterKeySchema, saveOpenRouterModelSchema, updateProfileSchema } from "@/lib/validation";
+import { changePasswordSchema, saveGroqKeySchema, saveOpenRouterKeySchema, saveOpenRouterModelSchema, updateProfileSchema } from "@/lib/validation";
 
 /** Profile settings: name, sprint calendar, and whether tickets are used. */
 export async function updateProfile(input: unknown) {
@@ -59,6 +59,26 @@ export async function saveAiKey(input: unknown) {
 export async function removeAiKey() {
   const userId = await requireUserId();
   await clearOpenRouterKey(userId);
+  revalidatePath("/profile");
+  return ok(await getAiSettings(userId));
+}
+
+/** Store the user's Groq key (the backup AI, encrypted) after Groq confirms it. Input: { apiKey } */
+export async function saveAiGroqKey(input: unknown) {
+  const userId = await requireUserId();
+  const parsed = parseOrFail(saveGroqKeySchema, input);
+  if (!parsed.ok) return parsed;
+  if ((await checkGroqKey(parsed.data.apiKey)) === "invalid") {
+    return fail("VALIDATION_ERROR", "Groq rejected that key", { apiKey: "Groq rejected that key" });
+  }
+  await saveGroqKey(userId, parsed.data.apiKey);
+  revalidatePath("/profile");
+  return ok(await getAiSettings(userId));
+}
+
+export async function removeAiGroqKey() {
+  const userId = await requireUserId();
+  await clearGroqKey(userId);
   revalidatePath("/profile");
   return ok(await getAiSettings(userId));
 }

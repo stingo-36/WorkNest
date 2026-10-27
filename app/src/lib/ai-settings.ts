@@ -13,10 +13,16 @@ export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b, qwen/qwen3.8-27b, openai
 
 /** What Profile may see — never the key itself. */
 export type AiSettings = {
-  /** "user" = their own key, "server" = OPENROUTER_API_KEY (or only GROQ_API_KEY) env, null = AI off. */
+  /** Any AI available at all (OpenRouter or Groq). */
+  aiOn: boolean;
+  /** OpenRouter: "user" = their own key, "server" = OPENROUTER_API_KEY env, null = none. */
   keySource: "user" | "server" | null;
-  /** The server has a Groq key, used when OpenRouter fails. */
-  groqBackup: boolean;
+  /** Groq, the backup when OpenRouter fails: their own key, GROQ_API_KEY env, or none. */
+  groqSource: "user" | "server" | null;
+  /** Last 4 characters of the user's own Groq key. */
+  groqHint: string | null;
+  /** True when a Groq key is stored but can't be decrypted. */
+  groqUnreadable: boolean;
   /** Last 4 characters of the user's own key. */
   keyHint: string | null;
   /** True when a key is stored but can't be decrypted (AUTH_SECRET changed). */
@@ -30,9 +36,9 @@ function envModel() {
   return process.env.OPENROUTER_MODEL?.trim() || DEFAULT_OPENROUTER_MODEL;
 }
 
-/** The server-wide Groq backup, from GROQ_API_KEY / GROQ_MODEL. */
-function groqConfig(): GroqConfig | null {
-  const apiKey = process.env.GROQ_API_KEY?.trim();
+/** The Groq backup: the user's own key first, else GROQ_API_KEY; models from GROQ_MODEL. */
+function groqConfig(userKey?: string | null): GroqConfig | null {
+  const apiKey = userKey || process.env.GROQ_API_KEY?.trim();
   if (!apiKey) return null;
   const models = parseModels(process.env.GROQ_MODEL?.trim() || DEFAULT_GROQ_MODEL);
   return { apiKey, models: models.length ? models : parseModels(DEFAULT_GROQ_MODEL) };
@@ -45,14 +51,18 @@ function parseModels(value: string) {
 export async function getAiSettings(userId: string): Promise<AiSettings> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { openRouterKeyEnc: true, openRouterKeyHint: true, openRouterModel: true },
+    select: { openRouterKeyEnc: true, openRouterKeyHint: true, openRouterModel: true, groqKeyEnc: true, groqKeyHint: true },
   });
   const userKeyReadable = user?.openRouterKeyEnc ? open(user.openRouterKeyEnc) !== null : false;
-  const groqBackup = groqConfig() !== null;
-  const serverKey = Boolean(process.env.OPENROUTER_API_KEY?.trim()) || groqBackup;
+  const keySource = userKeyReadable ? "user" : process.env.OPENROUTER_API_KEY?.trim() ? "server" : null;
+  const userGroqReadable = user?.groqKeyEnc ? open(user.groqKeyEnc) !== null : false;
+  const groqSource = userGroqReadable ? "user" : process.env.GROQ_API_KEY?.trim() ? "server" : null;
   return {
-    keySource: userKeyReadable ? "user" : serverKey ? "server" : null,
-    groqBackup,
+    aiOn: keySource !== null || groqSource !== null,
+    keySource,
+    groqSource,
+    groqHint: userGroqReadable ? user?.groqKeyHint ?? null : null,
+    groqUnreadable: Boolean(user?.groqKeyEnc) && !userGroqReadable,
     keyHint: userKeyReadable ? user?.openRouterKeyHint ?? null : null,
     keyUnreadable: Boolean(user?.openRouterKeyEnc) && !userKeyReadable,
     model: user?.openRouterModel ?? "",
@@ -64,10 +74,10 @@ export async function getAiSettings(userId: string): Promise<AiSettings> {
 export async function getOpenRouterConfig(userId: string): Promise<OpenRouterConfig | null> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { openRouterKeyEnc: true, openRouterModel: true },
+    select: { openRouterKeyEnc: true, openRouterModel: true, groqKeyEnc: true },
   });
   const apiKey = (user?.openRouterKeyEnc ? open(user.openRouterKeyEnc) : null) ?? (process.env.OPENROUTER_API_KEY?.trim() || null);
-  const groq = groqConfig();
+  const groq = groqConfig(user?.groqKeyEnc ? open(user.groqKeyEnc) : null);
   if (!apiKey && !groq) return null;
   const models = parseModels(user?.openRouterModel || envModel());
   return { apiKey, models: models.length ? models : parseModels(DEFAULT_OPENROUTER_MODEL), groq };
@@ -101,6 +111,34 @@ export async function clearOpenRouterKey(userId: string) {
   await prisma.user.update({
     where: { id: userId },
     data: { openRouterKeyEnc: null, openRouterKeyHint: null },
+  });
+}
+
+/** Ask Groq whether a key is real before storing it; like `checkOpenRouterKey`, only a definite rejection counts. */
+export async function checkGroqKey(apiKey: string): Promise<"valid" | "invalid" | "unknown"> {
+  try {
+    const response = await fetch("https://api.groq.com/openai/v1/models", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (response.ok) return "valid";
+    return response.status === 401 || response.status === 403 ? "invalid" : "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+export async function saveGroqKey(userId: string, apiKey: string) {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { groqKeyEnc: seal(apiKey), groqKeyHint: apiKey.slice(-4) },
+  });
+}
+
+export async function clearGroqKey(userId: string) {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { groqKeyEnc: null, groqKeyHint: null },
   });
 }
 

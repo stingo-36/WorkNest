@@ -131,6 +131,10 @@ model User {
   openRouterKeyHint String?
   /// Profile: comma-separated OpenRouter model ids (null = OPENROUTER_MODEL env / `openrouter/free`).
   openRouterModel   String?
+  /// Profile: the user's Groq API key — the backup AI when OpenRouter fails — encrypted like the OpenRouter key.
+  groqKeyEnc        String?
+  /// Last 4 characters of that key.
+  groqKeyHint       String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
