@@ -734,12 +734,21 @@ type AskChange = {
 /** One thing Ask proposes; the chat applies it through the normal Tracker actions when the user confirms. */
 export type AskProposal = AskCreate | AskChange;
 
+/** A pasted markdown document can be long; lib/ask.ts holds ordinary messages to ASK_MESSAGE_MAX. */
+export const ASK_DOCUMENT_MAX = 100_000;
+export const ASK_MESSAGE_MAX = 500;
+
 export const askWorkspaceSchema = z.object({
-  question: z.string().trim().min(2, "Type a message first").max(500, "Keep the message under 500 characters"),
+  question: z.string().trim().min(2, "Type a message first").max(ASK_DOCUMENT_MAX, "That document is too long to import in one go"),
   history: z
     .array(z.object({ question: z.string().max(500), answer: z.string().max(4_000) }))
     .max(10)
     .default([]),
   /** The browser's local day, so "today" and "this week" mean the user's day. */
   today: dateOnlySchema,
+});
+
+/** A markdown document from Ask to save as a notebook (lib/note-import.ts parses it again on the server). */
+export const notebookImportSchema = z.object({
+  markdown: z.string().trim().min(2).max(ASK_DOCUMENT_MAX, "That document is too long to import in one go"),
 });

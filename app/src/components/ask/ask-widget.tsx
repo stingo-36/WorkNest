@@ -1,14 +1,17 @@
 "use client";
 
 import { format, parseISO } from "date-fns";
-import { ArrowUp, BookOpen, Check, CheckSquare, FileText, Library, MessageSquareReply, NotebookPen, Plus, RotateCcw, Sparkles, Ticket, X } from "lucide-react";
+import { ArrowUp, BookOpen, Check, ChevronDown, ChevronUp, Copy, CheckSquare, FileText, Library, MessageSquareReply, NotebookPen, Plus, RotateCcw, Sparkles, Ticket, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 
 import { askWorkspace } from "@/actions/ask";
 import { addFollowUpUpdate, createFollowUp, rescheduleFollowUp, setFollowUpStatus } from "@/actions/follow-ups";
-import type { AskProposal, AskSource } from "@/lib/ask";
+import { importNotebook } from "@/actions/notes";
+import { toast } from "@/components/ui/toast";
+import type { AskProposal, AskSource, NotebookPlan } from "@/lib/ask";
+import { ASK_DOCUMENT_MAX, ASK_MESSAGE_MAX } from "@/lib/validation";
 
 /**
  * Ask your workspace — the chat bubble in the bottom-right of every app page.
@@ -16,14 +19,16 @@ import type { AskProposal, AskSource } from "@/lib/ask";
  * Messages go to `actions/ask.ts`, which answers from the user's own records
  * with numbered sources. Tracker changes the AI proposes (new items, done,
  * reopen, new due date, an update) show as cards and only happen when the
- * user confirms, through the normal Tracker actions. The chat lives in the
+ * user confirms, through the normal Tracker actions. A pasted markdown
+ * document comes back as a notebook card (create, or update the notebook with
+ * that title), saved through `importNotebook` on confirm. The chat lives in the
  * shell, so it survives moving between pages, and in sessionStorage (per
  * user, per tab), so it survives a reload.
  */
 
 /** Per proposal: waiting, being applied, applied (with the entry's id), skipped, or failed. */
 type DraftState = { status: "draft" | "adding" | "skipped" } | { status: "added"; id: string } | { status: "failed"; message: string };
-type Turn = { question: string; answer?: string; sources?: AskSource[]; proposals?: AskProposal[]; drafts?: DraftState[]; error?: string };
+type Turn = { question: string; answer?: string; sources?: AskSource[]; proposals?: AskProposal[]; drafts?: DraftState[]; notebook?: NotebookPlan | null; notebookState?: DraftState; error?: string };
 
 const KIND_LABEL: Record<AskProposal["kind"], string> = { Task: "To-do", FollowUp: "Follow-up", Note: "Note" };
 const KIND_VIEW: Record<AskProposal["kind"], string> = { Task: "todo", FollowUp: "followups", Note: "notes" };
@@ -46,6 +51,7 @@ function historyAnswer(turn: Turn) {
     const state = turn.drafts?.[i]?.status === "added" ? "confirmed" : "not confirmed";
     return `${proposalCopy(item).heading}: "${item.subject}"${item.dueDate ? ` due ${item.dueDate}` : ""} (${state})`;
   });
+  if (turn.notebook) proposed.push(`${turn.notebook.mode === "create" ? "Create" : "Update"} notebook "${turn.notebook.title}" (${turn.notebookState?.status === "added" ? "confirmed" : "not confirmed"})`);
   return `${turn.answer ?? ""}${proposed.length ? `\n[Proposed: ${proposed.join("; ")}]` : ""}`.slice(0, 4_000);
 }
 
@@ -67,7 +73,11 @@ function saveTurns(userId: string, turns: Turn[]) {
   try {
     const settled = turns
       .filter((turn) => turn.answer !== undefined || turn.error)
-      .map((turn) => ({ ...turn, drafts: turn.drafts?.map((d) => (d.status === "adding" ? { status: "draft" as const } : d)) }));
+      .map((turn) => ({
+        ...turn,
+        drafts: turn.drafts?.map((d) => (d.status === "adding" ? { status: "draft" as const } : d)),
+        notebookState: turn.notebookState?.status === "adding" ? { status: "draft" as const } : turn.notebookState,
+      }));
     window.sessionStorage.setItem(storageKey(userId), JSON.stringify(settled.slice(-30)));
   } catch {
     // Storage full or blocked: the chat still works, it just won't survive a reload.
@@ -119,7 +129,7 @@ export function AskWidget({ userId }: { userId: string }) {
     launcherRef.current?.focus();
   }
 
-  function ask(text: string) {
+  function ask(text: string, earlier: Turn[] = turns) {
     const question = text.trim();
     if (question.length < 2) {
       setInputError("Type a message first.");
@@ -127,7 +137,8 @@ export function AskWidget({ userId }: { userId: string }) {
       return;
     }
     if (pending) return;
-    const history = turns.filter((turn) => turn.answer).map((turn) => ({ question: turn.question, answer: historyAnswer(turn) }));
+    // A pasted document is far longer than a message; the AI only needs its start.
+    const history = earlier.filter((turn) => turn.answer).map((turn) => ({ question: turn.question.slice(0, ASK_MESSAGE_MAX), answer: historyAnswer(turn) }));
     setTurns((current) => [...current, { question }]);
     setDraft("");
     setInputError("");
@@ -136,11 +147,27 @@ export function AskWidget({ userId }: { userId: string }) {
       setTurns((current) => {
         const next = [...current];
         next[next.length - 1] = result.ok
-          ? { question, answer: result.data.answer, sources: result.data.sources, proposals: result.data.proposals, drafts: result.data.proposals.map(() => ({ status: "draft" as const })) }
+          ? {
+              question,
+              answer: result.data.answer,
+              sources: result.data.sources,
+              proposals: result.data.proposals,
+              drafts: result.data.proposals.map(() => ({ status: "draft" as const })),
+              notebook: result.data.notebook,
+              notebookState: { status: "draft" as const },
+            }
           : { question, error: result.error.message };
         return next;
       });
     });
+  }
+
+  /** Asks a failed message again, in place of the failed turn. */
+  function retry(turnIndex: number) {
+    const question = turns[turnIndex]?.question;
+    if (!question || pending) return;
+    setTurns((current) => current.filter((_, i) => i !== turnIndex));
+    ask(question, turns.filter((_, i) => i !== turnIndex));
   }
 
   function setDraftState(turnIndex: number, itemIndex: number, state: DraftState) {
@@ -163,6 +190,22 @@ export function AskWidget({ userId }: { userId: string }) {
       return;
     }
     setDraftState(turnIndex, itemIndex, { status: "added", id: result.data.id });
+    router.refresh();
+  }
+
+  function setNotebookState(turnIndex: number, state: DraftState) {
+    setTurns((current) => current.map((turn, i) => (i === turnIndex ? { ...turn, notebookState: state } : turn)));
+  }
+
+  /** Saves the pasted document; the server parses it again rather than trusting the card. */
+  async function applyNotebook(turnIndex: number, markdown: string) {
+    setNotebookState(turnIndex, { status: "adding" });
+    const result = await importNotebook({ markdown });
+    if (!result.ok) {
+      setNotebookState(turnIndex, { status: "failed", message: result.error.message });
+      return;
+    }
+    setNotebookState(turnIndex, { status: "added", id: result.data.id });
     router.refresh();
   }
 
@@ -217,7 +260,7 @@ export function AskWidget({ userId }: { userId: string }) {
             {turns.length === 0 ? (
               <div className="flex flex-col gap-3">
                 <p className="text-base text-text-muted">
-                  Ask about anything you&rsquo;ve recorded &mdash; who you told what, what&rsquo;s due, what&rsquo;s still open &mdash; or tell me to add a to-do, follow-up or note. Answers link to where they came from.
+                  Ask about anything you&rsquo;ve recorded &mdash; who you told what, what&rsquo;s due, what&rsquo;s still open &mdash; or tell me to add a to-do, follow-up or note. Answers link to where they came from. Paste a markdown document with a &ldquo;# Title&rdquo; to save it as a notebook.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {SUGGESTIONS.map((suggestion) => (
@@ -231,10 +274,18 @@ export function AskWidget({ userId }: { userId: string }) {
               <ol className="flex flex-col gap-5">
                 {turns.map((turn, index) => (
                   <li key={index} className="flex flex-col gap-2">
-                    <p className="max-w-[85%] self-end rounded-2xl rounded-br-md bg-sidebar px-3.5 py-2 text-base text-sidebar-fg">{turn.question}</p>
+                    {turn.question.length > ASK_MESSAGE_MAX ? (
+                      <PastedMessage text={turn.question} />
+                    ) : (
+                      <div className="flex max-w-[85%] flex-col items-end gap-0.5 self-end">
+                        <p className="rounded-2xl rounded-br-md bg-sidebar px-3.5 py-2 text-base break-words whitespace-pre-line text-sidebar-fg">{turn.question}</p>
+                        <CopyButton text={turn.question} label="your message" />
+                      </div>
+                    )}
                     {turn.answer !== undefined ? (
                       <>
                         <Answer text={turn.answer} sources={turn.sources ?? []} onFollow={followSource} />
+                        <div className="-mt-1 -ml-2"><CopyButton text={turn.answer} label="the answer" /></div>
                         {turn.proposals?.length ? (
                           <ul aria-label="Proposed Tracker changes" className="flex flex-col gap-2">
                             {turn.proposals.map((item, i) => (
@@ -249,11 +300,28 @@ export function AskWidget({ userId }: { userId: string }) {
                             ))}
                           </ul>
                         ) : null}
+                        {turn.notebook ? (
+                          <NotebookCard
+                            plan={turn.notebook}
+                            state={turn.notebookState ?? { status: "draft" }}
+                            onSave={() => applyNotebook(index, turn.question)}
+                            onSkip={() => setNotebookState(index, { status: "skipped" })}
+                            onFollow={followSource}
+                          />
+                        ) : null}
                       </>
                     ) : turn.error ? (
-                      <p role="alert" className="rounded-xl bg-danger-subtle px-3.5 py-2 text-base text-danger">{turn.error}</p>
+                      <div className="flex flex-col items-start gap-1.5">
+                        <p role="alert" className="rounded-xl bg-danger-subtle px-3.5 py-2 text-base text-danger">{turn.error}</p>
+                        {index === turns.length - 1 ? (
+                          <button type="button" onClick={() => retry(index)} disabled={pending} className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-border-strong px-3.5 text-sm font-semibold text-text hover:bg-surface-2 disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                            <RotateCcw className="size-4" aria-hidden="true" style={{ color: "inherit" }} />
+                            Try again
+                          </button>
+                        ) : null}
+                      </div>
                     ) : (
-                      <p className="ask-thinking text-base text-text-muted">Looking through your workspace…</p>
+                      <Thinking />
                     )}
                   </li>
                 ))}
@@ -276,7 +344,7 @@ export function AskWidget({ userId }: { userId: string }) {
                 ref={inputRef}
                 rows={1}
                 value={draft}
-                maxLength={500}
+                maxLength={ASK_DOCUMENT_MAX}
                 onChange={(event) => {
                   setDraft(event.target.value);
                   if (inputError) setInputError("");
@@ -290,7 +358,7 @@ export function AskWidget({ userId }: { userId: string }) {
                 aria-invalid={inputError ? true : undefined}
                 aria-describedby={inputError ? "ask-input-error" : undefined}
                 placeholder="Ask anything or add a to-do…"
-                className="max-h-32 min-h-11 flex-1 resize-none rounded-xl border border-border-strong bg-surface px-3.5 py-2.5 text-base text-text placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                className="max-h-32 min-h-11 flex-1 resize-none rounded-xl [field-sizing:content] border border-border-strong bg-surface px-3.5 py-2.5 text-base text-text placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
               />
               <button type="submit" disabled={pending} aria-label="Send" className="grid size-11 shrink-0 cursor-pointer place-items-center rounded-full bg-primary text-primary-fg hover:bg-primary-hover disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                 <ArrowUp className="size-4" aria-hidden="true" style={{ color: "inherit" }} />
@@ -352,13 +420,112 @@ function DraftCard({ item, state, onAdd, onSkip, onFollow }: { item: AskProposal
   );
 }
 
+/** The wait indicator; free models can take a while, so it says so after a few seconds. */
+function Thinking() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setSlow(true), 8_000);
+    return () => clearTimeout(timer);
+  }, []);
+  return (
+    <p className="ask-thinking text-base text-text-muted">
+      {slow ? "Still working — the AI is busy, this can take up to a minute…" : "Looking through your workspace…"}
+    </p>
+  );
+}
+
+/** A pasted document: the first few lines, with a toggle to read all of it. */
+function PastedMessage({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="flex max-w-[85%] flex-col items-end gap-1 self-end">
+      <p className={`${expanded ? "max-h-80 overflow-y-auto" : "line-clamp-6"} w-full rounded-2xl rounded-br-md bg-sidebar px-3.5 py-2 text-base break-words whitespace-pre-line text-sidebar-fg`}>{text}</p>
+      <div className="flex items-center gap-1">
+        <CopyButton text={text} label="your message" />
+        <button type="button" onClick={() => setExpanded((open) => !open)} aria-expanded={expanded} className="tap-area inline-flex cursor-pointer items-center gap-1 rounded-full px-2 text-sm font-semibold text-accent-text hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          {expanded ? <ChevronUp className="size-4" aria-hidden="true" style={{ color: "inherit" }} /> : <ChevronDown className="size-4" aria-hidden="true" style={{ color: "inherit" }} />}
+          {expanded ? "Show less" : "Show all"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Copies a message as plain text: citation numbers and stray bold marks dropped. */
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text.replace(/ ?\[\d+\]/g, "").replace(/\*\*([^*]+)\*\*/g, "$1"));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error("Couldn't copy — your browser blocked clipboard access");
+    }
+  }
+  return (
+    <button type="button" onClick={() => void copy()} aria-label={copied ? "Copied" : `Copy ${label}`} title={copied ? "Copied" : "Copy"} className="inline-grid size-8 cursor-pointer place-items-center rounded-full text-text-muted hover:bg-surface-2 hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+      {copied ? <Check className="size-4" aria-hidden="true" style={{ color: "inherit" }} /> : <Copy className="size-4" aria-hidden="true" style={{ color: "inherit" }} />}
+    </button>
+  );
+}
+
+/** A pasted document to save as a notebook: what it creates or changes, saved only on confirm. */
+function NotebookCard({ plan, state, onSave, onSkip, onFollow }: { plan: NotebookPlan; state: DraftState; onSave: () => void; onSkip: () => void; onFollow: () => void }) {
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const meta =
+    plan.mode === "create"
+      ? [plural(plan.sections, "section"), plural(plan.pages, "page")]
+      : [
+          plan.changedPages ? `${plural(plan.changedPages, "page")} updated` : null,
+          plan.newPages ? plural(plan.newPages, "new page") : null,
+          plan.removedPages ? `${plural(plan.removedPages, "page")} removed` : null,
+          plan.reshaped ? `${plural(plan.sections, "section")} · ${plural(plan.pages, "page")}` : null,
+        ];
+  return (
+    <div className={state.status === "skipped" ? "rounded-xl border border-border px-3.5 py-3 opacity-60" : "rounded-xl border border-border-strong bg-surface-2 px-3.5 py-3"}>
+      <p className="flex items-center gap-1.5 text-xs font-bold tracking-[0.06em] text-text-muted uppercase">
+        <BookOpen className="size-3.5" aria-hidden="true" style={{ color: "inherit" }} />
+        {plan.mode === "create" ? "New notebook" : "Update notebook"}
+      </p>
+      <p className="mt-1 text-base font-semibold text-text">{plan.title}</p>
+      <p className="mt-0.5 text-sm text-text-muted">{meta.filter(Boolean).join(" · ")}</p>
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        {state.status === "added" ? (
+          <>
+            <span className="inline-flex items-center gap-1 text-sm font-semibold text-status-completed-fg">
+              <Check className="size-4" aria-hidden="true" style={{ color: "inherit" }} />
+              {plan.mode === "create" ? "Notebook created" : "Notebook updated"}
+            </span>
+            <Link href={`/notes/${state.id}`} onClick={onFollow} className="tap-area ml-auto text-sm font-semibold text-accent-text hover:underline">Open</Link>
+          </>
+        ) : state.status === "skipped" ? (
+          <span className="text-sm text-text-muted">Skipped</span>
+        ) : (
+          <>
+            <button type="button" onClick={onSave} disabled={state.status === "adding"} className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full bg-primary px-3.5 text-sm font-semibold text-primary-fg hover:bg-primary-hover disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+              {plan.mode === "create" ? <Plus className="size-4" aria-hidden="true" style={{ color: "inherit" }} /> : <Check className="size-4" aria-hidden="true" style={{ color: "inherit" }} />}
+              {state.status === "adding" ? "Saving…" : plan.mode === "create" ? "Create notebook" : "Update notebook"}
+            </button>
+            <button type="button" onClick={onSkip} disabled={state.status === "adding"} className="h-9 cursor-pointer rounded-full px-3 text-sm font-semibold text-text-muted hover:bg-surface-3 hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+              Skip
+            </button>
+          </>
+        )}
+      </div>
+      {state.status === "failed" ? <p role="alert" className="mt-1.5 text-sm text-danger">{state.message}</p> : null}
+    </div>
+  );
+}
+
 /** The answer text with [n] markers as links, "- " lines as a list, then its sources. */
 function Answer({ text, sources, onFollow }: { text: string; sources: AskSource[]; onFollow: () => void }) {
   const byN = new Map(sources.map((source) => [source.n, source]));
   // Models sometimes bold despite being asked not to; show it as bold, not asterisks.
   const inline = (line: string): ReactNode[] =>
-    line.split(/(\[\d+\]|\*\*[^*]+\*\*)/g).map((part, i) => {
+    line.split(/(\[\d+\]|\*\*[^*]+\*\*|`[^`]+`)/g).map((part, i) => {
       if (/^\*\*[^*]+\*\*$/.test(part)) return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>;
+      if (/^`[^`]+`$/.test(part)) return <code key={i} className="rounded bg-surface-2 px-1 font-mono text-sm">{part.slice(1, -1)}</code>;
       const n = /^\[(\d+)\]$/.exec(part)?.[1];
       const source = n ? byN.get(Number(n)) : undefined;
       if (!source) return <Fragment key={i}>{part}</Fragment>;

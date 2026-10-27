@@ -4,7 +4,7 @@
 > delete a module, route, model or script, update the relevant section in the same
 > change.
 >
-> Last synced with the codebase: **2026-10-23**
+> Last synced with the codebase: **2026-10-27**
 
 ---
 
@@ -167,13 +167,14 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `lib/worklogs.ts` | work logs, meetings (3 defaults), learning notes, attachments, days off, UTC-date helpers, `touchWorkLog`, `saveWorkLogSummaryRow` (modes manual/auto/background; skips unchanged content via `aiInputHash`; retitles only default/AI titles) |
 | `lib/worklog-summary.ts` | AI input for one log: `workLogHasContent`, `workLogAsText` (tickets, Work done, the day's Tracker to-dos / follow-ups / notes; **no meetings**). No code-built summary |
 | `lib/day-tracker.ts` | `trackerOnDay` — sorts `listTrackerForRange` entries into one day (to-dos done/due/overdue/created, follow-ups, notes); shared by the Work Logs day card and the AI input |
-| `lib/ai-summary.ts` | `openRouterComplete` → `AiResult` (text/model, or an `AiFailure`: not_configured/auth/credits/rate_limited/unavailable/cut_off/bad_reply, with the model when one answered); optional `accept` to tidy/reject; `checkReasoning: false` for JSON replies (skips the reasoning-leak regex, `accept` validates instead); one automatic retry on cut_off/bad_reply; `aiFailureMessage`; `summarizeWithOpenRouter`, `titleWithOpenRouter`; `openRouterChat` (messages + tools, `require_parameters`, reads tool calls incl. ones written as text by some free models, `noTools` when no model can call tools). **AI only — no fallback** |
+| `lib/ai-summary.ts` | `openRouterComplete` → `AiResult` (text/model, or an `AiFailure`: not_configured/auth/credits/rate_limited/unavailable/cut_off/bad_reply, with the model when one answered); optional `accept` to tidy/reject; `checkReasoning: false` for JSON replies (skips the reasoning-leak regex, `accept` validates instead); one automatic retry on cut_off/bad_reply; `aiFailureMessage`; `summarizeWithOpenRouter`, `titleWithOpenRouter`; `openRouterChat` (messages + tools, `require_parameters`, reads tool calls incl. ones written as text by some free models, `noTools` when no model can call tools). Both go to **Groq** (`withGroqBackup`, same request) when OpenRouter fails or has no key — its models in turn while each is rate-limited (8k tokens/min per model on the free tier), then one wait-and-retry if the `retry-after` is ≤ 15 s; once OpenRouter is down (`auth`/`credits`/`rate_limited`/`unavailable`) the config's `skipOpenRouter` keeps the rest of that request on Groq. **AI only — no non-AI fallback** |
 | `lib/tickets.ts` | **the critical piece** — ticket lookup/upsert, `addTicketWorkUpdate` (upsert on `(ticketId, workLogId)`), detach, standalone history, project names, `findTicketsByKeyHint` (Quick log: exact key or bare number → `*-1233`) |
-| `lib/ask.ts` | Ask your workspace — a tool-using agent. Starts with CONTEXT (keyword matches via `searchTerms`/`findCandidates`/`rank`, every open Tracker entry via `openTracker` with exact counts and due wording, the work-log date span), then up to 4 tool rounds via `openRouterChat`: `search_workspace`, `get_work_logs` (≤ 62 days), `list_tracker` (open/done, done-in-range), `create_tracker_item`, `change_tracker_item` (done/reopen/reschedule/add_update by record number → id mapped server-side by `Records`). Last round goes without tools (`flatten`). Proposals are returned, never applied. Uses `ASK_MODELS` (tool-capable free models) while the user is on the default model list; falls back to one plain completion with an `<items>` block (`askWithoutTools`/`parseItems`) when no model supports tools. Cites `[n]`; if none, lists what the tools looked up |
+| `lib/ask.ts` | Ask your workspace — a tool-using agent. Starts with CONTEXT (keyword matches via `searchTerms`/`findCandidates`/`rank`, every open Tracker entry via `openTracker` with exact counts and due wording, the work-log date span), then up to 4 tool rounds via `openRouterChat`: `search_workspace`, `get_work_logs` (≤ 62 days), `list_tracker` (open/done, done-in-range), `create_tracker_item`, `change_tracker_item` (done/reopen/reschedule/add_update by record number → id mapped server-side by `Records`). Last round goes without tools (`flatten`). Proposals are returned, never applied. Uses `ASK_MODELS` (tool-capable free models) while the user is on the default model list; falls back to one plain completion with an `<items>` block (`askWithoutTools`/`parseItems`) when no model supports tools. Cites `[n]`; if none, lists what the tools looked up. A pasted markdown document skips the AI (`notebookReply`) and returns a `notebook` plan from `lib/note-import.ts` |
 | `lib/quick-log.ts` | Quick log: `draftQuickLog` (AI → JSON read leniently with Zod, then matched to the user's tickets / meeting cards / people / channels; to-dos fall back to one per line without AI) `workLogTemplate` (headings: the day's meetings, open tickets, Work done), and `applyQuickLog` (writes via `worklogs`/`tickets`/`follow-ups` lib functions; same-day re-apply appends) |
 | `lib/workflow-status.ts` | 5-stage workflow + legacy status normalisation |
 | `lib/follow-ups.ts` | Tracker entries + append-only updates, pin, status, reschedule, tags, `editPersonalTodo` (rewrites a personal to-do's text only), `listTodosAroundDay` (work-log to-dos card) |
 | `lib/note-store.ts`, `lib/notes.ts`, `lib/note-icons.ts`, `lib/note-colors.ts` | notebooks, trash/restore, icon search, accent colours |
+| `lib/note-import.ts` | markdown → notebook (`marked` lexer → TipTap JSON): `parseNotebookMarkdown` (`#` notebook with one section of the same name, `##` page, `###`+ headings inside the page), `planNotebookImport` (create vs update counts — new/changed/removed pages, `reshaped` — for Ask's card), `importNotebook` (create, or reshape the live notebook with the same title to match the paste: pages matched by title anywhere, ignoring case and a leading number; pages and sections not in the paste are deleted by `updateNote`). Saved via `importNotebook` in `actions/notes.ts` |
 | `components/notes/smooth-scroll.ts`, `components/notes/doc-height.ts` | client: frame-by-frame smooth jump that follows a moving target and pauses lazy page mounting while in flight (`isJumping`, `NOTE_SCROLL_END`); estimated height for an unmounted page body. Used by the reader and the editor |
 | `lib/content.ts` | tasks, links, resources (+ favourite) |
 | `components/shell/page-head.tsx` | the shared page header (`PageHead`), `SearchPill`, `UnderlineTabs`, `primaryPill` / `outlinePill` — every list page except Work Logs |
@@ -190,7 +191,7 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `lib/user-settings.ts` | profile settings (name, sprint config, `ticketsEnabled`), request-memoised |
 | `lib/admin.ts` | persisted-role admin guard, cross-account statistics, password reset, whole-workspace erasure and account deletion; destructive calls verify the target email |
 | `lib/account-security.ts` | self-service password change: verifies the current bcrypt hash, writes a new cost-12 hash and increments `authVersion` |
-| `lib/ai-settings.ts` | per-user OpenRouter key/model: `getAiSettings` (client-safe view, never the key), `getOpenRouterConfig` (user key → env fallback), `checkOpenRouterKey`, save/clear |
+| `lib/ai-settings.ts` | per-user OpenRouter key/model: `getAiSettings` (client-safe view, never the key; `groqBackup`), `getOpenRouterConfig` (user key → env fallback, plus the env Groq backup; null only when neither exists), `checkOpenRouterKey`, save/clear |
 | `lib/secret-box.ts` | AES-256-GCM `seal`/`open` for stored secrets, keyed off `AUTH_SECRET` |
 | `lib/mobile-api.ts` | Kaizen phone link: stateless HMAC token (`wn1.<userId>.<authVersion>.<sig>`, keyed off `AUTH_SECRET`) `createMobileToken` / `verifyMobileToken`, CORS `mobileJson` / `preflight`, `listMobileTracker` (the phone's list shape) |
 | `lib/validation.ts` | all Zod schemas |
@@ -302,6 +303,8 @@ writes), `TaskPriority`, `TaskStatus`, `FollowUpStatus`, `EntryKind`,
 | `HOSTED_DATABASE_URL` | Neon **direct/unpooled** URL for `npm run db:hosted` |
 | `OPENROUTER_API_KEY` | optional server-wide key for AI work-log summaries; a user's Profile key takes priority |
 | `OPENROUTER_MODEL` | comma-separated fallback list; default `google/gemma-4-31b-it:free, openrouter/free` |
+| `GROQ_API_KEY` | optional backup AI: used when OpenRouter fails or has no key |
+| `GROQ_MODEL` | comma-separated Groq models, tried in turn when one is rate-limited; default `openai/gpt-oss-120b, qwen/qwen3.8-27b, openai/gpt-oss-20b` (all call tools) |
 
 `app/.env.vercel` (gitignored) holds values to paste into Vercel. Never commit real
 env files; the GitHub repo is public.
