@@ -13,6 +13,8 @@ import "server-only";
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const TIMEOUT_MS = 90_000;
+/** With Groq to fall back on, a hung OpenRouter isn't worth waiting the full 90 s for. */
+const OPENROUTER_TIMEOUT_WITH_BACKUP_MS = 40_000;
 const MAX_INPUT_CHARS = 16_000;
 
 // Everything in the log, one line per item, scannable (owner, 2026-10-09: tickets,
@@ -42,34 +44,62 @@ export type GroqConfig = { apiKey: string; models: string[] };
 export type OpenRouterConfig = { apiKey: string | null; models: string[]; groq: GroqConfig | null; skipOpenRouter?: boolean };
 
 /** Where one request goes: OpenRouter with its model list, or Groq with one model. */
-type Target = { provider: "openrouter"; apiKey: string; models: string[] } | { provider: "groq"; apiKey: string; models: [string] };
+type Target = { provider: "openrouter"; apiKey: string; models: string[]; timeoutMs: number } | { provider: "groq"; apiKey: string; models: [string]; timeoutMs: number };
 
 /** Failures that mean OpenRouter itself isn't working, as opposed to one bad reply. */
 const PROVIDER_DOWN = new Set<AiFailure>(["auth", "credits", "rate_limited", "unavailable"]);
+
+/**
+ * Until when OpenRouter is out, per key — e.g. its free daily limit is used up.
+ * While it is (and there's a Groq key), requests go straight to Groq instead of
+ * failing on OpenRouter first. In memory: each server instance learns it once.
+ */
+const openRouterOutUntil = new Map<string, number>();
+
+/** How long to leave OpenRouter alone after it failed this way. */
+function outFor(failure: { reason?: AiFailure; retryAfter?: number; resetAt?: number }) {
+  const now = Date.now();
+  switch (failure.reason) {
+    // OpenRouter says when the limit resets (its free models have a daily cap); else 10 minutes.
+    case "rate_limited": return Math.min(failure.resetAt ?? now + (failure.retryAfter ? failure.retryAfter * 1000 : 10 * 60_000), now + 24 * 3_600_000);
+    case "credits":
+    case "auth": return now + 60 * 60_000;
+    case "unavailable": return now + 2 * 60_000;
+    default: return now;
+  }
+}
 
 /** A short "try again in N s" is worth waiting for; a longer one is reported instead. */
 const MAX_RATE_LIMIT_WAIT_S = 15;
 
 /**
- * Runs `attempt` on OpenRouter, then on Groq if OpenRouter failed (any reason)
- * or has no key. Groq's models are tried in turn while they're rate-limited
+ * Runs `attempt` on OpenRouter, then on Groq if OpenRouter failed (any reason),
+ * has no key, or is known to be out (`openRouterOutUntil`). Groq's models are tried in turn while they're rate-limited
  * (each has its own per-minute limit); if all are and the wait is short, it
  * waits once and tries the first again. A Groq failure reports OpenRouter's
  * reason when there was one — that's the key the user manages.
  */
-async function withGroqBackup<R extends { ok: boolean; reason?: AiFailure; retryAfter?: number }>(
+async function withGroqBackup<R extends { ok: boolean; reason?: AiFailure; retryAfter?: number; resetAt?: number }>(
   config: OpenRouterConfig,
   attempt: (target: Target) => Promise<R>,
 ): Promise<R | { ok: false; reason: "not_configured" }> {
   let first: R | null = null;
-  if (config.apiKey && !config.skipOpenRouter) {
-    first = await attempt({ provider: "openrouter", apiKey: config.apiKey, models: config.models });
+  const outUntil = config.apiKey ? openRouterOutUntil.get(config.apiKey) ?? 0 : 0;
+  const out = Boolean(config.groq) && outUntil > Date.now();
+  if (out && !config.skipOpenRouter) console.warn(`[ai] OpenRouter is out until ${new Date(outUntil).toISOString()}; using Groq`);
+  if (config.apiKey && !config.skipOpenRouter && !out) {
+    const timeoutMs = config.groq ? OPENROUTER_TIMEOUT_WITH_BACKUP_MS : TIMEOUT_MS;
+    first = await attempt({ provider: "openrouter", apiKey: config.apiKey, models: config.models, timeoutMs });
+    if (first.ok) openRouterOutUntil.delete(config.apiKey);
     if (first.ok || !config.groq) return first;
-    if (first.reason && PROVIDER_DOWN.has(first.reason)) config.skipOpenRouter = true;
+    if (first.reason && PROVIDER_DOWN.has(first.reason)) {
+      config.skipOpenRouter = true;
+      openRouterOutUntil.set(config.apiKey, outFor(first));
+    }
     console.warn(`[ai] OpenRouter failed (${first.reason}); trying Groq`);
   }
   if (!config.groq) return first ?? { ok: false, reason: "not_configured" };
-  const groq = (model: string) => attempt({ provider: "groq", apiKey: config.groq!.apiKey, models: [model] });
+  const groq = (model: string) => attempt({ provider: "groq", apiKey: config.groq!.apiKey, models: [model], timeoutMs: TIMEOUT_MS });
   let backup: R | null = null;
   let wait = Infinity;
   for (const model of config.groq.models) {
@@ -91,6 +121,14 @@ function retryAfter(response: Response) {
   return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
 }
 
+/** When a limit resets: OpenRouter's `x-ratelimit-reset` (epoch ms, or s), in ms. */
+function resetAt(response: Response) {
+  const value = Number(response.headers.get("x-ratelimit-reset"));
+  if (!Number.isFinite(value) || value <= 0) return undefined;
+  const ms = value < 1e12 ? value * 1000 : value;
+  return ms > Date.now() ? ms : undefined;
+}
+
 function request(target: Target, body: Record<string, unknown>) {
   const groq = target.provider === "groq";
   return fetch(groq ? GROQ_ENDPOINT : ENDPOINT, {
@@ -104,7 +142,7 @@ function request(target: Target, body: Record<string, unknown>) {
       // Keep any model reasoning out of the reply (each provider spells it differently).
       ...(groq ? { include_reasoning: false } : { reasoning: { exclude: true } }),
     }),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: AbortSignal.timeout(target.timeoutMs),
   });
 }
 
@@ -112,8 +150,8 @@ const providerName = (target: Target) => (target.provider === "groq" ? "Groq" : 
 
 /** Why an AI request produced nothing. There is no non-AI fallback, so the UI explains it. */
 export type AiFailure = "not_configured" | "auth" | "credits" | "rate_limited" | "unavailable" | "cut_off" | "bad_reply";
-/** `model` on a failure = the model whose reply was rejected, when there was one; `retryAfter` = seconds the provider asked to wait. */
-export type AiResult = { ok: true; text: string; model: string } | { ok: false; reason: AiFailure; model?: string; retryAfter?: number };
+/** `model` on a failure = the model whose reply was rejected, when there was one; `retryAfter` = seconds the provider asked to wait; `resetAt` = when its limit resets (ms). */
+export type AiResult = { ok: true; text: string; model: string } | { ok: false; reason: AiFailure; model?: string; retryAfter?: number; resetAt?: number };
 
 /** What to tell the user for each failure. */
 export const AI_FAILURE_MESSAGE: Record<AiFailure, string> = {
@@ -181,7 +219,7 @@ async function completeOnce(
         : response.status === 402 ? "credits"
         : response.status === 429 ? "rate_limited"
         : "unavailable";
-      return { ok: false, reason, retryAfter: retryAfter(response) };
+      return { ok: false, reason, retryAfter: retryAfter(response), resetAt: resetAt(response) };
     }
     const json = (await response.json()) as { model?: string; choices?: Array<{ finish_reason?: string; message?: { content?: string | null } }> };
     const choice = json.choices?.[0];
@@ -239,7 +277,7 @@ export type ChatMessage =
   | { role: "tool"; tool_call_id: string; content: string };
 export type ToolSpec = { type: "function"; function: { name: string; description: string; parameters: Record<string, unknown> } };
 /** `noTools`: none of the configured models can call tools — the caller falls back to a plain completion. */
-export type ChatResult = { ok: true; content: string; toolCalls: ToolCall[]; model: string } | { ok: false; reason: AiFailure; model?: string; noTools?: boolean; retryAfter?: number };
+export type ChatResult = { ok: true; content: string; toolCalls: ToolCall[]; model: string } | { ok: false; reason: AiFailure; model?: string; noTools?: boolean; retryAfter?: number; resetAt?: number };
 
 /**
  * One turn of a tool-using conversation (Ask's agent loop). With `tools`,
@@ -278,7 +316,7 @@ async function chatOnce(target: Target, { messages, tools, maxTokens }: ChatOpti
         : response.status === 402 ? "credits"
         : response.status === 429 ? "rate_limited"
         : "unavailable";
-      return { ok: false, reason, retryAfter: retryAfter(response) };
+      return { ok: false, reason, retryAfter: retryAfter(response), resetAt: resetAt(response) };
     }
     const json = (await response.json()) as { model?: string; choices?: Array<{ finish_reason?: string; message?: { content?: string | null; tool_calls?: ToolCall[] } }> };
     const choice = json.choices?.[0];
