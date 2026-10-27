@@ -4,7 +4,7 @@
 > changes scope, or is retired, update the matching section here (see
 > `AGENTS.md → Keeping the docs current`).
 >
-> Last synced with the codebase: **2026-10-22**
+> Last synced with the codebase: **2026-10-27**
 
 ---
 
@@ -148,7 +148,8 @@ update.*
   is viewed with content in it (if the background run hasn't already), and whenever the
   user clicks *Regenerate*. **AI
   only** via **OpenRouter** (free models by default; key from Profile → Account → AI
-  summaries card, else the server's `OPENROUTER_API_KEY`). **No code-built fallback:**
+  summaries card, else the server's `OPENROUTER_API_KEY`), with **Groq** (`GROQ_API_KEY`)
+  as a backup AI when OpenRouter fails or has no key. **No code-built fallback:**
   with no key the card says AI isn't set up (link to Profile) and generates nothing; if
   a request fails it shows why (key rejected, rate-limited, no credit, unreachable,
   unusable reply) and keeps any saved summary. Output is **a few bullet points, no
@@ -372,7 +373,8 @@ two columns.
 - **AI summaries** (a card under Account): the user's own **OpenRouter API key** (checked with OpenRouter on
   save, stored encrypted, never shown again — only its last 4 characters) and an
   optional model list (empty = free Gemma, then any free model). Saves on its own, not via the bar.
-  The user's key takes priority over the server's `OPENROUTER_API_KEY`; with neither,
+  The user's key takes priority over the server's `OPENROUTER_API_KEY`; a server
+  `GROQ_API_KEY` is the backup when OpenRouter fails (the card says so). With none,
   AI is off and no summaries or reports are generated (§5.1, §5.9). Shows a privacy note about what is sent.
 - Layout (redesigned 2026-10-08): an identity header (avatar, name, email, sprint
   length, tickets on/off); **one horizontal tab bar** for every section, grouped
@@ -522,15 +524,31 @@ open their page, resources go to Resources).
   follow-up. Each shows as a card (current due date shown, so duplicates are told apart)
   with a confirm button and **Skip**; nothing changes until you confirm, through the
   normal Tracker actions. Up to 5 per message. Ambiguous ("which one?") → it asks.
-- **Can't yet:** delete anything; create or edit work logs, tickets, resources or
-  notebook pages.
+- **Saves pasted documents as notebooks** (added 2026-10-26). Paste markdown whose
+  first heading is `# Title`: `#` = the notebook, with **one section** of the same
+  name; each `##` = a page; `###` and deeper stay as headings inside their page; text
+  before the first `##` becomes an "Overview" page. A card says what will happen —
+  **New notebook** (1 section · N pages), or **Update notebook** when one with that
+  title exists. An update makes the notebook **match the paste**: pages updated, new
+  pages, pages not in the paste **removed** (the card counts them), and an older layout
+  folded into one section — nothing is saved until you confirm. The text is converted
+  as written (tables, code blocks, checklists, links), not by the AI, so it works with
+  AI off. Messages are otherwise capped at 500 characters; a long pasted message shows
+  its first lines with **Show all**.
+- **Can't yet:** delete anything; create or edit work logs, tickets or resources.
 - **Your data only.** Every lookup is scoped to the signed-in user; the AI never sees
   record ids (numbers map to ids on the server).
 - Follow-ups use the last 6 turns, including what it proposed and whether you
   confirmed. The chat is kept in the browser tab (sessionStorage, per user) so it
   survives a reload; New chat clears it.
-- Uses the same OpenRouter key as AI summaries. On the default model list, Ask uses
-  free models that handle tool calls well; a custom model in Profile is used as-is
+- **Chat niceties** (2026-10-27): a copy button under each message and answer (copies
+  plain text, citation numbers dropped); a failed message gets **Try again**; after 8 s
+  the wait line says the AI is busy; the message box grows with what you type; inline
+  `code` in answers is shown as code.
+- Uses the same OpenRouter key as AI summaries (Groq as the backup). On the default model list, Ask uses
+  free models that handle tool calls well — with a Groq key it skips OpenRouter's
+  "any free model" fallback (small models that misread requests) and goes to Groq
+  instead; a custom model in Profile is used as-is
   (without tool support it can only answer and add items). Replies take ~5–60 s on
   free models.
 - Keyword search (not embeddings): it tries other words itself, but a record that

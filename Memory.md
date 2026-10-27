@@ -4,14 +4,14 @@
 > (with the *why*), gotchas that cost time before, and a changelog. Newest first in
 > every section. Update rules are in `AGENTS.md` §2.
 >
-> Last synced with the codebase: **2026-10-23**
+> Last synced with the codebase: **2026-10-27**
 
 ---
 
 ## Current state (snapshot)
 
 - **Repo:** https://github.com/stingo-36/WorkNest (`main`; work lands via PRs, #21 merged
-  2026-10-23). Local folder is still named `Personal Workspace`.
+  2026-10-23). Local folder renamed to `WorkNest` on 2026-10-26.
 - **Agent kit:** start every task from the `worknest-codemap` skill; `worknest-*` skills
   and agents live in `.claude/`; `npm run docs:check` + a Stop hook keep the map honest.
 - **Live features:** homepage, auth, Work Logs, Tickets (toggleable), Tracker (landing
@@ -26,6 +26,33 @@
 ## Decisions
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
+
+**2026-10-26 — Groq is a backup AI behind OpenRouter, server key only.**
+The free OpenRouter models are often rate-limited or down (a live 500 during testing).
+Every AI call (summaries, titles, reports, quick log, Ask) tries OpenRouter first, then
+the same request on Groq (`GROQ_API_KEY`). Groq's free tier allows only ~8k tokens a
+minute **per model** and one Ask step is ~2.5k, so a single model ran out after two
+messages (tested 2026-10-27): `GROQ_MODEL` is a list (`openai/gpt-oss-120b,
+qwen/qwen3.8-27b, openai/gpt-oss-20b`, all call tools) tried in turn, plus one wait when
+the `retry-after` is ≤ 15 s — nine back-to-back messages then all answered. With Groq
+present, Ask drops `openrouter/free` from its model list: it landed on small models that
+misread "remind me to…" as a follow-up and cited unrelated records. A Groq failure
+reports OpenRouter's reason, since that's the key the user manages. Still no non-AI fallback. *Rejected:* a per-user Groq key in Profile (not asked
+for); Groq first (OpenRouter stays the user's choice).
+
+**2026-10-26 — Pasted markdown becomes a notebook by parsing, not by the AI.**
+Ask treats a message with a `# Title` (and `##` headings or 200+ chars) as a document:
+`#` = notebook with **one section** of the same name, `##` = a page, `###`+ = headings
+inside the page (owner, same day, after trying a section per `##`: "I don't want
+multiple sections, just 1 section"). Parsed with `marked` into TipTap JSON so commands,
+tables and links land exactly as written and it works with AI off. Same title
+(case-insensitive) → update **to match the paste**: pages matched by title anywhere
+(ignoring a leading "3."), pages not in the paste removed — the card counts them before
+the user confirms; that's what lets an old layout fold into one section. The server
+re-parses on save. *Rejected:* having the AI write the tree (slow on free models,
+rewrites content, long docs overflow tool arguments); a section per `##` with `###`
+pages (the owner's first try — every section repeated its own title as its one page);
+keeping unmentioned pages on update (stale pages from an earlier layout pile up).
 
 **2026-10-23 — Agents start from a code map, not the codebase or all five docs.**
 Sessions were told to read ~3,300 lines of docs and still grepped the repo to find files.
@@ -753,6 +780,15 @@ is done on the real rendered app.
 
 ## Gotchas
 
+- **2026-10-26 — Docker Compose project name is pinned to `personalworkspace`.** Compose
+  names projects after the folder; after the folder rename to `WorkNest` it wanted a new
+  `worknest_workspace-pgdata` volume (empty) and clashed with the running
+  `workspace-db` container. `docker-compose.yml` sets `name: personalworkspace` so the
+  existing data keeps being used — don't remove it.
+- **2026-10-26 — Postgres `jsonb` reorders object keys.** Comparing a saved TipTap doc to
+  a fresh one with `JSON.stringify` always says "changed"; `lib/note-import.ts` compares
+  with keys sorted.
+
 - **2026-10-22 — A deploy without its migration crashes the pages that use the new column.**
   Prisma selects a column that isn't there and the page shows "This page couldn't load"
   (PR #16 → live `/tracker`, fixed by `npm --prefix app run db:hosted`). Production builds
@@ -931,6 +967,10 @@ is done on the real rendered app.
 ## Changelog
 
 `YYYY-MM-DD — what changed — key files`
+
+- 2026-10-27 — Ask: copy buttons on messages/answers, Try again after a failure, slow-AI wait hint, growing message box, inline code; Groq rotates its models and waits out short rate limits; Ask skips `openrouter/free` when Groq is set — `app/src/components/ask/ask-widget.tsx`, `lib/ai-summary.ts`, `lib/ai-settings.ts`, `lib/ask.ts`, `app/.env.example`
+- 2026-10-26 — Pasted notebooks: one section, a page per `##`; updates match the paste (unmentioned pages removed, counted on the card); long pasted messages get Show all — `app/src/lib/note-import.ts`, `ask.ts`, `components/ask/ask-widget.tsx`
+- 2026-10-26 — Groq backup for every AI call when OpenRouter fails; Ask saves a pasted markdown document as a notebook (create, or update the one with that title) after a confirm card; Compose project name pinned after the folder rename — `app/src/lib/ai-summary.ts`, `ai-settings.ts`, `note-import.ts`, `ask.ts`, `actions/notes.ts`, `components/ask/ask-widget.tsx`, `components/profile/ai-settings.tsx`, `docker-compose.yml`, `app/.env.example`
 
 - 2026-10-23 — Agent kit: code map + ui/backend/docs-sync skills, explorer/designer/backend/memory-keeper/reviewer agents, `docs:check` script and Stop hook; AGENTS.md reads the map first; Architecture §3 gained the missing phone routes; snapshot refreshed; leftover "Personal Workspace" names → WorkNest (root package name, README clone URL, schema header, PRD naming note) — `.claude/skills/worknest-*`, `.claude/agents/*`, `.claude/settings.json`, `scripts/check-docs.mjs`, `package.json`, AGENTS.md, Architecture §2/§3/§8, skills.md §12/§13
 - 2026-10-23 — Phone Tracker parity: `GET /api/mobile/tracker` also returns `options` (channels, people, saved note tags); `POST` takes `pinned`; `GET`/`PATCH /api/mobile/tracker/:id` (detail with history; PATCH also stars or reschedules); `POST /api/mobile/tracker/:id/updates`; `PATCH /api/mobile/resources/:id` stars a resource — `app/src/lib/mobile-api.ts`, `app/src/app/api/mobile/**`, `mobileTrackerPatchSchema`

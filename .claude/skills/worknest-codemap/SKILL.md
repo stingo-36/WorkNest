@@ -10,7 +10,7 @@ description: File-level map of the WorkNest codebase — which route, action, li
 > section in the last column if you need the *why*. `npm run docs:check` fails when a
 > file is missing from this map or a listed path no longer exists — keep it green.
 >
-> Last synced with the codebase: **2026-10-23**
+> Last synced with the codebase: **2026-10-26**
 
 Paths are relative to `app/src/` unless they start with `app/` or `/`.
 Docs: **PRD** = `PRD.md`, **Arch** = `Architecture.md`, **DS** = `Design-System.md`,
@@ -35,7 +35,7 @@ Docs: **PRD** = `PRD.md`, **Arch** = `Architecture.md`, **DS** = `Design-System.
 | Action plumbing | `lib/result.ts` (`ActionResult`, `parseOrFail`, `zodFields`), `lib/validation.ts` (**every** Zod schema), `lib/prisma.ts` | Arch §4, Recipes §2 |
 | Sprint & dates | `lib/sprint.ts` (only sprint maths), UTC helpers in `lib/worklogs.ts` | Arch §6 |
 | User settings & lists | `lib/user-settings.ts`, `lib/user-lists.ts`, `actions/user-lists.ts` | Arch §4 |
-| AI (OpenRouter) | `lib/ai-summary.ts`, `lib/ai-settings.ts`, `lib/secret-box.ts` | Arch §4, PRD §5.1 |
+| AI (OpenRouter, Groq backup) | `lib/ai-summary.ts`, `lib/ai-settings.ts`, `lib/secret-box.ts` | Arch §4, PRD §5.1 |
 | Shared rich text / uploads | `lib/rich-text.ts`, `components/ui/editor-uploads.ts`, `app/api/tracker-files/route.ts`, `app/api/tracker-files/[fileId]/route.ts` | Arch §3 |
 | Tags / types | `lib/tag-colors.ts`, `lib/resource-types.ts`, `components/ui/tag-icon.tsx`, `components/ui/tag-chip.tsx`, `components/ui/tag-input.tsx` | DS §8 |
 | Schema | `app/prisma/schema.prisma`, `app/prisma/migrations/` | Arch §5 |
@@ -70,7 +70,7 @@ Models: `FollowUp`, `FollowUpUpdate` (append-only), `FollowUpFile`
 ### Notes — PRD §5.4 · DS "Notes F layout"
 Models: `Note` → `NoteSection` → `NotePage` (TipTap JSON)
 - Routes: `app/(app)/notes/page.tsx`, `app/(app)/notes/new/page.tsx`, `app/(app)/notes/[noteId]/page.tsx`, `app/(app)/notes/[noteId]/edit/page.tsx`
-- Actions: `actions/notes.ts` · Lib: `lib/note-store.ts` (data), `lib/notes.ts` (shapes/schemas), `lib/note-icons.ts`, `lib/note-colors.ts`
+- Actions: `actions/notes.ts` (incl. `importNotebook` for Ask) · Lib: `lib/note-store.ts` (data), `lib/notes.ts` (shapes/schemas), `lib/note-import.ts` (markdown → notebook), `lib/note-icons.ts`, `lib/note-colors.ts`
 - List: `components/notes/NoteLibrary.tsx` · Read: `NoteReader.tsx`, `NoteViewer.tsx`, `smooth-scroll.ts`, `doc-height.ts`
 - Edit: `components/notes/NoteForm.tsx`, `SectionEditor.tsx`, `PageEditor.tsx`, `RichTextEditor.tsx`, `editor-extensions.ts`, `CodeBlock.tsx`, `NoteIcon.tsx`, `NoteIconPicker.tsx`, `note-field.tsx`
 
@@ -103,7 +103,7 @@ Model: `SprintReport`
 - UI: `components/quick-log/quick-log.tsx`, `components/quick-log/types.ts`
 
 ### Ask your workspace (AI agent) — PRD §5.13
-- Actions: `actions/ask.ts` · Lib: `lib/ask.ts` (tools, context, proposals)
+- Actions: `actions/ask.ts` · Lib: `lib/ask.ts` (tools, context, proposals; pasted documents → `lib/note-import.ts`)
 - UI: `components/ask/ask-widget.tsx`
 
 ### Kaizen phone API — PRD §5.14 · Arch §3

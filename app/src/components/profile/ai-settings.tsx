@@ -13,6 +13,7 @@ import { toast } from "@/components/ui/toast";
 /** Mirror of lib/ai-settings.ts AiSettings (that module is server-only). */
 export type AiSettingsView = {
   keySource: "user" | "server" | null;
+  groqBackup: boolean;
   keyHint: string | null;
   keyUnreadable: boolean;
   model: string;
@@ -74,6 +75,7 @@ export function AiSettingsCard({ initial }: { initial: AiSettingsView }) {
         <KeyRound className="mt-0.5 size-4 shrink-0 text-accent-text" aria-hidden="true" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-text" role="status">{status}</p>
+          {settings.groqBackup ? <p className="mt-1 text-sm text-text-muted">If OpenRouter fails, Groq answers instead.</p> : null}
           {settings.keyUnreadable ? <p className="mt-1 text-sm text-danger">Your saved key can no longer be read (the server secret changed). Please add it again.</p> : null}
         </div>
         {settings.keySource === "user" ? <Button variant="secondary" size="sm" disabled={pending} onClick={removeKey}>Remove</Button> : null}

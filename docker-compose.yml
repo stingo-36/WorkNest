@@ -1,3 +1,7 @@
+# Pinned: Compose otherwise names the project after the folder, and the folder was
+# renamed (Personal Workspace → WorkNest) — a new name would mean a new, empty volume.
+name: personalworkspace
+
 services:
   db:
     image: postgres:16-alpine

@@ -3,9 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { importNotebook as importParsedNotebook, parseNotebookMarkdown } from "@/lib/note-import";
 import * as store from "@/lib/note-store";
 import { noteSchema, type NoteInput } from "@/lib/notes";
+import { fail, ok, parseOrFail } from "@/lib/result";
 import { requireUserId } from "@/lib/session";
+import { notebookImportSchema } from "@/lib/validation";
 
 /**
  * Notes server actions.
@@ -122,4 +125,24 @@ export async function toggleNoteFavorite(formData: FormData) {
 
   revalidatePath("/notes");
   revalidatePath(`/notes/${id}`);
+}
+
+/**
+ * Save a markdown document pasted into Ask as a notebook: created, or merged
+ * into the notebook with the same title (lib/note-import.ts). Unlike the editor
+ * actions above this returns an `ActionResult`, because the Ask chat calls it.
+ * Input: { markdown }.
+ */
+export async function importNotebook(input: unknown) {
+  const userId = await requireUserId();
+  const parsed = parseOrFail(notebookImportSchema, input);
+  if (!parsed.ok) return parsed;
+
+  const notebook = parseNotebookMarkdown(parsed.data.markdown);
+  if (!notebook) return fail("VALIDATION_ERROR", "That doesn't read as a notebook — it needs a \"# Title\" line and \"##\" sections.");
+
+  const saved = await importParsedNotebook(userId, notebook);
+  revalidatePath("/notes");
+  revalidatePath(`/notes/${saved.noteId}`);
+  return ok({ id: saved.noteId, mode: saved.mode });
 }

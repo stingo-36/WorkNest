@@ -5,10 +5,11 @@ import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { EntryKind } from "@/generated/prisma/enums";
 import { aiFailureMessage, type ChatMessage, openRouterChat, openRouterComplete, type ToolSpec } from "@/lib/ai-summary";
 import { DEFAULT_OPENROUTER_MODEL, getOpenRouterConfig } from "@/lib/ai-settings";
+import { type NotebookPlan, parseNotebookMarkdown, planNotebookImport } from "@/lib/note-import";
 import { prisma } from "@/lib/prisma";
 import { docToText, markdownPreview } from "@/lib/rich-text";
 import { getUserSettings } from "@/lib/user-settings";
-import { askChangeSchema, askProposalSchema, askRangeSchema, type AskProposal, dateOnlySchema } from "@/lib/validation";
+import { ASK_MESSAGE_MAX, askChangeSchema, askProposalSchema, askRangeSchema, type AskProposal, dateOnlySchema } from "@/lib/validation";
 
 /**
  * Ask: an assistant over your own workspace. Answers come from your records
@@ -25,12 +26,17 @@ import { askChangeSchema, askProposalSchema, askRangeSchema, type AskProposal, d
  * how many words each record contains) — no embeddings to keep in sync.
  * Every query is scoped by `userId`; record numbers map back to ids here on
  * the server, so the AI never handles ids.
+ *
+ * A pasted markdown document (`# Title`, `##` sections) skips the AI: it comes
+ * back as a `notebook` plan — create, or update the notebook with that title —
+ * which the chat saves through actions/notes.ts when the user confirms.
  */
 
 export type AskSource = { n: number; kind: "Work log" | "To-do" | "Follow-up" | "Note" | "Ticket" | "Resource" | "Notebook"; title: string; date: string | null; href: string };
 export type AskTurn = { question: string; answer: string };
 export type { AskProposal };
-export type AskResult = { ok: true; answer: string; sources: AskSource[]; proposals: AskProposal[]; model: string } | { ok: false; message: string };
+export type AskResult = { ok: true; answer: string; sources: AskSource[]; proposals: AskProposal[]; notebook?: NotebookPlan; model: string } | { ok: false; message: string };
+export type { NotebookPlan };
 
 /** `entry` is set for Tracker entries, so a proposed change can point at one. */
 type Candidate = Omit<AskSource, "n"> & { text: string; at: Date; entry?: { id: string; kind: EntryKind; open: boolean; due: string | null } };
@@ -51,7 +57,13 @@ const MAX_STEPS = 4;
  * the user is on the default model list — the default's first pick often can't
  * call tools, which leaves `openrouter/free` to land on tiny models.
  */
-const ASK_MODELS = ["nvidia/nemotron-3-ultra-550b-a55b:free", "nvidia/nemotron-3-super-120b-a12b:free", "openrouter/free"];
+const ASK_MODELS = ["nvidia/nemotron-3-ultra-550b-a55b:free", "nvidia/nemotron-3-super-120b-a12b:free"];
+/**
+ * `openrouter/free` (any free model) only when there's no Groq backup: it often
+ * lands on small models that misread requests (2026-10-27: "remind me to…" taken
+ * as a follow-up, wrong citations). With Groq, a busy OpenRouter goes there instead.
+ */
+const ANY_FREE_MODEL = "openrouter/free";
 
 /** Search words from the question (and the previous one, so "and him?" still finds things). */
 export function searchTerms(...texts: string[]): string[] {
@@ -305,7 +317,8 @@ const ABOUT = `You are Ask, the assistant built into WorkNest — a personal wor
 What you can do (describe this in your own words when asked what you can do or how you can help):
 - Answer anything about their own work: daily work logs (what they did, meetings, ticket updates), their Tracker (to-dos, follow-ups with people, notes), tickets, saved resources and notebooks — who they told what, when something happened, what's due, overdue, upcoming, waiting or finished, summaries of a day, week or month.
 - Work on their Tracker: add to-dos (with due dates), follow-ups (something they told a person) and notes; mark items done or reopen them; move due dates; add an update or log a reply to a follow-up. They confirm each change with one click.
-- You can't delete anything, and you can't create or edit work logs, tickets, resources or notebook pages yet.`;
+- Notebooks: when they paste a markdown document whose first heading is "# Title", it's saved as a notebook (created, or updated to match if one has that title): one section, with a page per "##" heading ("###" subtopics stay inside their page). That happens without you — if they ask how to add or update a notebook, tell them to paste the document here.
+- You can't delete anything, and you can't create or edit work logs, tickets or resources yet.`;
 
 const ANSWERING = `Answering:
 - Facts about their work come ONLY from numbered records ([n]) — in CONTEXT or returned by tools. Never invent people, dates, numbers or events. Cite every fact and every listed item with its number right after it, like "Book the retro room (due 6 Oct) [4]" — the user taps these to open the record.
@@ -580,11 +593,36 @@ function withCitations(text: string, records: Candidate[]) {
   return { answer, sources };
 }
 
+/** A pasted document: what saving it as a notebook would do. No AI involved, so it works with AI off. */
+async function notebookReply(userId: string, question: string): Promise<AskResult | null> {
+  const parsed = parseNotebookMarkdown(question);
+  if (!parsed) return null;
+  const plan = await planNotebookImport(userId, parsed);
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const changes = [
+    plan.changedPages ? `${plural(plan.changedPages, "page")} updated` : "",
+    plan.newPages ? plural(plan.newPages, "new page") : "",
+    plan.removedPages ? `${plural(plan.removedPages, "page")} removed (not in what you pasted)` : "",
+    plan.reshaped ? `everything in one section, one page per "##" heading` : "",
+  ].filter(Boolean);
+  const answer =
+    plan.mode === "create" ? `That reads as a notebook: "${plan.title}", one section with ${plural(plan.pages, "page")} (one per "##" heading). You don't have one with that title yet — confirm below to create it.`
+    : changes.length ? `You already have a notebook called "${plan.title}". Saving this makes it match what you pasted: ${changes.join("; ")}. Confirm below.`
+    : `Your notebook "${plan.title}" already matches this — nothing to update.`;
+  return { ok: true, answer, sources: [], proposals: [], notebook: plan.mode === "update" && !changes.length ? undefined : plan, model: "" };
+}
+
 export async function askWorkspace(userId: string, input: { question: string; history: AskTurn[]; today: Date }): Promise<AskResult> {
+  const notebook = await notebookReply(userId, input.question);
+  if (notebook) return notebook;
+  if (input.question.length > ASK_MESSAGE_MAX) {
+    return { ok: false, message: `Keep messages under ${ASK_MESSAGE_MAX} characters. To save a document as a notebook, paste markdown that starts with a "# Title" line.` };
+  }
+
   const [saved, settings] = await Promise.all([getOpenRouterConfig(userId), getUserSettings(userId)]);
   if (!saved) return { ok: false, message: aiFailureMessage({ reason: "not_configured" }) };
   const onDefault = saved.models.join(",") === DEFAULT_OPENROUTER_MODEL.replace(/\s/g, "");
-  const config = onDefault ? { ...saved, models: ASK_MODELS } : saved;
+  const config = onDefault ? { ...saved, models: saved.groq ? ASK_MODELS : [...ASK_MODELS, ANY_FREE_MODEL] } : saved;
 
   const history = input.history.slice(-MAX_HISTORY);
   const today = new Date(input.today.getTime() + input.today.getTimezoneOffset() * 60_000);
