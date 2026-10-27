@@ -27,7 +27,7 @@
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
 
-**2026-10-26 — Groq is a backup AI behind OpenRouter, server key only.**
+**2026-10-26 — Groq is a backup AI behind OpenRouter.**
 The free OpenRouter models are often rate-limited or down (a live 500 during testing).
 Every AI call (summaries, titles, reports, quick log, Ask) tries OpenRouter first, then
 the same request on Groq (`GROQ_API_KEY`). Groq's free tier allows only ~8k tokens a
@@ -41,6 +41,10 @@ reports OpenRouter's reason, since that's the key the user manages. Still no non
 groq???" — it was env-only, so invisible and off in production until someone edited
 Vercel), user key first, then `GROQ_API_KEY`. Ask also treats a saved model list of just
 `openrouter/free` as the default, since it means "any free model", not a choice.
+When OpenRouter's free daily limit runs out (429 `free-models-per-day`), the server
+remembers it until the `x-ratelimit-reset` time and goes straight to Groq meanwhile
+(owner: "if OpenRouter free is over it should switch to Groq automatically"); a hung
+OpenRouter is given 40 s, not 90, when Groq can take over.
 *Rejected:* Groq first (OpenRouter stays the user's choice).
 
 **2026-10-27 — Ask's AI decides what happens to notebooks; code only converts the text.**
@@ -64,22 +68,6 @@ The chat sends the latest pasted document with later messages so "a new one, cal
 can still save it. *Rejected:* the AI writing page content itself (slow, rewrites
 content, long docs overflow tool arguments); undo after saving (a document update
 deletes pages — confirm-before-save covers it).
-
-**2026-10-26 — Groq is a backup AI behind OpenRouter, server key only.**
-The free OpenRouter models are often rate-limited or down (a live 500 during testing).
-Every AI call (summaries, titles, reports, quick log, Ask) tries OpenRouter first, then
-the same request on Groq (`GROQ_API_KEY`). Groq's free tier allows only ~8k tokens a
-minute **per model** and one Ask step is ~2.5k, so a single model ran out after two
-messages (tested 2026-10-27): `GROQ_MODEL` is a list (`openai/gpt-oss-120b,
-qwen/qwen3.8-27b, openai/gpt-oss-20b`, all call tools) tried in turn, plus one wait when
-the `retry-after` is ≤ 15 s — nine back-to-back messages then all answered. With Groq
-present, Ask drops `openrouter/free` from its model list: it landed on small models that
-misread "remind me to…" as a follow-up and cited unrelated records. A Groq failure
-reports OpenRouter's reason, since that's the key the user manages. Still no non-AI fallback. Update 2026-10-27: a per-user Groq key in Profile too (owner on the live site: "where is
-groq???" — it was env-only, so invisible and off in production until someone edited
-Vercel), user key first, then `GROQ_API_KEY`. Ask also treats a saved model list of just
-`openrouter/free` as the default, since it means "any free model", not a choice.
-*Rejected:* Groq first (OpenRouter stays the user's choice).
 
 **2026-10-26 — Pasted markdown becomes a notebook by parsing, not by the AI.**
 Ask treats a message with a `# Title` (and `##` headings or 200+ chars) as a document:
@@ -1009,6 +997,7 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-10-27 — AI calls skip OpenRouter while it's out (free daily limit until its reset, or a cooldown) and go straight to Groq; OpenRouter timeout 40 s when Groq is set — `app/src/lib/ai-summary.ts`
 - 2026-10-27 — Profile AI card: OpenRouter and Groq (backup) parts; a user's own Groq key (encrypted, checked with Groq), used before `GROQ_API_KEY`; Ask treats a bare `openrouter/free` model as the default — `app/prisma/schema.prisma` + migration `user_groq_key`, `lib/ai-settings.ts`, `actions/profile.ts`, `components/profile/ai-settings.tsx`, `lib/validation.ts`, `lib/ask.ts`
 - 2026-10-27 — Ask handles notebooks with the AI: create / rename / describe / re-icon a notebook, save a pasted document into a new or existing one, asking when the title is missing or already used; Save changes / Revert cards with before → after; the rule-based paste shortcut is gone — `app/src/lib/ask.ts`, `lib/note-import.ts`, `lib/note-icons.ts` (`findIcon`), `lib/note-store.ts` (`updateNoteDetails`), `actions/notes.ts` (`saveNotebookDetails`, `importNotebook`), `components/ask/ask-widget.tsx`, `lib/validation.ts`
 - 2026-10-27 — Ask: copy buttons on messages/answers, Try again after a failure, slow-AI wait hint, growing message box, inline code; Groq rotates its models and waits out short rate limits; Ask skips `openrouter/free` when Groq is set — `app/src/components/ask/ask-widget.tsx`, `lib/ai-summary.ts`, `lib/ai-settings.ts`, `lib/ask.ts`, `app/.env.example`
