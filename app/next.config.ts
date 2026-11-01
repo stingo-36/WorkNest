@@ -1,6 +1,23 @@
+import { execSync } from "node:child_process";
 import type { NextConfig } from "next";
 
+/**
+ * One id per deploy, baked into the client bundle and returned by /api/version,
+ * so an installed app that stays open can tell it is running old code and
+ * refresh itself (2026-11-02). Deterministic — every build worker must agree.
+ */
+function appVersion() {
+  const fromHost = process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA;
+  if (fromHost) return fromHost;
+  try {
+    return execSync("git rev-parse HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return "local";
+  }
+}
+
 const nextConfig: NextConfig = {
+  env: { NEXT_PUBLIC_APP_VERSION: appVersion() },
   // The app is intentionally opened from another device on this LAN during
   // development. Next blocks dev assets/endpoints from origins other than the
   // hostname it was started with, which prevents React from hydrating and

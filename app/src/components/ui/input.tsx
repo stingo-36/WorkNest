@@ -6,7 +6,6 @@ import OutlinedInput from "@mui/material/OutlinedInput";
 import * as React from "react";
 
 import { cn } from "@/components/cn";
-import { bandSx } from "@/components/ui/band-sx";
 
 /**
  * Text field — MUI OutlinedInput themed in `ui/mui-provider.tsx` (teal focus
@@ -35,8 +34,6 @@ export const inputBase = cn(
 
 export type InputProps = React.ComponentProps<"input"> & {
   bare?: boolean;
-  /** `band`: a nav-style pill for the slate page band. */
-  tone?: "default" | "band";
   startIcon?: React.ReactNode;
   endIcon?: React.ReactNode;
 };
@@ -49,7 +46,6 @@ export function Input({
   className,
   type = "text",
   bare = false,
-  tone = "default",
   startIcon,
   endIcon,
   ref,
@@ -90,7 +86,6 @@ export function Input({
       error={invalid}
       fullWidth
       className={className}
-      sx={tone === "band" ? bandSx : undefined}
       startAdornment={startIcon ? <InputAdornment position="start" className="text-accent-text [&_svg]:size-4">{startIcon}</InputAdornment> : undefined}
       endAdornment={endIcon ? <InputAdornment position="end" className="text-accent-text [&_svg]:size-4">{endIcon}</InputAdornment> : undefined}
       inputProps={inputProps}

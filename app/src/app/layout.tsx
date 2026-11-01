@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import {
   DM_Serif_Display,
-  Geist,
-  Geist_Mono,
+  Inter,
+  JetBrains_Mono,
   Plus_Jakarta_Sans,
+  Sora,
 } from "next/font/google";
 
 import { Providers } from "@/components/providers";
@@ -11,28 +12,34 @@ import { Providers } from "@/components/providers";
 import "./globals.css";
 
 /**
- * Type — design.md §6. Geist is the app UI face (2026-09-28 refresh, per the
- * taste + redesign skills): a crisp neo-grotesk with real Medium/SemiBold
- * steps, so dense 13-14px labels keep a clear hierarchy. Geist Mono carries
- * ticket IDs, timestamps and code, and shares Geist's metrics.
+ * Type — Design-System.md §5 ("Ocean", 2026-11-01). The signed-in app uses three
+ * faces: Inter for all UI and body text, Sora for display type (page titles, big
+ * numbers, the sidebar brand) and JetBrains Mono for ticket IDs, timestamps and
+ * code. They replace Geist / Geist Mono.
  *
- * Plus Jakarta Sans stays loaded for the PUBLIC pages only (homepage, login,
- * register), which reference `--font-jakarta` directly; its italic file is loaded
- * so italic text isn't a synthesised oblique.
+ * Plus Jakarta Sans and DM Serif Display stay loaded for the PUBLIC pages only
+ * (homepage, login, register), which reference `--font-jakarta` / `--font-dm-serif`
+ * directly and were deliberately left out of the redesign.
  *
  * Self-hosted by `next/font` (no Google request at runtime, no layout shift).
  */
-const geist = Geist({
+const inter = Inter({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-geist",
+  variable: "--font-ui",
+});
+
+const sora = Sora({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-display",
 });
 
 /** Ticket IDs, timestamps, saved commands. Ligatures are switched off in CSS. */
-const geistMono = Geist_Mono({
+const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-geist-mono",
+  variable: "--font-code",
 });
 
 const jakarta = Plus_Jakarta_Sans({
@@ -70,7 +77,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   // Light-only site: the browser chrome matches the app's page tint.
-  themeColor: "#f3f6f5",
+  themeColor: "#f2f8fe",
   colorScheme: "light",
   // Edge to edge on notched phones; the dock and shell pad with safe-area insets.
   viewportFit: "cover",
@@ -86,7 +93,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`h-full ${geist.variable} ${geistMono.variable} ${jakarta.variable} ${dmSerif.variable}`}
+      className={`h-full ${inter.variable} ${sora.variable} ${jetbrainsMono.variable} ${jakarta.variable} ${dmSerif.variable}`}
     >
       <body className="flex min-h-full flex-col bg-bg text-text">
         <Providers>{children}</Providers>

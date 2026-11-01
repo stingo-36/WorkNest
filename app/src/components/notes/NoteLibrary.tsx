@@ -33,15 +33,15 @@ const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
 const PREVIEW_SECTIONS = 3;
 
 /**
- * Notes in the Tracker's "F" layout (2026-10-10, owner's screenshot): title +
- * date, search and New note on one row; a summary column (huge notebook count,
- * a bar per notebook in its cover colour, sections / pages / starred) beside
- * the bookshelf — one book cover per notebook, starred first (server order).
- * Search matches title, description and section names, client-side: the list
- * is small and loaded. `.tk-focus` brings the teal-and-ink palette.
+ * Notes as a library (Ocean redesign, 2026-11-01; was a bookshelf of 3D covers):
+ * one row per notebook — cover-coloured icon, title and description, sections,
+ * pages, last edit, star — beside a preview of the picked notebook (≥ lg) with
+ * its sections and an Open button. Below lg each row opens the notebook.
+ * Search matches title, description and section names, client-side.
  */
 export function NoteLibrary({ notes }: { notes: LibraryNote[] }) {
   const [query, setQuery] = useState("");
+  const [pickedId, setPickedId] = useState<string | null>(null);
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return notes;
@@ -49,18 +49,23 @@ export function NoteLibrary({ notes }: { notes: LibraryNote[] }) {
       [note.title, note.description ?? "", ...note.sectionTitles].some((text) => text.toLowerCase().includes(q)),
     );
   }, [notes, query]);
+  const picked = shown.find((note) => note.id === pickedId) ?? shown[0] ?? null;
 
-  const stats = [
-    { label: "Sections", value: notes.reduce((sum, note) => sum + note.sectionTitles.length, 0) },
-    { label: "Pages", value: notes.reduce((sum, note) => sum + note.pageCount, 0) },
-    { label: "Starred", value: notes.filter((note) => note.favorite).length },
-  ];
+  const sections = notes.reduce((sum, note) => sum + note.sectionTitles.length, 0);
+  const pages = notes.reduce((sum, note) => sum + note.pageCount, 0);
+  const starred = notes.filter((note) => note.favorite).length;
 
   return (
-    <div className="tk-focus flex w-full min-w-0 flex-col gap-11">
+    <div className="tk-focus flex w-full min-w-0 flex-col gap-8">
       <PageHead
         title="Notes"
         meta={format(new Date(), "EEEE d MMM yyyy")}
+        stats={notes.length ? [
+          { value: notes.length, label: notes.length === 1 ? "notebook" : "notebooks" },
+          { value: sections, label: sections === 1 ? "section" : "sections" },
+          { value: pages, label: pages === 1 ? "page" : "pages" },
+          { value: starred, label: "starred" },
+        ] : undefined}
         actions={
           <>
             <SearchPill id="notes-search" label="Search notes" value={query} placeholder="Search titles, descriptions and sections" onChange={setQuery} shortcut className="w-full md:w-96" />
@@ -72,147 +77,111 @@ export function NoteLibrary({ notes }: { notes: LibraryNote[] }) {
         }
       />
 
-      <div className="flex flex-wrap items-start gap-x-12 gap-y-11 xl:gap-x-16">
-        <section aria-label="Summary" className="flex min-w-0 flex-[1_1_17rem] flex-col gap-7.5 lg:sticky lg:top-6">
-          <div className="flex flex-col gap-3.5">
-            <p className="tk-eyebrow text-accent-text">Your notebooks</p>
-            <h2 className="flex flex-col gap-5">
-              <span className="tk-hero">{notes.length}</span>
-              <span className="tk-hero-line">{notes.length === 1 ? "notebook" : "notebooks"}</span>
-            </h2>
-            <p className="text-lg text-text-muted">
-              {notes.length ? "Hover a book to peek inside" : "A notebook per subject: sections inside it, pages inside a section."}
-            </p>
-          </div>
-
-          {notes.length ? (
-            <div aria-hidden="true" className="flex flex-wrap gap-1.5">
-              {notes.slice(0, 40).map((note) => <span key={note.id} className="tk-bar" style={{ background: note.coverColor }} />)}
+      {notes.length === 0 ? (
+        <Link href="/notes/new" className="group/new flex flex-col items-center justify-center gap-3 rounded-[var(--radius-2xl)] border-2 border-dashed border-[var(--c-tk-rule)] px-6 py-14 text-center">
+          <span className="grid size-12 place-items-center rounded-full bg-sidebar text-sidebar-fg transition-colors duration-150 group-hover/new:bg-sidebar-3">
+            <Plus className="size-5" strokeWidth={2} aria-hidden="true" />
+          </span>
+          <span className="text-lg font-semibold text-text">Start your first notebook</span>
+          <span className="max-w-md text-base text-text-muted">A notebook per subject: sections inside it, pages inside a section.</span>
+        </Link>
+      ) : shown.length === 0 ? (
+        <p className="py-12 text-center text-lg text-text-muted">
+          Nothing matches “{query.trim()}”.{" "}
+          <button type="button" onClick={() => setQuery("")} className="cursor-pointer font-semibold text-accent-text hover:underline">Clear search</button>
+        </p>
+      ) : (
+        <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,1fr)]">
+          <section aria-label="Notebooks" className="min-w-0">
+            <div className="hidden grid-cols-[minmax(0,1fr)_5.5rem_4.5rem_6rem_2.75rem] gap-3 border-b border-[var(--c-tk-rule)] px-3 pb-2.5 text-2xs font-semibold tracking-[0.1em] text-text-subtle uppercase md:grid">
+              <span>Notebook</span><span>Sections</span><span>Pages</span><span>Edited</span><span className="sr-only">Star</span>
             </div>
-          ) : null}
-
-          <dl className="flex flex-col border-b border-[var(--c-tk-rule)]">
-            {stats.map((stat) => (
-              <div key={stat.label} className="flex flex-row-reverse items-baseline justify-end gap-4 border-t border-[var(--c-tk-rule)] py-3.5">
-                <dt className="tk-label text-text-muted">{stat.label}</dt>
-                <dd className="tk-stat min-w-25">{stat.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-
-        <section aria-label="Notebooks" className="flex min-w-0 flex-[999_1_36rem] flex-col">
-          {shown.length === 0 && notes.length > 0 ? (
-            <p className="py-12 text-center text-lg text-text-muted">
-              Nothing matches “{query.trim()}”.{" "}
-              <button type="button" onClick={() => setQuery("")} className="cursor-pointer font-semibold text-accent-text hover:underline">Clear search</button>
-            </p>
-          ) : (
-            <ul className="grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-3 md:gap-x-6 xl:grid-cols-4">
-              {shown.map((note) => <NoteBook key={note.id} note={note} />)}
-              <li>
-                <Link
-                  href="/notes/new"
-                  className="group/new flex aspect-[3/4] flex-col items-center justify-center gap-4 rounded-[0.5rem_1rem_1rem_0.5rem] border-2 border-dashed border-border-strong text-lg font-semibold text-text transition-colors duration-150 hover:border-primary"
-                >
-                  <span className="grid size-12 place-items-center rounded-full bg-sidebar text-sidebar-fg transition-colors duration-150 group-hover/new:bg-sidebar-3">
-                    <Plus className="size-5" strokeWidth={2} aria-hidden="true" />
-                  </span>
-                  New notebook
-                </Link>
-              </li>
+            <ul className="flex flex-col">
+              {shown.map((note) => (
+                <NoteRow key={note.id} note={note} picked={note.id === picked?.id} onPick={() => setPickedId(note.id)} />
+              ))}
             </ul>
-          )}
-        </section>
-      </div>
+          </section>
+          {picked ? <NotePreview note={picked} /> : null}
+        </div>
+      )}
     </div>
   );
 }
 
-function NoteBook({ note }: { note: LibraryNote }) {
-  const preview = note.sectionTitles.slice(0, PREVIEW_SECTIONS);
-  const more = note.sectionTitles.length - preview.length;
+function NoteGlyph({ note, className }: { note: LibraryNote; className: string }) {
+  return <NoteIcon icon={note.iconLibrary && note.iconName ? { library: note.iconLibrary, name: note.iconName } : null} className={className} fallback={<FileText className={className} />} />;
+}
+
+/** One notebook row. Below lg the title opens it; from lg a click previews it on the right. */
+function NoteRow({ note, picked, onPick }: { note: LibraryNote; picked: boolean; onPick: () => void }) {
   return (
-    <li className="group relative flex min-w-0 flex-col gap-3">
-      {/*
-        A 3D book (2026-10-09): on hover/focus the cover swings open on its spine,
-        showing the contents page behind (stacked page edges give the depth). The whole book is the link.
-      */}
-      <Link href={`/notes/${note.id}`} aria-label={`Open ${note.title}`} className="book-3d relative block aspect-[3/4] rounded-[0.5rem_1rem_1rem_0.5rem] outline-none focus-visible:ring-4 focus-visible:ring-primary focus-visible:ring-offset-2">
-        {/* The first page: the notebook's contents. */}
-        <div aria-hidden="true" className="book-pages absolute inset-y-1 right-0 left-1 flex flex-col gap-2 overflow-hidden rounded-[0.25rem_0.875rem_0.875rem_0.25rem] border border-border bg-surface py-5 pr-4 pl-[42%] text-text">
-          <span className="text-2xs font-semibold tracking-[0.12em] text-text-subtle uppercase">Contents</span>
-          <ol className="flex flex-col gap-1.5 text-sm">
-            {note.sectionTitles.slice(0, 7).map((title, index) => (
-              <li key={index} className="flex gap-2 border-b border-dashed border-border pb-1.5">
-                <span className="font-mono text-xs text-text-subtle tabular-nums">{String(index + 1).padStart(2, "0")}</span>
-                <span className="min-w-0 truncate">{title}</span>
-              </li>
-            ))}
-            {note.sectionTitles.length === 0 ? <li className="text-text-subtle">No sections yet</li> : null}
-          </ol>
-          {note.sectionTitles.length > 7 ? <span className="text-xs text-text-subtle">+{note.sectionTitles.length - 7} more sections</span> : null}
-          <span className="mt-auto text-xs font-semibold text-accent-text">Open notebook →</span>
+    <li className={cn("relative grid grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-3 border-b border-[var(--c-tk-rule)] px-3 py-3.5 transition-colors duration-150 md:grid-cols-[minmax(0,1fr)_5.5rem_4.5rem_6rem_2.75rem]", picked ? "lg:rounded-xl lg:bg-primary-subtle" : "hover:bg-surface/60")}>
+      <div className="flex min-w-0 items-center gap-3">
+        <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-xl [&_svg]:!text-inherit" style={{ backgroundColor: note.coverColor, color: note.coverInk }}>
+          <NoteGlyph note={note} className="size-5" />
+        </span>
+        <div className="min-w-0">
+          <Link href={`/notes/${note.id}`} className="block truncate text-lg font-semibold text-text after:absolute after:inset-0 hover:underline lg:relative lg:z-[5] lg:after:hidden">{note.title}</Link>
+          <button type="button" onClick={onPick} aria-pressed={picked} className="absolute inset-0 hidden cursor-pointer lg:block" aria-label={`Preview ${note.title}`} />
+          <p className="truncate text-sm text-text-muted">
+            {note.description ?? (note.sectionTitles.length ? note.sectionTitles.slice(0, PREVIEW_SECTIONS).join(" · ") : "No sections yet")}
+            <span className="md:hidden"> · {plural(note.pageCount, "page")}</span>
+          </p>
         </div>
-        {/* The cover: a spine on the left, the icon on top, the title at the foot. */}
-        <div
-          style={{
-            ["--cover" as string]: note.coverColor,
-            backgroundColor: note.coverColor,
-            color: note.coverInk,
-            // A fine dot texture in the cover's own ink, so it works on dark and pale covers alike.
-            backgroundImage: "radial-gradient(color-mix(in srgb, currentColor 16%, transparent) 1px, transparent 1.6px)",
-            backgroundSize: "14px 14px",
-          }}
-          className="book-cover absolute inset-0 flex flex-col justify-between overflow-hidden rounded-[0.5rem_1rem_1rem_0.5rem] py-4 pr-4 pl-6 shadow-card"
-        >
-          <span aria-hidden="true" className="absolute inset-y-0 left-0 w-2.5 bg-black/20" />
-          <span aria-hidden="true" className="absolute inset-y-0 left-2.5 w-px bg-white/25" />
-          {/* The note's icon, large and faded, as the cover art. */}
-          <span aria-hidden="true" className="pointer-events-none absolute top-1/2 right-[-12%] -translate-y-[58%] rotate-[-12deg] opacity-[0.16] [&_svg]:!text-inherit">
-            <NoteIcon icon={note.iconLibrary && note.iconName ? { library: note.iconLibrary, name: note.iconName } : null} className="size-44" fallback={<FileText className="size-44" />} />
-          </span>
-          {/* A soft band behind the title keeps it readable over the art. */}
-          <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-[linear-gradient(to_top,var(--cover),transparent)]" />
-          <span aria-hidden="true" className="relative grid size-11 place-items-center rounded-xl bg-white/20 [&_svg]:!text-inherit">
-            <NoteIcon icon={note.iconLibrary && note.iconName ? { library: note.iconLibrary, name: note.iconName } : null} className="size-6" fallback={<FileText className="size-6" />} />
-          </span>
-          <div className="relative min-w-0">
-            <h2 className="line-clamp-3 text-lg leading-tight font-semibold tracking-[-0.02em] [overflow-wrap:anywhere]">{note.title}</h2>
-            <p className="mt-1.5 line-clamp-1 text-xs opacity-85">
-              {preview.length ? preview.join(" · ") : "No sections yet"}
-              {more > 0 ? ` +${more}` : ""}
-            </p>
-          </div>
-        </div>
-      </Link>
-
-      {/* A form, not a link: favouriting is a write. */}
-      <form action={toggleNoteFavorite} className="absolute top-2 right-2 z-10">
-        <input type="hidden" name="id" value={note.id} />
-        <Button
-          type="submit"
-          variant="ghost"
-          size="sm"
-          iconOnly
-          style={{ color: note.coverInk }}
-          className="hover:bg-white/20"
-          aria-label={note.favorite ? `Unstar ${note.title}` : `Star ${note.title}`}
-          aria-pressed={note.favorite}
-          title={note.favorite ? "Starred" : "Star"}
-        >
-          {/* Inline colour: the global icon-colour map would paint the star amber, which vanishes on warm covers. */}
-          <Star aria-hidden="true" style={{ color: "inherit" }} className={cn(note.favorite && "fill-current")} />
-        </Button>
-      </form>
-
-      <div className="min-w-0">
-        {note.description ? <p className="line-clamp-3 text-base text-text">{note.description}</p> : null}
-        <p className="mt-1.5 flex justify-between gap-2 text-sm text-text-muted tabular-nums">
-          <span>{plural(note.sectionTitles.length, "section")} · {plural(note.pageCount, "page")}</span>
-          <span>{note.updatedLabel}</span>
-        </p>
       </div>
+      <span className="hidden text-base text-text tabular-nums md:block">{note.sectionTitles.length}</span>
+      <span className="hidden text-base text-text tabular-nums md:block">{note.pageCount}</span>
+      <span className="hidden text-sm text-text-muted md:block">{note.updatedLabel}</span>
+      <StarForm note={note} />
     </li>
+  );
+}
+
+function StarForm({ note }: { note: LibraryNote }) {
+  return (
+    // A form, not a link: favouriting is a write.
+    <form action={toggleNoteFavorite} className="relative z-10 justify-self-end">
+      <input type="hidden" name="id" value={note.id} />
+      <Button
+        type="submit"
+        variant="ghost"
+        size="sm"
+        iconOnly
+        aria-label={note.favorite ? `Unstar ${note.title}` : `Star ${note.title}`}
+        aria-pressed={note.favorite}
+        title={note.favorite ? "Starred" : "Star"}
+      >
+        <Star aria-hidden="true" className={cn(note.favorite && "fill-current")} />
+      </Button>
+    </form>
+  );
+}
+
+/** The picked notebook (≥ lg): cover band, description, its sections, Open. */
+function NotePreview({ note }: { note: LibraryNote }) {
+  return (
+    <aside aria-label={`Preview: ${note.title}`} className="sticky top-[calc(var(--dock-clearance)+1.5rem)] hidden overflow-hidden rounded-[var(--radius-2xl)] border border-border bg-surface shadow-card lg:block">
+      <div className="relative overflow-hidden px-6 py-6" style={{ backgroundColor: note.coverColor, color: note.coverInk }}>
+        <span aria-hidden="true" className="pointer-events-none absolute -right-6 -bottom-8 rotate-[-12deg] opacity-[0.18] [&_svg]:!text-inherit">
+          <NoteGlyph note={note} className="size-36" />
+        </span>
+        <p className="relative text-2xs font-semibold tracking-[0.12em] uppercase opacity-80">Notebook</p>
+        <h2 className="relative mt-1.5 text-3xl leading-tight font-bold tracking-[-0.03em] [overflow-wrap:anywhere]" style={{ fontFamily: "var(--font-heading)" }}>{note.title}</h2>
+        {note.description ? <p className="relative mt-1.5 line-clamp-3 text-base opacity-90">{note.description}</p> : null}
+      </div>
+      <ol className="flex max-h-80 flex-col overflow-y-auto py-2">
+        {note.sectionTitles.length ? note.sectionTitles.map((title, index) => (
+          <li key={index} className="flex gap-3 border-b border-border px-6 py-2.5 text-base text-text last:border-b-0">
+            <span className="font-mono text-sm text-text-subtle tabular-nums">{String(index + 1).padStart(2, "0")}</span>
+            <span className="min-w-0 truncate">{title}</span>
+          </li>
+        )) : <li className="px-6 py-3 text-base text-text-muted">No sections yet</li>}
+      </ol>
+      <div className="flex items-center justify-between gap-3 border-t border-border px-6 py-4">
+        <span className="text-sm text-text-muted">{plural(note.pageCount, "page")} · {note.updatedLabel}</span>
+        <Link href={`/notes/${note.id}`} className={primaryPill}>Open</Link>
+      </div>
+    </aside>
   );
 }

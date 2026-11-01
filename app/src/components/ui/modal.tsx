@@ -26,7 +26,8 @@ export function Modal({
   title: ReactNode;
   eyebrow?: ReactNode;
   footer?: ReactNode;
-  size?: "md" | "lg" | "xl";
+  /** `full`: fills the screen (Quick log's composer, Ocean 2026-11-01). */
+  size?: "md" | "lg" | "xl" | "full";
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -68,12 +69,13 @@ export function Modal({
         pressedBackdrop.current = false;
       }}
       className={cn(
-        "t-modal m-auto w-[calc(100%-2rem)] overflow-hidden rounded-2xl border border-border bg-surface p-0 text-text shadow-lg backdrop:bg-overlay",
-        size === "xl" ? "max-w-5xl" : size === "lg" ? "max-w-2xl" : "max-w-xl",
+        "t-modal m-auto overflow-hidden border-border bg-surface p-0 text-text shadow-lg backdrop:bg-overlay",
+        size === "full" ? "modal-full h-dvh max-h-none w-full max-w-none rounded-none border-0" : "w-[calc(100%-2rem)] rounded-2xl border",
+        size === "xl" ? "max-w-5xl" : size === "lg" ? "max-w-2xl" : size === "md" ? "max-w-xl" : null,
       )}
     >
       {open ? (
-        <div className="flex max-h-[calc(100dvh-2rem)] flex-col">
+        <div className={cn("flex flex-col", size === "full" ? "h-dvh" : "max-h-[calc(100dvh-2rem)]")}>
           <header className="flex items-start gap-3 border-b border-border px-5 py-4 md:px-6">
             <div className="min-w-0 flex-1">
               {eyebrow ? <div className="mb-1 text-sm text-text-muted">{eyebrow}</div> : null}
@@ -85,7 +87,7 @@ export function Modal({
               <X aria-hidden="true" />
             </Button>
           </header>
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 md:px-6">{children}</div>
+          <div className={cn("min-h-0 flex-1 overflow-y-auto px-5 py-5 md:px-6", size === "full" && "md:px-10 md:py-8")}>{children}</div>
           {footer ? (
             <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border bg-surface-2 px-5 py-3 md:px-6">
               {footer}

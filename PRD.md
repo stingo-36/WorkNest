@@ -4,7 +4,7 @@
 > changes scope, or is retired, update the matching section here (see
 > `AGENTS.md → Keeping the docs current`).
 >
-> Last synced with the codebase: **2026-10-27**
+> Last synced with the codebase: **2026-11-01**
 
 ---
 
@@ -53,15 +53,15 @@ placeholder page) · **Retired** (redirects).
 |---|---|---|---|
 | Homepage | `/` | Live (public) | "Next Level" page: serif hero "Keep it all in one place." with four 3D characters on brush strokes; then **Workspace** (`#workspace`, auto-playing tour of Work logs / Tracker / Notes / Resources), **AI summaries** (`#ai-summaries`, notes → summary → 5-15 report, with a 3D character) and **Get started** (`#get-started`, three steps + closing CTA + footer). Desktop scrolls one full-screen section at a time. Login/register use the same style with a 3D character panel. |
 | Banner review | `/banner` | **Retired 2026-10-03** | The old "Quiet Studio" homepage review route was removed with its code; the URL now goes to sign-in (signed out) or the 404 page (signed in). |
-| Auth | `/login`, `/register` | Live (public) | Email + password. Direct admin sign-ins land on `/admin`; regular users land on `/tracker`. |
+| Auth | `/login`, `/register` | Live (public) | Email + password; Ocean look (2026-11-01): sign-in centred over waves, register in two steps (name + email, then passwords) on one form. Direct admin sign-ins land on `/admin`; regular users land on `/tracker`. |
 | Work Logs | `/work-logs`, `/work-logs/[id]`, `/work-logs/[id]/edit` | Live | The core workflow — see §5.1. |
 | Tickets | `/tickets` | Live · hidden when *Tickets* is off in Profile | Master-detail ticket manager — see §5.2. |
-| Tracker | `/tracker` | Live — **post-login landing page** | To-do · Follow-ups · Notes tabs (`?view=`), two-column layout from the owner's mockup (2026-10-14); To-do has a **Work / Personal** toggle (Work by default), Personal shows sticky notes — see §5.3. |
+| Tracker | `/tracker` | Live — **post-login landing page** | To-do · Follow-ups · Notes tabs (`?view=`), Work to-dos (v3) as a greeting header, a Next up card and one compact list (Overdue · Due today · Needs you · Upcoming · Someday) beside a rail (this week's progress, waiting on, personal), Follow-ups laid out like Notes — a New follow-up composer card (title, optional rich first message, who/where, reminder date, star) beside the follow-up list (Your turn · Nudge due · Waiting), rows open the entry dialog (2026-11-01); To-do has a **Work / Personal** toggle (Work by default), Personal shows sticky notes — see §5.3. |
 | Notes | `/notes`, `/notes/new`, `/notes/[id]`, `/notes/[id]/edit` | Live | Notebooks: note → sections → pages — see §5.4. |
 | Resources | `/resources` | Live | Typed personal library — see §5.5. |
 | Favourites | `/favourites` | Live | Everything starred in one place — see §5.6. |
-| Ask | floating button, bottom-right of every app page | Live | Chat that answers questions about your own records, with numbered links to the sources, looks things up across your logs and Tracker, and proposes Tracker changes (add, done, reopen, reschedule, update) you confirm with one click — see §5.13. |
-| Quick log | dialog (nav button, Work Logs header) | Live | Paste rough text → AI draft → review → apply, for a work log, to-dos or follow-ups — see §5.10. |
+| Ask | top bar button (≥1024) / tab bar item (phones); full-height side drawer on desktop | Live | Chat that answers questions about your own records, with numbered links to the sources, looks things up across your logs and Tracker, and proposes Tracker changes (add, done, reopen, reschedule, update) you confirm with one click — see §5.13. |
+| Quick log | full-screen dialog (sidebar button, phone tab bar +, Work Logs header) | Live | Paste rough text → AI draft → review → apply, for a work log, to-dos or follow-ups — see §5.10. |
 | Profile | `/profile` (account menu) | Live | Name, sprint calendar, tickets on/off, AI summary key — see §5.7. |
 | Achievements | `/achievements` (account menu) | Live | Certifications/courses/awards timeline with certificates — see §5.8. |
 | Reports | `/reports` (account menu) | Live | "5-15 Report" per sprint, ready to paste into a doc — see §5.9. |
@@ -71,12 +71,13 @@ placeholder page) · **Retired** (redirects).
 | Dashboard | `/dashboard` | **Retired 2026-09-25** | Redirects to `/tracker`. |
 | Tasks, Links, Settings | `/tasks`, `/links`, `/settings` | Coming soon | Shared `ComingSoonPage`. `Task`/`Link` tables and actions exist but have no UI. |
 
-Primary nav (2026-10-14): a **full-width sticky bar at the top** of every screen — Work Logs ·
-Tickets (only if enabled) · Tracker · Notes · Resources · Favourites, then the account
-avatar (Profile & settings, Reports, Achievements, Install WorkNest when available,
-Log out; opens downwards). On phones the bar is limited to five labelled items,
-and Favourites moves into the account menu so navigation never has to squeeze or overflow.
-Quick log lives on the Work Logs page.
+Primary nav (Ocean shell, 2026-11-01): on screens ≥1024px a **sticky left sidebar** — brand,
+a Quick log button, **Workspace** (Work Logs · Tickets (only if enabled) · Tracker · Notes ·
+Resources · Favourites), **You** (Reports · Achievements · Profile & settings · Admin for
+admins) and the account card (Install WorkNest when available, Log out) — plus a top bar over
+the content (breadcrumb, **Ask**). Below 1024px a slim top header (brand, account menu with
+Tickets, Resources, Favourites and every account page) and a **bottom tab bar**: Tracker ·
+Logs · raised **+** (Quick log) · Notes · Ask.
 
 ## 5. Features in detail
 
@@ -95,17 +96,20 @@ update.*
   returns), and `?day=` in an earlier sprint opens that sprint. An
   eyebrow (sprint dates · day N of M, or *Past sprint*), a large **Work Logs** title, a **Jump to a day or
   ticket** search (⌘K; matches this sprint's dates, titles and ticket keys/titles, and opens
-  the picked day) and a legend. Below: the **sprint deck** — one column per weekday (logged · day off hatched · no log amber dashed with + ·
-  today ink · upcoming / sprint ends), a *Weekend* spacer between weeks; clicking a column
-  grows it into the **day card** (animated): big date, status chip, View full log / Edit log,
-  title (split on `|`), then four sections — **Summary** (AI summary if generated, else one
-  status-marked row per ticket update; shown only for a logged day — a day with no log
-  offers Start log / Mark holiday / Mark leave on the right of the header instead), and that day's Tracker **To-do list** (overdue, due that day, created that day, done — each a tinted card; every finished one is struck through with its done date, "· done 17 Oct", and one finished on a later day keeps its label but turns green),
-  **Follow-ups** (entries created or written to that day: person, subject, latest note,
-  waiting / replied / closed) and **Notes** (created or added to that day), each with an
-  Open link to its Tracker tab. Summary sits on the left; of the lists that exist (in the order to-dos, follow-ups, notes), the first goes on the right, the second under Summary on the left, the third back on the right. **Empty sections are hidden** (no "No X that day" rows), so whichever lists exist move up. `?day=` keeps the open day. From lg the page fits the screen
-  above the dock (the card scrolls inside); below lg the columns become rows. Future days
-  inert.
+  the picked day), with the ‹ › arrows beside it. Below: the **sprint strip** (Ocean v2, 2026-11-01;
+  was a ribbon of bars, before that a deck of columns) — "N of M days logged" with a progress line,
+  workdays left and a legend, then one tile per weekday in rows of five (Week 1 / Week 2): logged
+  "N tickets" · day off · no log "+ Add log" (amber dashed) · today · upcoming / sprint ends (not
+  clickable). Clicking a tile opens that day's **day card**: date badge, weekday, status and count
+  chips, View full log / Edit log (a day with no log offers Start log / Mark holiday / Mark leave
+  instead), title (split on `|`), then **Summary** (AI summary if generated), **Tickets worked**
+  (key, title, the update's first line, status badge), that day's **Follow-ups** (subject, waiting
+  on / replied with the latest note, state chip) and **Notes**, each list with an Open link to its
+  Tracker tab; empty sections are hidden. A rail (beside the card from xl, under it below) shows the
+  latest **missing day** with "Add <day>'s log" (opens that day), the day's **To-do list** as a tick
+  list (overdue / due today / created / done with dates, struck through when finished) and three
+  numbers: tickets this sprint, days logged, days to backfill. `?day=` keeps the open day. Phones: the tiles scroll
+  sideways in one row with short labels. Future days are inert.
 - **Editor (`/work-logs/[id]/edit`, redesigned 2026-10-08 as a document page):** an
   action strip (prev/next log arrows, All work logs, day type, save status, View log),
   then the log as **one white document** — large date, title field, and each section
@@ -130,13 +134,14 @@ update.*
   4. **Attachments** — upload files (≤10 MB each, ≤10 per upload) or add links.
 - **Autosave** is debounced, shows a save-status indicator, never toasts, and never
   creates duplicate rows.
-- **Detail (`/work-logs/[id]`, redesigned 2026-10-15 from the owner's mockup):** "‹ All
-  work logs" with ‹ › to neighbouring logs on top; a full-width **dark hero** (date + day
-  type, the log's title — or the date — Edit log, **Copy as text**, and three counts:
-  tickets / meetings / to-dos done); then the log on the left — **AI summary**, **Ticket
-  work**, **Meetings** as note tiles (3 across on wide screens) — and a sticky right column:
-  the day's **To-dos**, **Ticket history**, and **Details** (Work done, attachments &
-  links, activity + who).
+- **Detail (`/work-logs/[id]`, Ocean v2 2026-11-01):** "‹ All work logs" with ‹ › to
+  neighbouring logs (each showing its date from md); a **hero card** (date badge, date +
+  day type, the log's title — or the date — Copy as text, Edit log, and counts: tickets /
+  meetings / to-dos done); then **AI summary**, **Ticket work** — each ticket shows this
+  log's update highlighted and its other updates (work-log and direct) as a timeline, two
+  shown and the rest behind "Show N more updates" (replaces the separate Ticket history
+  card) — then **Meetings** and **Work done** side by side; a sticky right column holds the
+  day's **To-dos**, **Attachments & links** and **Activity** (+ who).
 - **AI summary and title in the background (2026-10-09):** leaving a log's editor
   (navigating away, closing or reloading the tab) refreshes the AI summary in the
   background — and the **title**, while it's still the default "Daily Work Log" or was
@@ -165,16 +170,19 @@ update.*
 - Ticket keys are free text in the user's own scheme, **unique per user**, not
   globally. No Jira sync.
 - `/tickets` (redesigned 2026-10-11 in the shared page style): the **Tickets** title,
-  "N tickets · your own key scheme" and a stacked bar by status, a **New ticket** button
+  "N tickets · your own key scheme" (eyebrow), a **New ticket** button
   for standalone creation, and a search pill (⌘K);
-  then **underline status tabs** (All · In Progress · Sent to QA · Ready for production ·
-  Released · Done, with counts; In Progress by default) replacing the status dropdown;
-  then the **ticket list** (key chip, status, title, project, log count; the selected row
-  gets an ink bar) beside the **open ticket** card (key, status, title, project; then
-  a compact journey, newest-update summary, add-update form and newest-first history).
-  From lg the list sticks while the ticket
-  scrolls with the page; on phones and tablets the list comes first and tapping a
-  ticket scrolls to it. The first ticket in the list is open by default.
+  then (Ocean v2 list + detail, 2026-11-02) a **list card**: status filter chips (All ·
+  In Progress · Blocked · Sent to QA · Ready for production · Released · Done, with
+  counts; **All** by default) over the tickets **grouped by status** (key, title,
+  project, log count, last updated; the open one gets a teal rule). Beside it the
+  **open ticket** (key, status, project, Edit ticket details; title; log count +
+  updated) with **status steps** — six clickable steps showing when each was first
+  reached (they replace the Status dropdown and the old journey strip; Save applies
+  the pick) and "Open for / Done in N days" — then the latest update, the add-update
+  form and newest-first history. From xl (1280) the list sticks beside the ticket;
+  below xl tapping a ticket opens it **full screen** with "← All tickets" (Esc also
+  closes). The first ticket in the list is open by default.
 - Edit the ticket's current **ticket number**, **title**, **status** and **project/site**
   directly. Ticket numbers remain unique within the signed-in user's workspace.
 - **Standalone updates** written on this page are `TicketHistoryEntry` rows. They can
@@ -280,17 +288,14 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   when known).
 - Favourite notes sort to the top. Deleting moves a note to trash (`deletedAt`);
   notes can be restored.
-- **List (`/notes`, bookshelf 2026-10-08; layout "F" 2026-10-10 from the owner's
-  screenshot):** title **Notes** + today's date, a search pill (title, description,
-  section names; ⌘K) and an ink *New note* button. Left (sticky from lg): *Your
-  notebooks*, the notebook count huge, "Hover a book to peek inside", a bar per notebook
-  in its cover colour, then sections / pages / starred as ruled rows. Right: one **book
-  cover** per notebook (starred first) in
-  the note's accent colour — spine, a fine dot texture, the note's icon large and faded as cover art, the icon badge, title, first 3 section names (+N) — with a
-  star on the cover and the description, size and updated date under it. The last
-  cover is a dashed *New notebook*. On hover/focus a book **opens** (the cover swings
-  on its spine, 3D) to show a contents page (first 7 sections); the whole book is the
-  link that opens it. Reduced motion: no animation. 2 covers per row on phones, 3 from md, 4 from xl.
+- **List (`/notes`, library list since the Ocean redesign, 2026-11-01; was a bookshelf):**
+  title **Notes** + today's date, counts (notebooks · sections · pages · starred), a search
+  pill (title, description, section names; ⌘K) and a *New note* button. Then one **row**
+  per notebook (starred first): an icon tile in the note's accent colour, title,
+  description (or first section names), sections, pages, last edit and a star. From lg a
+  click previews the notebook on the right — cover band, description, numbered sections,
+  *Open*; below lg a row opens the notebook. No notebooks: a *Start your first notebook*
+  link. A search with no hits offers *Clear search*.
 - **Reading a note (`/notes/[id]`, redesigned 2026-10-02):** a documentation-style
   reader. **Everything is open** — every section and page in one continuous column
   (section opener: *Section X of N · N pages* + large title; pages numbered *2.3* with
@@ -305,10 +310,10 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   under the bar — the scroll follows the heading frame by frame and pages it flies
   past wait to load until it lands, so there is no snap at the end (2026-10-04).
   Level-2 headings inside a page show as tinted bands, so each block of a topic
-  (e.g. Definition, Example) is easy to spot. Since 2026-10-08 it is a **three-column
-  docs layout** at xl (1440+): contents on the left (current section a slate pill,
-  current page sky), the reading column, and an **On this page** rail on the right
-  (the current section's pages + how far through the note you are).
+  (e.g. Definition, Example) is easy to spot. From lg it is a **two-column
+  docs layout**: contents on the left (current section a slate pill, current page sky)
+  and the reading column at full width (the right "On this page" rail was removed
+  2026-11-02 so notes read wider).
 - **Editing a note:** the *At a glance* outline beside the editor is capped to the
   screen and scrolls on its own; clicking a section/page there smooth-scrolls to it.
   A page's editor mounts only when it comes near the screen (long notebooks stay
@@ -329,17 +334,17 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   URL, type or a **tag** (`#` ignored, spaces = dashes, so "vibe coding" finds
   `vibe-coding`) — and each resource can be **favourited**, **edited**
   (pencil on every card/row → the same form, prefilled) or deleted.
-- Layout (owner's mockup, 2026-10-14): **Resources** title + one-line description on the
-  left; an underline search (⌘K; text and `#tag`) and an ink **Add resource** button on
-  the right; a rule. Below, a **Type / Tags** column (a sideways strip above the list under
-  lg): *All* (default) then each type with counts, on a dark panel with the current one
-  as a light pill; tags in **colour-coded text** (no fill) with counts (brand colour for known tags such as
-  *android* or *github*, else a stable colour from the name; a click shows All filtered by
-  `#tag`, again clears). Row tags and Tracker note tags use the same capsules. Beside it
-  one list headed "ALL RESOURCES · 7" (or the type) with a sort menu (*Recently added* ·
-  *Recently updated* · *A–Z*). Each row: an initials tile (ink / teal / amber, fixed per
-  title), the title (opens the URL ↗) with the site in mono, description, tag capsules;
-  edit/delete on hover from md and the star. Commands/snippets add their code line with Copy.
+- Layout (Ocean v2, 2026-11-02): a **deep-ocean hero** — "N resources", **Resources**,
+  the one-line description, a white **Add resource** button, a big search (⌘K; text and
+  `#tag`) and the **type chips** (*All* (default) then each type with counts; scroll
+  sideways on phones). Below, the list headed "ALL RESOURCES · N" (or the type) with a sort
+  menu (*Recently added* · *Recently updated* · *A–Z*): **Links & docs** as cards (1 / 2 /
+  3 across) — initials tile (five Ocean tones, fixed per title), title (opens the URL ↗) +
+  site in mono, the star, description (3 lines), mono tags, edit/delete on hover from md —
+  then **Commands & snippets** as dark code cards (title, kind, Copy, the code with a `$`
+  prompt for commands, description, tags, edit/delete/star). A right **rail** (stacked
+  under lg) holds **Tags** (mono chips with counts; a click shows All filtered by `#tag`,
+  again clears) and **Starred** (favourites, linking out).
   Types that read the same on screen (built-in *Website* shows as "Websites", like a
   custom *Websites*) are one type, and Profile refuses adding such a duplicate.
 - In the add/edit form, **Resource type** is a searchable dropdown (type "doc" →
@@ -378,14 +383,16 @@ two columns.
   encrypted, last 4 shown, Remove), else the server's `GROQ_API_KEY`; Groq answers
   whenever OpenRouter fails, or everything when there's no OpenRouter key. With none,
   AI is off and no summaries or reports are generated (§5.1, §5.9). Shows a privacy note about what is sent.
-- Layout (redesigned 2026-10-08): an identity header (avatar, name, email, sprint
-  length, tickets on/off); **one horizontal tab bar** for every section, grouped
-  (*Settings*: Account (with the AI summaries card), Sprint calendar, Work logs ·
-  *Dropdown lists*: Follow-up channels, Resource types, Default meetings, Projects /
-  sites · *Tags*: Note tags, Resource tags; scrolls sideways on phones); Account /
-  Sprint calendar / Work logs are **label-and-control rows**. **Only the chosen section
-  is shown** (`?section=` keeps it on refresh). Account/sprint/tickets save together via
-  a bottom bar that appears once something changes; tabs with unsaved edits show a dot.
+- Layout (Ocean v2, 2026-11-02): a **deep-ocean identity card** (initials, name, email,
+  sprint length, tickets on/off) above a **grouped menu** (*You*: Account (with Password
+  and the AI summaries card), Sprint calendar, Work logs · *Lists*: Follow-up channels,
+  Resource types, Default meetings, Projects / sites · *Tags*: Note tags, Resource tags) —
+  a sticky left column from lg, scrolling chips on phones/tablets. The open section shows
+  on the right under "Settings · <group>" as cards with an icon-tile header (Account's
+  Name + Email side by side; password fields 3-up from xl; OpenRouter and Groq as two
+  panels from xl). **Only the chosen section is shown** (`?section=` keeps it on refresh).
+  Account/sprint/tickets save together via a bottom bar that appears once something
+  changes; menu items with unsaved edits show a dot.
 - **Dropdown lists** (save immediately; removing an option never rewrites items
   already using it):
   - *Follow-up channels* (Tracker "Where"), *Resource types*, *Default meetings* —
@@ -486,6 +493,12 @@ How the text is read — the AI does the fuzzy part, code the exact part:
 - A small service worker provides only the branded offline screen. It never caches
   signed-in pages, API responses or user data, so installed WorkNest remains
   network-first and does not expose a stale private workspace from its own cache.
+- **Updates without reinstalling (2026-11-02):** every deploy has an id (Vercel
+  deployment id / git commit). The installed app checks `/api/version` when it opens,
+  whenever you come back to it, when it's back online and every 5 minutes. A newer
+  deploy reloads the app straight away on open/return; while you're mid-use it shows a
+  "Refresh" toast and loads the new version on your next page change. The service
+  worker is re-checked at the same moments. Off in local development.
 
 ### 5.12 Admin dashboard (added 2026-10-11)
 

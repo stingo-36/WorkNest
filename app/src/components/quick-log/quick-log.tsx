@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Check, CircleCheck, LayoutTemplate, MessageSquareShare, NotebookPen, Pencil, Sparkles, Zap } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CircleCheck, LayoutTemplate, MessageSquareShare, NotebookPen, Pencil, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useId, useMemo, useState, useTransition, type ReactNode } from "react";
 
@@ -8,7 +8,6 @@ import { applyQuickLog, draftQuickLog, getWorkLogTemplate } from "@/actions/quic
 import { cn } from "@/components/cn";
 import type { DraftFollowUp, DraftMeeting, DraftTicket, DraftTodo, QuickLogDraft, QuickLogKind } from "@/components/quick-log/types";
 import { Button } from "@/components/ui/button";
-import { bandField } from "@/components/shell/page-band";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
@@ -54,40 +53,6 @@ export function QuickLogProvider({ ticketsEnabled, children }: { ticketsEnabled:
         onClose={() => setState((s) => ({ ...s, open: false }))}
       />
     </QuickLogContext.Provider>
-  );
-}
-
-/** `nav`: compact (icon until xl). `page`: labelled secondary button. */
-export function QuickLogButton({ variant = "page", kind }: { variant?: "nav" | "page" | "band"; kind?: QuickLogKind }) {
-  const { open } = useQuickLog();
-  if (variant === "band") {
-    // On a page's slate header band: the nav's idle-pill look (2026-10-09).
-    return (
-      <button type="button" onClick={() => open(kind)} className={`${bandField} inline-flex cursor-pointer items-center gap-2 font-semibold`}>
-        <Zap className="size-4" aria-hidden="true" />
-        Quick log
-      </button>
-    );
-  }
-  if (variant === "nav") {
-    return (
-      <Button
-        size="md"
-        onClick={() => open(kind)}
-        aria-label="Quick log"
-        title="Quick log — paste your notes"
-        className="size-11 px-0 md:size-9 xl:w-auto xl:px-3.5"
-      >
-        <Zap aria-hidden="true" />
-        <span className="hidden xl:inline">Quick log</span>
-      </Button>
-    );
-  }
-  return (
-    <Button variant="secondary" onClick={() => open(kind)}>
-      <Zap aria-hidden="true" />
-      Quick log
-    </Button>
   );
 }
 
@@ -302,13 +267,14 @@ function QuickLogDialog({
     <Modal
       open={open}
       onClose={busy ? () => {} : onClose}
-      size="lg"
+      // Full screen (Ocean redesign, 2026-11-01): a composer, not a popup.
+      size="full"
       eyebrow={<Steps step={step} />}
       title="Quick log"
       footer={footer}
     >
       {step === "choose" ? (
-        <fieldset>
+        <fieldset className="mx-auto w-full max-w-4xl">
           <legend className="mb-3 text-base text-text-muted">What do you want to create?</legend>
           <div className="grid gap-3 md:grid-cols-3">
             {KINDS.map(({ kind: option, label, icon: Icon }) => (
@@ -340,7 +306,7 @@ function QuickLogDialog({
       ) : null}
 
       {step === "paste" ? (
-        <div className="flex flex-col gap-4">
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
           {kind === "worklog" ? (
             <Field label="Log day" htmlFor={`${ids}-date`} hint="Weekdays only; today or earlier.">
               <Input
@@ -385,7 +351,14 @@ function QuickLogDialog({
       ) : null}
 
       {step === "review" && review ? (
-        <div className="flex flex-col gap-1">
+        // What you pasted on the left, the draft on the right (from lg).
+        <div className="mx-auto grid w-full max-w-6xl items-start gap-6 lg:grid-cols-[minmax(0,1fr)_3rem_minmax(0,1.15fr)]">
+          <section aria-label="What you pasted" className="hidden flex-col gap-2 lg:sticky lg:top-0 lg:flex">
+            <p className="text-sm font-semibold tracking-[0.08em] text-text-muted uppercase">What you pasted</p>
+            <pre className="max-h-[60dvh] overflow-auto rounded-2xl bg-text p-5 font-mono text-sm leading-relaxed whitespace-pre-wrap text-primary-subtle">{text}</pre>
+          </section>
+          <span aria-hidden="true" className="hidden size-11 place-items-center self-center rounded-full bg-primary text-xl text-primary-fg shadow-button lg:grid">→</span>
+        <div className="flex min-w-0 flex-col gap-1">
           <p className="text-base text-text-muted">
             Here&apos;s what will change. Untick anything you don&apos;t want, or edit it first.
           </p>
@@ -397,6 +370,7 @@ function QuickLogDialog({
           <ReviewBody review={review} setReview={setReview} ticketsEnabled={ticketsEnabled} />
           {error ? <p role="alert" className="mt-3 text-sm font-medium text-danger">{error}</p> : null}
           {review.model ? <p className="mt-4 text-xs text-text-subtle">Read by {review.model}</p> : null}
+        </div>
         </div>
       ) : null}
     </Modal>

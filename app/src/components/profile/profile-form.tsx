@@ -1,8 +1,8 @@
 "use client";
 
-import { Building2, CalendarRange, LibraryBig, Mail, MessageSquare, Tag, Tags, Ticket, UserRound, Users } from "lucide-react";
+import { Building2, CalendarRange, LibraryBig, Mail, MessageSquare, Tag, Tags, Ticket, UserRound, Users, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { addDays, format } from "date-fns";
 
 import { updateProfile } from "@/actions/profile";
@@ -17,10 +17,8 @@ import {
   type ProjectOption,
   type TagUsage,
 } from "@/components/profile/list-editors";
-import { PageHead } from "@/components/shell/page-head";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
 import { getSprint } from "@/lib/sprint";
 
@@ -53,7 +51,7 @@ const LENGTHS = [
 
 const MENU = [
   {
-    label: "Settings",
+    label: "You",
     items: [
       { id: "account", label: "Account", Icon: UserRound },
       { id: "sprint", label: "Sprint calendar", Icon: CalendarRange },
@@ -61,7 +59,7 @@ const MENU = [
     ],
   },
   {
-    label: "Dropdown lists",
+    label: "Lists",
     items: [
       { id: "channels", label: "Follow-up channels", Icon: MessageSquare },
       { id: "resource-types", label: "Resource types", Icon: LibraryBig },
@@ -97,6 +95,15 @@ export function ProfileForm({ email, initial, lists, ai, initialSection }: { ema
     SECTION_IDS.includes(initialSection ?? "") ? (initialSection as ProfileSection) : "account",
   );
   const dirty = JSON.stringify(values) !== JSON.stringify(initial);
+  // Phones/tablets: the menu is a sideways chip row — keep the open section's chip in view.
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const nav = navRef.current;
+    const chip = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!nav || !chip || nav.scrollWidth <= nav.clientWidth) return;
+    const offset = chip.getBoundingClientRect().left - nav.getBoundingClientRect().left;
+    if (offset < 0 || offset + chip.offsetWidth > nav.clientWidth) nav.scrollLeft += offset - 16;
+  }, [section]);
   // Which settings sections hold unsaved edits — marked with a dot in the menu.
   const dirtyBySection: Record<SettingsSection, boolean> = {
     account: values.name !== initial.name,
@@ -133,60 +140,54 @@ export function ProfileForm({ email, initial, lists, ai, initialSection }: { ema
     });
   }
 
+  const active = MENU.flatMap((group) => group.items.map((item) => ({ ...item, group: group.label }))).find((item) => item.id === section) ?? { ...MENU[0].items[0], group: MENU[0].label };
+  const sprintLabel = LENGTHS.find((item) => item.days === initial.sprintLengthDays)?.label ?? `${initial.sprintLengthDays} days`;
+
   return (
-    // Redesigned 2026-10-08: identity header, one horizontal tab bar, settings as label/control rows.
-    <div className="tk-focus flex w-full min-w-0 flex-col gap-8">
-      <PageHead
-        title={displayName}
-        description={<span className="inline-flex min-w-0 items-center gap-2 [overflow-wrap:anywhere]"><Mail className="size-4 shrink-0" aria-hidden="true" />{email}</span>}
-        stats={[
-          { value: LENGTHS.find((item) => item.days === initial.sprintLengthDays)?.label ?? `${initial.sprintLengthDays} days`, label: "sprints" },
-          { value: initial.ticketsEnabled ? "On" : "Off", label: "ticket tracking" },
-        ]}
-        actions={<span className="grid size-14 place-items-center rounded-full bg-sidebar text-xl font-bold text-sidebar-fg max-md:hidden" aria-hidden="true">{initials || "?"}</span>}
-      />
+    // Ocean v2 (2026-11-02): identity card + grouped menu on the left (chips on
+    // phones), the open section's cards on the right.
+    <div className="pf tk-focus grid w-full min-w-0 items-start gap-5 lg:grid-cols-[17rem_minmax(0,1fr)] xl:grid-cols-[19rem_minmax(0,1fr)] xl:gap-7">
+      <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24">
+        <section aria-label="You" className="pf-id">
+          <span className="pf-avatar" aria-hidden="true">{initials || "?"}</span>
+          <div className="min-w-0">
+            <h1 className="pf-name">{displayName}</h1>
+            <p className="mt-1 flex min-w-0 items-center gap-1.5 text-sm [overflow-wrap:anywhere]"><Mail className="size-3.5 shrink-0" aria-hidden="true" />{email}</p>
+          </div>
+          <dl className="pf-facts">
+            <div><dd>{sprintLabel}</dd><dt>sprints</dt></div>
+            <div><dd>{initial.ticketsEnabled ? "On" : "Off"}</dd><dt>ticket tracking</dt></div>
+          </dl>
+        </section>
 
-      <div className="mx-auto w-full max-w-5xl lg:hidden">
-        <label id="profile-section-label" className="tk-label mb-2 block text-text-muted">Profile section</label>
-        <Select aria-labelledby="profile-section-label" value={section} onChange={(event) => open(event.target.value as ProfileSection)}>
-          {MENU.map((group) => group.items.map(({ id, label }) => <option key={id} value={id}>{label}</option>))}
-        </Select>
-      </div>
-
-      {/* Larger screens have enough room to wrap every section into labelled tabs. */}
-      <nav aria-label="Profile sections" className="mx-auto hidden w-full max-w-5xl min-w-0 rounded-2xl border border-border bg-surface p-1.5 lg:block">
-        <div className="flex w-max items-center gap-1 lg:w-auto lg:flex-wrap">
-          {MENU.map((group, groupIndex) => (
-            <div key={group.label} className="flex items-center gap-1">
-              {groupIndex > 0 ? <span className="mx-1.5 h-6 w-px bg-border" aria-hidden="true" /> : null}
+        <nav ref={navRef} aria-label="Profile sections" className="pf-nav">
+          {MENU.map((group) => (
+            <div key={group.label} className="pf-nav-group">
+              <p className="pf-nav-label" aria-hidden="true">{group.label}</p>
               {group.items.map(({ id, label, Icon }) => {
-                const active = section === id;
+                const on = section === id;
                 return (
-                  <button
-                    key={id}
-                    type="button"
-                    aria-current={active ? "page" : undefined}
-                    onClick={() => open(id)}
-                    className={cn(
-                      "inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-xl px-3.5 text-sm font-semibold whitespace-nowrap transition-colors duration-150",
-                      active ? "bg-sidebar text-sidebar-fg" : "text-text-muted hover:bg-surface-2 hover:text-text",
-                    )}
-                  >
-                    <Icon className={cn("size-4 shrink-0", active ? "text-sidebar-fg" : "text-accent-text")} aria-hidden="true" />
+                  <button key={id} type="button" aria-current={on ? "page" : undefined} onClick={() => open(id)} className="pf-nav-item">
+                    <span className="pf-nav-icon" aria-hidden="true"><Icon className="size-4" /></span>
                     {label}
-                    {id in dirtyBySection && dirtyBySection[id as SettingsSection] ? <span className="size-2 rounded-full bg-warning" aria-label="unsaved" /> : null}
+                    {id in dirtyBySection && dirtyBySection[id as SettingsSection] ? <span className="ml-auto size-2 shrink-0 rounded-full bg-warning" aria-label="unsaved" /> : null}
                   </button>
                 );
               })}
             </div>
           ))}
-        </div>
-      </nav>
+        </nav>
+      </div>
 
-      <div className="mx-auto w-full max-w-5xl min-w-0">
+      <div className="flex min-w-0 flex-col gap-5">
+        <header className="max-lg:hidden">
+          <p className="text-2xs font-semibold tracking-[0.12em] text-text-muted uppercase">Settings · {active.group}</p>
+          <h2 className="pf-title mt-1">{active.label}</h2>
+        </header>
+
           {section === "account" ? (
-            <div className="flex flex-col gap-6">
-              <SettingsRows title="Account">
+            <div className="flex flex-col gap-5">
+              <SettingsRows title="Account" description="How you appear in WorkNest and on your 5-15 reports." Icon={UserRound} columns>
                 <SettingsRow label="Name" hint="As it appears in the app and on your 5-15 reports." htmlFor="profile-name">
                   <Input id="profile-name" value={values.name} maxLength={80} onChange={(event) => set("name", event.target.value)} />
                 </SettingsRow>
@@ -201,7 +202,7 @@ export function ProfileForm({ email, initial, lists, ai, initialSection }: { ema
           ) : null}
 
           {section === "sprint" ? (
-            <SettingsRows title="Sprint calendar">
+            <SettingsRows title="Sprint calendar" description="How Work Logs group your days into sprints." Icon={CalendarRange}>
               <SettingsRow label="A sprint starts on" hint="Work Logs group your days into sprints counted from this date." htmlFor="profile-sprint-start">
                 <Input id="profile-sprint-start" type="date" value={values.sprintStartDate} onChange={(event) => set("sprintStartDate", event.target.value)} className="md:max-w-60" />
               </SettingsRow>
@@ -242,7 +243,7 @@ export function ProfileForm({ email, initial, lists, ai, initialSection }: { ema
           ) : null}
 
           {section === "work-logs" ? (
-            <SettingsRows title="Work logs">
+            <SettingsRows title="Work logs" description="What each work log tracks." Icon={Ticket}>
               <SettingsRow label="Track tickets in work logs" labelId="profile-tickets-label" hint="Shows the Tickets page and the ticket sections in each work log. Turning it off hides them — nothing is deleted.">
                 <button
                   type="button"
@@ -266,12 +267,12 @@ export function ProfileForm({ email, initial, lists, ai, initialSection }: { ema
           {section === "meetings" ? <OrderedListEditor kind="DefaultMeeting" title="Default meetings" description="The meeting cards every new work log starts with. Existing logs are not changed." initial={lists.meetings.values} customized={lists.meetings.customized} addPlaceholder="e.g. Daily stand-up" /> : null}
           {section === "projects" ? <ProjectListEditor initial={lists.projects} /> : null}
           {section === "note-tags" ? (
-            <ListCard title="Note tags" description="Add tags ahead of time, rename them on every note, or delete them.">
+            <ListCard title="Note tags" icon={<Tags className="size-5" />} description="Add tags ahead of time, rename them on every note, or delete them.">
               <TagListEditor kind="NoteTag" noun={{ one: "note", many: "notes" }} initial={lists.noteTags} />
             </ListCard>
           ) : null}
           {section === "resource-tags" ? (
-            <ListCard title="Resource tags" description="Add tags ahead of time, rename them on every resource, or delete them.">
+            <ListCard title="Resource tags" icon={<Tag className="size-5" />} description="Add tags ahead of time, rename them on every resource, or delete them.">
               <TagListEditor kind="ResourceTag" noun={{ one: "resource", many: "resources" }} initial={lists.resourceTags} />
             </ListCard>
           ) : null}
@@ -279,7 +280,7 @@ export function ProfileForm({ email, initial, lists, ai, initialSection }: { ema
 
       {/* Save bar for the account / sprint / work-log settings — only once something changed. */}
       {dirty ? (
-        <div className="sticky bottom-4 z-30 mx-auto flex w-full max-w-2xl flex-wrap items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-3 shadow-lg">
+        <div className="sticky bottom-4 z-30 flex w-full max-w-2xl justify-self-center lg:col-start-2 flex-wrap items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-3 shadow-lg">
           <p className="mr-auto text-sm font-semibold text-text">{error ? <span className="text-danger" role="alert">{error}</span> : "You have unsaved changes"}</p>
           <Button variant="secondary" disabled={pending} onClick={() => { setValues(initial); setError(undefined); }}>Reset</Button>
           <Button onClick={save} loading={pending}>Save changes</Button>
@@ -289,12 +290,18 @@ export function ProfileForm({ email, initial, lists, ai, initialSection }: { ema
   );
 }
 
-/** A settings card of label/control rows (2026-10-08 redesign). */
-function SettingsRows({ title, children }: { title: string; children: React.ReactNode }) {
+/** A settings card: icon header, then label/control rows — or a field grid with `columns` (Ocean v2, 2026-11-02). */
+function SettingsRows({ title, description, Icon, columns = false, children }: { title: string; description: string; Icon: LucideIcon; columns?: boolean; children: React.ReactNode }) {
   return (
-    <section aria-label={title} className="overflow-hidden rounded-2xl border border-border bg-surface">
-      <h2 className="border-b border-border px-5 py-4 text-xl font-semibold tracking-[-0.015em] text-text md:px-6">{title}</h2>
-      <div className="divide-y divide-border">{children}</div>
+    <section aria-label={title} className="pf-card wl-card overflow-hidden">
+      <div className="pf-card-head">
+        <span className="pf-card-icon" aria-hidden="true"><Icon className="size-5" /></span>
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold tracking-[-0.015em] text-text">{title}</h2>
+          <p className="mt-0.5 text-sm text-text-muted">{description}</p>
+        </div>
+      </div>
+      <div className={cn(columns ? "pf-grid" : "divide-y divide-border")}>{children}</div>
     </section>
   );
 }

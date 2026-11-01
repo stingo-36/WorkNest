@@ -5,7 +5,7 @@
 > and `app/src/app/(auth)/auth-motion.css` (login / register). This file explains the system and the rules. If you change a token,
 > update the table here in the same change.
 >
-> Last synced with the codebase: **2026-10-21**
+> Last synced with the codebase: **2026-11-01**
 
 ---
 
@@ -16,55 +16,51 @@ one world's variables into another.
 
 | World | Scope (CSS selector) | Where | Tokens |
 |---|---|---|---|
-| **Workspace** (the product) | `.app-shell` | Every authenticated route | `--c-*` overrides in `globals.css` — Teal & Ink since 2026-10-11 |
+| **Workspace** (the product) | `.app-shell` | Every authenticated route | `--c-*` overrides in `globals.css` — Ocean since 2026-11-01 |
 | **Next Level** (homepage) | `.home` | `/` | `--h-*` in `(marketing)/home.css` |
 | **Next Level** (sign-in) | `.auth-shell` | `/login`, `/register` | `--a-*`/`--c-*` in `(auth)/auth-motion.css` |
 
 **Light only.** The theme toggle and theme provider were removed; `viewport.colorScheme`
-is `light` and the page `themeColor` is the page tint `#f3f6f5`; the install manifest
-uses ink `#0f2b2a` for standalone system chrome. The `.dark` / `.dark .app-shell` token blocks
+is `light` and the page `themeColor` is the page tint `#f2f8fe`; the install manifest
+uses ink `#0c4a6e` for standalone system chrome. The `.dark` / `.dark .app-shell` token blocks
 and `--pf-*` night values still exist in the CSS, but **nothing applies the `.dark`
 class** — treat them as dormant. Don't build new dark-mode UI unless dark mode is
 reintroduced on purpose (and then update this file and `Memory.md`).
 
-## 2. Workspace palette (`.app-shell`) — Teal & Ink
+## 2. Workspace palette (`.app-shell`) — Ocean
 
-Since **2026-10-11** every logged-in page uses **Teal & Ink**, the palette the owner's
-Work Logs and Tracker mockups introduced (it replaced Slate & Sky of 2026-10-08, which was
-left on only a few pages and looked out of place). The page is a pale tint, content is
-white or open on the tint, ink is the chrome (dock, primary pills, dark cards). Status,
-tracker and priority hues (blue In Progress, red / orange / pink / green) are unchanged.
-Purple stays banned (user decision 2026-10-03).
+Since **2026-11-01** every logged-in page uses **Ocean** (it replaced Teal & Ink of
+2026-10-11). The page is a soft sky→aqua gradient (`.app-shell` background: two radial
+glows over `#f4f9ff → #eaf6ff`); content is white; deep ocean blue is the action colour and
+`#0c4a6e` the ink chrome (dark cards, the current Reports sprint, Tracker pills). Bright sky
+`#0ea5e9` and aqua `#14b8a6` are **decoration only** (brand mark, sidebar indicator, glows) —
+they fail text contrast. Status, tracker and priority hues are unchanged. Purple stays banned.
+The Teal & Ink values were remapped one-for-one, so every token name below is unchanged.
 
 | Token | Value | Use |
 |---|---|---|
-| `--c-wl-page` | `#f3f6f5` | **page tint** behind every app page (`main#main`) |
+| `--c-wl-page` | `#f2f8fe` | flat page tint where a gradient can't be used |
 | `--c-bg` / `--c-surface` / `--c-card` | `#ffffff` | cards, inputs, menus, panels |
-| `--c-surface-2` | `#eef3f1` | hover, toolbars, count chips |
-| `--c-surface-3` | `#dfe8e5` | pressed / selected |
-| `--c-card-tint` / `--c-card-navy` | `#eef6f4` / `#d6ebe6` | teal emphasis cards (names historical) |
-| `--c-text` | `#102826` | headings, primary values (15.2:1) |
-| `--c-text-muted` | `#4a5d5a` | descriptions (6.6:1) |
-| `--c-text-subtle` | `#5b6d6a` | sublabels, hints (5.5:1) |
-| `--c-border` | `#c7d2cf` | hairlines, card edges, dividers (decorative) |
-| `--c-border-strong` | `#6b7d7a` | **functional** control edges — inputs (4.3:1) |
-| `--c-primary` | `#13706a` | teal — fills, icons, focus (white 5.9:1) |
-| `--c-primary-strong` / `--c-accent-text` / `-hover` | `#0f5d58` | links, small labels (7.4:1) |
-| `--c-primary-active` | `#0b4a46` | pressed |
-| `--c-primary-subtle` | `#d6ebe6` | selected state, tag chips |
-| `--c-ring` | `#13706a` | focus ring |
-| `--c-sidebar` (+`-2`,`-3`) | `#0f2b2a` / `#173836` / `#1d4240` | **ink**: the dock, primary pills, dark cards (name historical) |
-| `--c-sidebar-fg` / `-muted` / `-subtle` | `#fff` / `#d3dddb` / `#9fb1ae` | text on ink |
+| `--c-surface-2` | `#eef5fb` | hover, toolbars, count chips |
+| `--c-surface-3` | `#dcebf7` | pressed / selected |
+| `--c-card-tint` / `--c-card-navy` | `#f0f9ff` / `#e0f2fe` | sky emphasis cards (names historical) |
+| `--c-text` | `#0f172a` | headings, primary values |
+| `--c-text-muted` | `#475569` | descriptions (7.5:1) |
+| `--c-text-subtle` | `#556274` | sublabels, hints (6:1) |
+| `--c-border` / `--c-tk-rule` | `#cfe0ee` | hairlines, card edges, dividers (decorative) |
+| `--c-border-strong` | `#6b7f96` | **functional** control edges — inputs |
+| `--c-primary` / `--c-ring` | `#0369a1` | fills, icons, focus (white 5.9:1) |
+| `--c-primary-strong` / `--c-accent-text` / `-hover` | `#075985` | links, small labels (7.3:1) |
+| `--c-primary-active` | `#0c4a6e` | pressed |
+| `--c-primary-subtle` | `#e0f2fe` | selected state, tag chips, current tab |
+| `--c-sidebar` (+`-2`,`-3`) | `#0c4a6e` / `#0e5a80` / `#0e7490` | **ink**: primary pills, dark cards (name historical) |
+| `--c-sidebar-fg` / `-muted` / `-subtle` | `#fff` / `#cffafe` / `#94a3b8` | text on ink |
+| `--c-ocean-sky` / `--c-ocean-aqua` | `#0ea5e9` / `#14b8a6` | decoration only |
 | `--c-danger` / `--c-warning` / `--c-info` | `#c43e3e` / `#9a560f` / `#0369a1` | feedback; success stays green `#15803d` |
 
-The dock is ink; the current section is a white pill with ink text. MUI
-(`components/ui/mui-provider.tsx`) uses the same teal/ink. Per-icon colours (`--c-ic-*`)
-map onto teal `#13706a` (blue/green/cyan/violet/teal), deep teal `#0f5d58` (indigo), ink
-grey `#4a5d5a` (slate), and the unchanged red/orange/amber/pink. The Work Logs deck,
-Tracker and the rest of the page family still set the same values in `.wl-deck, .tk-focus`
-(plus the amber `--c-wl-*` tokens), so they stay correct if the base ever changes.
-Password forms in registration, Profile and Admin share the same live strength meter,
-confirmation status and reveal control; the meter uses a reduced-motion-safe transform.
+Primary pills that use `bg-sidebar` (and the Ask button) are drawn with the
+`#0369a1 → #0e7490` gradient. MUI (`components/ui/mui-provider.tsx`) uses the same values.
+Per-icon colours (`--c-ic-*`) follow the same one-for-one remap.
 
 ### Type scale (2026-10-11)
 
@@ -73,7 +69,7 @@ checked against ui-ux-pro-max and the responsive-design skill. Sizes run 375px �
 
 | Class | Size | Use |
 |---|---|---|
-| `.page-title` (and `.wl-title`) | `clamp(2rem, 1.4rem + 2.35vw, 3.5rem)` — 32→56px, 800 | the page's h1 (via `PageHead`) |
+| `.page-title` (and `.wl-title`, `.tk-greeting`, `.tkt-title`, `.rs-title`) | `clamp(1.75rem, 1.35rem + 1.1vw, 2.25rem)` — 28→36px, 700 (one rule at the end of globals.css, 2026-11-02) | every page's h1; item titles (a log, a note being edited) stay a step smaller |
 | `.tk-section` | 22→32px, 700 | section headings (Favourites groups, a ticket's title) |
 | `.tk-card-title` | 19→26px, 700 | card / item titles (Resources, Favourites) |
 | `.tk-row-title` | 16→20px, 600 | Tracker row titles |
@@ -89,16 +85,21 @@ so iOS never zooms on focus). Shared buttons and password reveals expand to at l
 **44px on phones** while retaining their denser desktop sizes. Small text-like links use
 `.tap-area` (about a 44px hit box) without changing visual layout.
 
-### Work Logs deck (2026-10-09)
+### Work Logs strip + rail (Ocean v2, 2026-11-01; replaced the ribbon and the 2026-10-09 deck)
 
-`/work-logs` uses its own deck header, not `PageHead`. It follows the owner's mockup: `.wl-deck`
-(globals.css) scopes a teal-and-ink palette to the page (primary `#13706a`, ink
-`#0f2b2a` via `--c-sidebar`, amber `--c-warning-subtle` / `--c-wl-dash` / `--c-wl-amber`,
-page `--c-wl-page`), a display title (`.wl-title`) and day numeral (`.wl-numeral`) sized
-with `clamp()` above the app scale. Day columns are `.wl-col[data-state]`; the open one
-grows by animating `flex-grow` (600ms smooth-out), its sections fade up in sequence
-(`.wl-reveal`). The page fits between the top of the screen and the dock from lg.
-All motion stops under `prefers-reduced-motion`.
+`/work-logs` uses its own header, not `PageHead`; `.wl-deck` still scopes the page palette.
+Header: eyebrow + `.wl-title` (1.875–2.5rem) left; ‹ › sprint buttons (44px rounded squares)
+and the search right. The sprint is a frosted `.wl-strip2`: a progress line (`.wl-prog`,
+logged blue + missing amber as shares of the sprint), workdays left and the legend, then
+day tiles (`.wl-tile[data-state]`) in rows of five (`.wl-week` "Week N"; side by side from
+xl, stacked below). Tile states: logged (blue "• N tickets"), missing (amber dashed "+ Add
+log"), off (hatched), today (sky inner ring), future (dashed, not clickable), open (ocean
+gradient). Phones: one sideways-scrolling row, short labels (`.wl-tile-short`).
+Below, `.wl-body`: the day card (`.wl-day-panel`: `.wl-datebox`, weekday, chips, View full
+log / Edit log; sections `.wl-block` — Summary, Tickets worked rows `.wl-tk-row` with
+`.wl-key` + `TicketStatusBadge`, Follow-ups, Notes) beside a rail from xl (`.wl-backfill`
+missing-day card, the day's to-dos as a tick list in `.wl-rail-card`, three sprint
+numbers). 48–80rem: the rail goes under the card in two columns.
 
 ### Tracker queue and Notes "F" layout (2026-10-12)
 
@@ -128,18 +129,33 @@ Cancel / Save (`Button size="sm"`). The add field becomes an auto-growing textar
 The `.tk-*` type classes are scoped under `.tk-focus` so they beat `.app-shell main hN`.
 Sizes: see Type scale.
 
+### Page layouts — Ocean (2026-11-01)
+
+- **Tickets:** a board — one `.tk-lane.ticket-lane` per status (`.ticket-lanes`, scrolls
+  sideways, snaps on phones); tickets are `.tk-item` buttons; the open ticket's full detail
+  panel sits below. The status tabs still filter; default is **All**.
+- **Notes:** a library list (icon in the cover colour, title, description, sections, pages,
+  edited, star) beside a sticky preview of the picked notebook (≥ lg); below lg a row opens
+  the notebook.
+- **Resources:** title + Add, then a big centred search on a sky→aqua band (`.ocean-tint`);
+  Type / Tags filters are light lists (no dark panel).
+- **Favourites:** one shelf per kind — a sideways row of cover tiles (cover colour, icon,
+  star, then meta, title, text); on All the shelves stack.
+- **Reports:** sprints in a sticky column beside the report (a sideways strip below lg);
+  the report is a sheet of paper under a floating toolbar.
+
 ### Page header — `PageHead` (2026-10-11)
 
 Every list page — Tickets, Tracker, Notes, Resources, Favourites, Profile, Achievements,
 Reports — is wrapped in `.tk-focus` and starts with **`PageHead`**
-(`components/shell/page-head.tsx`): `.page-title` h1, optional inline `meta` (the date)
+(`components/shell/page-head.tsx`): optional `meta` as an uppercase eyebrow **above** the `.page-title` h1 (Ocean v2, 2026-11-02; was inline beside it)
 and a `description` under it, optional stat counts, actions on the right (full width on
 phones; the title keeps clear of the floating avatar). The same file exports the shared
 controls: **`SearchPill`** (48px, optional ⌘K), **`UnderlineTabs`** (bold current tab
 with an ink underline; scrolls sideways; links or buttons) and the pill class strings
 **`primaryPill`** (ink, 48px) and **`outlinePill`** (white, `--c-tk-rule` edge, 44px).
-The slate `PageBand`, `bandButton`, `.wl-band` and `.wl-fit` are gone (2026-10-11);
-`page-band.tsx` keeps only `bandField` for Quick log's band button. Work Logs keeps its
+The slate `PageBand`, `bandButton`, `.wl-band` and `.wl-fit` are gone (2026-10-11), and
+the last leftovers (`page-band.tsx`, `band-sx.ts`, the fields' `tone="band"`) were removed 2026-11-02. Work Logs keeps its
 own deck header (`.wl-title`, same size as `.page-title`); document pages (note
 reader/editor, work-log editor/detail) keep theirs. **No shadows, no tinted boxes** in
 the page; floating layers (menus, dialogs, toasts) keep `--sh-md` / `--sh-lg`.
@@ -154,13 +170,13 @@ components"); keep them distinct when adding to a page:
 | Tracker | date · tabs + search → title + add field → **two columns** (Today \| Upcoming, Needs you \| Waiting, composer \| notes); finished entries collapse under one *Show* line; entry opens in a two-column dialog |
 | Work Logs | split hero (form + slate sprint card with ring) → **vertical timeline** per sprint |
 | Work-log editor | action strip → **one document** (`.wl-doc` turns section cards into ruled chapters) + margin outline |
-| Work-log detail | back link + ‹ › → full-width **`.wl-hero` band** (title, white Edit log `.wl-solid`, outline Copy, `.wl-inset` count tiles) → main column (summary, ticket work, meeting tiles) + 18–20rem right column (to-dos, ticket history, details) |
-| Tickets | `PageHead` (status ratio bar) + New ticket + search → **underline status tabs** → open ticket list (sticky from lg, teal selected row) beside the **open ticket** card; its journey is compact and latest update is surfaced first; list first on phones |
+| Work-log detail | `.wld` scope: back link + dated ‹ › → `.wld-hero` card (`.wld-datebox`, `.wld-title`, Copy + primary Edit log, `.wld-stats` row) → main (summary, ticket work as `.wld-ticket` with `.wld-this` + `.wld-history` timeline, meetings + work done 2-up from xl) + 19–21rem rail (to-dos, attachments & links, activity); card headings are uppercase micro-labels |
+| Tickets | `.tkt` scope: eyebrow + `.tkt-title`, search + New ticket → `.tkt-split`: `.tkt-list` card (`.tkt-filter` chips, `.tkt-group` labels, `.tkt-row` rows with `.tkt-key`; sticky from xl) beside the open ticket `.tkt-card` (`.tkt-steps` status radios, latest update, add update, history); under xl `.tkt-detail[data-open]` is a full-screen layer with `.tkt-back` |
 | Favourites | `PageHead` → **underline tabs** (All · Important · Notes · Resources, `?show=`) → Important as a two-column section, then Notes and Resources side by side; items = disc + meta + big title |
 | Notes | layout "F": title + search + New note → **summary column** (notebook count, cover-colour bars, sections/pages/starred) + **bookshelf** of accent-coloured covers |
 | Note reader | **three-column docs** (contents · page · on this page at xl) |
-| Resources | title + line · underline search + Add → rule → **Type / Tags column** (13rem; ink left bar on the current type; mono tags) beside **one list** (eyebrow "ALL RESOURCES · N" + sort menu over a 2px ink rule; rows = 40px rounded initials tile in ink/teal/amber, bold title ↗ + mono host, description, mono tags, hairline separators) |
-| Profile | identity header → **section select on phone/tablet, wrapped tab bar from `lg`** → label/control rows |
+| Resources | `.rs` scope: `.rs-hero` deep-ocean band (eyebrow, title, white `.rs-add`, `.rs-search`, `.rs-type` chips; current = white) → list header + sort → `.rs-cards` link cards (1/2/3 across) and `.rs-terms` dark code cards (2 across, `.rs-code` + `$` prompt, `.rs-copy`) beside a 16–18rem rail (`.rs-rail`: `.rs-tag` mono chips, Starred) |
+| Profile | `.pf` scope: 17–19rem sticky left column (`.pf-id` deep-ocean identity card + `.pf-nav` grouped menu; chips under lg) → "Settings · group" title + `.pf-card` cards with `.pf-card-head` icon tile (`ListCard`, `SettingsRows`, Password) |
 | Achievements | totals strip → **centred rail, alternating cards** from lg |
 | Reports | **sprint card rail** → paper on a desk |
 | Admin | `PageHead` → **four compact system totals** (two columns on phones) → responsive account master/detail: short scrollable directory + selected-account statistics and full-width mobile actions; stacked below `lg`; password/destructive forms use native dialogs |
@@ -194,6 +210,13 @@ Breakpoints are `xs 360 · md 768 · lg 1024 · xl 1440` — there is **no `sm` 
   from the note id.
 
 ## 3. Auth palette (`.auth-shell`)
+
+**Since 2026-11-01 (Ocean):** `(auth)/auth-motion.css` uses the workspace Ocean tokens,
+Inter/Sora and the sky→aqua page; login is a centred form over two waves, register is two
+steps (one form, hidden step kept mounted): one centred column with a compact
+`1 About you ── 2 Password` stepper on top (the line fills on step 2), and "What you get"
+as a soft card beside it from 1024px. The 3D
+character panels below are retired. The rest of this section describes the old look.
 
 Auth pages use the homepage palette (ink `#2a2c3f`, muted `#575c72`, page `#f3f5f9`) —
 the same colours the workspace now uses. They retain their own motion in
@@ -260,8 +283,9 @@ Loaded in `app/src/app/layout.tsx` via `next/font` (self-hosted, no runtime Goog
 
 | Face | Variable | Used for |
 |---|---|---|
-| **Geist** | `--font-geist` → `--font-sans` | All authenticated app UI (since 2026-09-28) |
-| **Geist Mono** | `--font-geist-mono` → `--font-mono` | Ticket IDs, timestamps, commands, code (ligatures off) |
+| **Inter** | `--font-ui` → `--font-sans` | All authenticated app UI (Ocean, 2026-11-01; was Geist) |
+| **Sora** | `--font-display` → `--font-heading` (`font-heading`) | Page titles, `h1`s in `main`, big numerals (`.page-title`, `.wl-*`, `.tk-*`), sidebar brand |
+| **JetBrains Mono** | `--font-code` → `--font-mono` | Ticket IDs, timestamps, commands, code (ligatures off; was Geist Mono) |
 | Plus Jakarta Sans (+ italic) | `--font-jakarta` | Homepage, login, register body text |
 | DM Serif Display (+ italic) | `--font-dm-serif` | Homepage, login, register display type |
 
@@ -358,7 +382,7 @@ off-palette hues except semantic red/green, orange stars, and real brand logos:
 | Tickets | list header band + open ticket header band | first ticket opens by default; selected row uses a teal tint + teal leading rule |
 | Tracker | active tab, focus lists' toned edge | |
 | Notes | stats band (notes · favourites · sections) with the white "New note" CTA | Favourites / All notes groups |
-| Resources | type list on a dark `bg-sidebar` panel; current type = light pill (`bg-sidebar-fg`, ink text) | initials tiles in ink / teal / amber; tags as coloured text |
+| Resources | deep-ocean hero; current type chip white | initials tiles in five Ocean tones; dark code cards with aqua kind/tags |
 | Favourites | summary band of three count tiles (jump links) | |
 | Profile | open section header band, active menu item | |
 
@@ -403,33 +427,63 @@ What the eye should hit, in order — one step per level, never two the same siz
 
 - **Breakpoints — exactly four:** `xs` 360 · `md` 768 · `lg` 1024 · `xl` 1440.
   **`sm:` and `2xl:` do not exist** (reset on purpose).
-- **Shell (2026-10-14):** no sidebar — a sticky, edge-to-edge **top bar** (`.app-dock`,
-  deep teal chrome (`#092120`), centred section links, active section marked by a white underline,
-  account avatar at the end). Phones show a
-  maximum five icon + label destinations and move Favourites into the account menu;
-  larger screens show all six destinations. The account menu opens downwards.
-  The bar is **white** (2026-10-03 values): `.app-header` re-points the `--c-sidebar-*`
-  tokens locally (fg ink `#2a2c3f`, idle labels muted `#575c72`, hover `#f3f5f9`, accent
-  blue `#4562c9`, hairline `#dcdfe8`), so primary buttons elsewhere stay ink. The brand
-  tile is blue. The current section is a blue underline with no fill behind it.
-  Below `md` sections move into a sheet; `md` shows text-only links with the brand icon
-  (brand text hidden to make room); `lg` adds the brand text and account name; `xl`
-  adds section icons and the date. Labels are `whitespace-nowrap`. Content capped at
-  1360px (`max-w-[85rem]`). Skip-to-content link. No horizontal body scroll — wide
-  content scrolls inside itself. Anything sized against the nav (`.tickets-board`
-  height, sticky asides at `top-20`) assumes 4rem.
+- **Shell (Ocean, 2026-11-01):** `components/shell/app-nav.tsx` + the `Ocean` block at the
+  end of `globals.css`.
+  - **≥ 1024 (`lg`)**: a sticky, full-height **left sidebar** (`.app-side`, 15.5rem, frosted
+    white): brand (`.app-brand` + gradient `.app-mark`), the **Quick log** button
+    (`.app-quicklog`), groups **Workspace** (sections from `navFor`) and **You** (Reports,
+    Achievements, Profile & settings, Admin for admins) as `.app-side-link`s — the current
+    one is white with a sky→aqua bar on its left — and the account card at the bottom
+    (menu opens upwards: Install, Log out).
+  - **< 1024**: a sticky 3.5rem **top header** (`.app-topbar`: brand, Quick log icon,
+    account avatar menu with every account page and Favourites) and a fixed **bottom tab
+    bar** (`.app-tabbar`, `--tabbar-h` 4.25rem + safe area) with at most five sections
+    (Favourites moves to the account menu). `main` gets bottom padding to clear it; the
+    Ask button (`.ask-fab`) and toasts (`--toast-bottom`) sit above it.
+  - Visibility is set in CSS (`@media` rules at the end of the block), not with `hidden`
+    utilities, because the unlayered rules would beat them.
+  - `--dock-clearance` is the header height: 3.5rem below `lg`, **0** beside the sidebar.
+    Sticky things (Note reader rails, the Work Logs deck height, the ticket list) offset by it.
+  - Content capped at 1360px (`max-w-[85rem]`). Skip-to-content link. No horizontal body
+    scroll — wide content scrolls inside itself.
 - **Page rhythm:** page title block → 32px (`mb-8`) → content. Sections inside a page
   are separated by 20–24px (`gap-5`/`gap-6`).
-- **Spacing:** Tailwind 4px scale. Page padding `px-4 md:px-5 lg:px-8` (16px on phones since 2026-10-04; the nav and any edge-to-edge sticky bar use the same values as negative margins).
+- **Spacing:** Tailwind 4px scale. Page padding `px-4 md:px-6 lg:px-10` (Ocean, 2026-11-01) (16px on phones since 2026-10-04; the nav and any edge-to-edge sticky bar use the same values as negative margins).
 - **Touch targets:** controls are at least 32px on phones. Text-like controls that can't grow visually ("1 overdue", "All work logs") use `.tap-area`, an invisible 8px box above/below that enlarges the hit area without moving layout; resource row icon buttons are `size-9 md:size-7`.
-- **Radius:** `xs 3` dots · `sm 4` badges · `md 6` inputs/menu items · `lg 8` panels ·
-  `xl 12` dialogs · `2xl 16` max. Buttons and chips are `rounded-full`. Work-log cards
-  (`.wl-card`) use 16px.
-- **Elevation: none on the page** (owner, 2026-10-09). In `.app-shell`, `--sh-xs`,
-  `--sh-sm`, `--sh-card`, `--sh-card-hover` and `--sh-button` are `none`; surfaces are
-  separated by `--c-border` only. `--sh-md` / `--sh-lg` remain **only** for layers that
-  float over the page (menus, toasts, dialogs, the sticky Profile save bar). Don't add
-  shadows or tinted fills (`card-tint`) to in-page boxes.
+- **Radius (Ocean, 2026-11-01):** `xs 3` dots · `sm 4` badges · `md 8` inputs/menu items ·
+  `lg 12` panels · `xl 16` dialogs, Tracker items · `2xl 20` max (Tracker lanes). Buttons
+  and chips are `rounded-full`.
+- **Elevation (Ocean, 2026-11-01 — reverses 2026-10-09's "no shadows"):** in-page cards
+  get a hairline plus a wide, faint blue shadow — `--sh-card` `0 1px 2px rgba(15,23,42,.04),
+  0 12px 30px -18px rgba(2,132,199,.32)`, `--sh-card-hover` stronger, `--sh-button` for
+  primary pills. `--sh-md` / `--sh-lg` stay for layers that float (menus, toasts, dialogs).
+- **Shell additions (Ocean):** `.app-deskbar` (≥ 1024 top bar: breadcrumb + Ask, raises
+  `--dock-clearance` to 3.75rem); phone `.app-tabbar` = Tracker · Logs · `.app-tab-plus`
+  (Quick log) · Notes · Ask; Ask opens via `openAsk()` (`ASK_OPEN_EVENT`), no floating
+  bubble; Ask is a full-height right drawer from md; `Modal size="full"` (`.modal-full`)
+  for Quick log; 404 = "Lost at sea." with numbered ways out.
+- **Tracker v3 (2026-11-01, replaces the lanes / week strip on Work to-dos):** greeting
+  header (`.tk-greeting`: "Good evening, {first name}", date · sprint day, overdue / need
+  you / done this sprint), pill tabs (`.tk-tabs` / `.tk-tab`), one add bar (`.tk-command`:
+  Work/Personal + add field + date + star), a `.tk-next` "Next up" card (most overdue, else
+  due today: Mark done · Move date (opens the entry) · star), one compact list in
+  `.tk-grp[data-tone]` groups (Overdue · Due today · Needs you · Upcoming · Someday, then
+  completed) with one-line `.tk-list .tk-item` rows, and a `.tk-rail` (sticky from xl, three
+  across at md–xl): `This week` ring + done-per-day bars, `Waiting on` by person,
+  `Personal` mini stickies.
+  Rows are an **open list** (2026-11-01, owner's pick "B"): no box, border or shadow; each
+  group's rows hang off a 3px colour rail (`.tk-grp-body`, `--tone` per `data-tone`); hover
+  tints the row white. Follow-ups show the person's initial (`.tk-avatar-sm`); a due
+  "Mark nudged" is a soft pill (`PILL_SOFT`), "Got it" stays solid.
+  The pill tabs and Work/Personal use a **sliding highlight** (`.tk-slide` + `useSlidingPill`:
+  the box's ::before is moved/sized to the `[data-on]` child, 380ms smooth-out); switching
+  lists fades the new one in (`.tk-swap`); both off under reduced motion. The add bar keeps
+  one height on Work and Personal (the Personal keys hint is screen-reader only).
+- **Page recipes (Ocean):** `.tk-lane[data-tone]` lanes (Follow-ups / Notes views); Follow-ups mirror Notes (composer card left, list right; follow-up rows use `Row wide` so buttons drop below the text in a narrow column); `.wl-paper.wl-doc` work
+  log document; `.note-band` note section opener (deep ocean gradient, white title — 2026-11-01); Admin directory as table + sticky drawer.
+- **Tracker lanes (Ocean):** each Tracker column is a `.tk-lane` (frosted white, 20px
+  radius; `.tk-lane-needs` warm when something is overdue) with a dot + Sora title + count
+  pill, and each row is a `.tk-item` tile (white, 16px radius, lifts on hover).
 
 ## 7. Motion
 
@@ -495,21 +549,19 @@ All under `app/src/components/`. Use these before writing new markup.
 ### Shell — `shell/`
 `AppShell`, `AppNav` (responsive full-width top bar + downward-opening account menu), `nav-items.ts`
 (`PRIMARY_NAV`, `navFor(ticketsEnabled)`, `isActivePath`), `Menu` (doesn't close on a
-submit button, so form actions still fire), `PageHeader`, `ComingSoonPage`. The nav's
-right side holds `QuickLogButton variant="nav"` (44px icon on phones, 36px icon md–lg,
-icon + label from xl).
+submit button, so form actions still fire), `PageHeader`, `ComingSoonPage`. Quick log is
+opened from the sidebar's Quick log button (and the phone dock's +) via `useQuickLog().open()`.
 
 ### Feature components
 `work-log/*` (editor, sections, ticket search/card/history, save status, attachments,
-learning, day type/stamp, copy button). On work-log detail the right column is To-dos,
-Ticket history, then Details (Work done, attachments, activity); the left is the AI
-summary, Ticket work and Meetings. Card headers: title-case 18px semibold + count chip
+learning, day type, copy button). On work-log detail the right column is To-dos,
+Attachments & links, then Activity; the left is the AI summary, Ticket work (each ticket
+carries its own history) and Meetings + Work done. Card headers: title-case 18px semibold + count chip
 over a hairline.
 Other feature components: `tickets/ticket-board`, `tracker/tracker-board`
 (all per-kind wording lives in `KIND_META`), `notes/*` (TipTap editors, icon picker,
 viewer, TOC), `resources/resource-library`, `profile/profile-form`, `auth/*`,
-`ask/ask-widget` (`AskWidget`, mounted once in `AppShell`: fixed bottom-right ink pill `h-12` → panel `md:w-[26rem]`, `md:h-[min(40rem,100dvh-7rem)]`, phones a `85dvh` bottom sheet; `shadow-lg` as a floating layer; question bubbles ink, answers plain text with `primary-subtle` citation chips, sources as bordered rows; proposal cards `surface-2` + `border-strong` with a primary confirm pill and a ghost Skip, applied state `status-completed-fg` tick, skipped at 60% opacity; `.ask-panel` rise + `.ask-thinking` breathe, both off under reduced motion), `home/*` (homepage), `quick-log/quick-log` (`QuickLogProvider` + `useQuickLog().open(kind?)`,
-`QuickLogButton`; a `Modal size="lg"` with Choose → Paste → Review steps; review rows =
+`ask/ask-widget` (`AskWidget`, mounted once in `AppShell`: fixed bottom-right ink pill `h-12` → panel `md:w-[26rem]`, `md:h-[min(40rem,100dvh-7rem)]`, phones a `85dvh` bottom sheet; `shadow-lg` as a floating layer; question bubbles ink, answers plain text with `primary-subtle` citation chips, sources as bordered rows; proposal cards `surface-2` + `border-strong` with a primary confirm pill and a ghost Skip, applied state `status-completed-fg` tick, skipped at 60% opacity; `.ask-panel` rise + `.ask-thinking` breathe, both off under reduced motion), `home/*` (homepage), `quick-log/quick-log` (`QuickLogProvider` + `useQuickLog().open(kind?)`; a `Modal size="lg"` with Choose → Paste → Review steps; review rows =
 tick box + label pill (new = success-subtle, update = primary-subtle, needs you =
 warning-subtle) + inline editor). Dialogs must render inside `.app-shell` or they fall
 back to the old default palette.

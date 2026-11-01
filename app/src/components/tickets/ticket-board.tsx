@@ -1,14 +1,14 @@
 "use client";
 
 import { format } from "date-fns";
-import { ArrowRight, Building2, CalendarDays, History, Loader2, Pencil, Plus, Search, ShieldCheck, Ticket as TicketIcon, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Building2, CalendarDays, History, Loader2, Pencil, Plus, Search, ShieldCheck, Ticket as TicketIcon, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { appendTicketHistoryEntry, createTicket, deleteTicketHistoryEntry, getTicket, updateTicket } from "@/actions/tickets";
 import { cn } from "@/components/cn";
-import { PageHead, SearchPill, UnderlineTabs } from "@/components/shell/page-head";
+import { SearchPill } from "@/components/shell/page-head";
 import { MarkdownContent, MarkdownEditor } from "@/components/work-log/markdown-editor";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
@@ -16,7 +16,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ProjectInput } from "@/components/ui/project-input";
-import { Select } from "@/components/ui/select";
 import { TICKET_STATUS_DOT, TICKET_STATUS_LABELS, TICKET_STATUS_ORDER, TicketStatusBadge } from "@/components/ui/ticket-status-badge";
 import { toast } from "@/components/ui/toast";
 import type { WorkflowStatus } from "@/lib/workflow-status";
@@ -54,13 +53,16 @@ export function TicketBoard({ initialTickets, loadError, daysOff = [] }: { initi
   const [tickets, setTickets] = useState(initialTickets);
   const [selectedId, setSelectedId] = useState("");
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<StatusFilter>("InProgress");
+  // "All" by default so the board shows every status lane (Ocean redesign, 2026-11-01).
+  const [status, setStatus] = useState<StatusFilter>("All");
   const [creating, setCreating] = useState(false);
   const [newKey, setNewKey] = useState("");
   const [newTitle, setNewTitle] = useState("");
   const [newProject, setNewProject] = useState("");
   const [createError, setCreateError] = useState("");
   const [createSaving, setCreateSaving] = useState(false);
+  // Under xl the open ticket covers the list full screen; Back (or Esc) returns to it.
+  const [phoneOpen, setPhoneOpen] = useState(false);
 
   const visibleTickets = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -81,6 +83,7 @@ export function TicketBoard({ initialTickets, loadError, daysOff = [] }: { initi
       setStatus("All");
       setQuery("");
       setSelectedId(linked);
+      setPhoneOpen(true);
     }
   }
   useEffect(() => {
@@ -100,12 +103,18 @@ export function TicketBoard({ initialTickets, loadError, daysOff = [] }: { initi
     return next;
   }, [tickets]);
 
+  useEffect(() => {
+    if (!phoneOpen) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setPhoneOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [phoneOpen]);
+
   function select(ticketId: string) {
     setSelectedId(ticketId);
-    // Below lg the open ticket sits under the list — bring it into view.
-    if (window.matchMedia("(max-width: 1023px)").matches) {
-      requestAnimationFrame(() => document.getElementById("ticket-drawer")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-    }
+    setPhoneOpen(true);
+    // From xl the detail sits beside the list — bring its top into view.
+    requestAnimationFrame(() => document.getElementById("ticket-drawer")?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
   }
 
   async function saveNewTicket() {
@@ -116,7 +125,7 @@ export function TicketBoard({ initialTickets, loadError, daysOff = [] }: { initi
     }
     setCreateSaving(true);
     setCreateError("");
-    const result = await createTicket({ ticketKey: newKey, title: newTitle, projectName: newProject || null, status: "InProgress" });
+    const result = await createTicket({ ticketKey: newKey, title: newTitle, projectName: newProject.trim(), status: "InProgress" });
     setCreateSaving(false);
     if (!result.ok) {
       setCreateError(result.error.message);
@@ -135,7 +144,7 @@ export function TicketBoard({ initialTickets, loadError, daysOff = [] }: { initi
     };
     setTickets((current) => [created, ...current]);
     setSelectedId(created.id);
-    setStatus("InProgress");
+    setStatus("All");
     setQuery("");
     setNewKey(""); setNewTitle(""); setNewProject(""); setCreating(false);
     toast.success("Ticket created");
@@ -147,24 +156,27 @@ export function TicketBoard({ initialTickets, loadError, daysOff = [] }: { initi
     ...TICKET_STATUS_ORDER.map((option) => ({ key: option, label: TICKET_STATUS_LABELS[option], count: counts[option] })),
   ];
 
+  // Status groups in workflow order, only those with tickets after filtering.
+  const groups = TICKET_STATUS_ORDER.map((option) => ({ status: option, items: visibleTickets.filter((ticket) => ticket.status === option) })).filter((group) => group.items.length);
+
   return (
-    // 2026-10-11: the shared page family (PageHead, underline status tabs), then
-    // the ticket list beside the open ticket. The list sticks from lg.
-    <div className="tk-focus flex w-full min-w-0 flex-col gap-10">
-      <PageHead
-        title="Tickets"
-        description={`${tickets.length} ${tickets.length === 1 ? "ticket" : "tickets"} · your own key scheme`}
-        actions={<><Button size="lg" onClick={() => setCreating(true)}><Plus aria-hidden="true" />New ticket</Button><SearchPill id="ticket-search" label="Search tickets" value={query} placeholder="Search key, title, project" onChange={setQuery} shortcut className="w-full md:w-80" /></>}
-      >
-        {tickets.length ? (
-          <div className="flex h-2.5 w-full max-w-md gap-1 overflow-hidden rounded-full" aria-hidden="true">
-            {TICKET_STATUS_ORDER.map((option) => counts[option] ? <span key={option} className={cn("rounded-full", TICKET_STATUS_DOT[option])} style={{ flex: counts[option] }} /> : null)}
-          </div>
-        ) : null}
-      </PageHead>
+    // Ocean v2 list + detail (2026-11-02): a filterable list grouped by status
+    // beside the open ticket (status steps, add an update, history). Under xl the
+    // open ticket covers the list full screen.
+    <div className="tkt tk-focus flex w-full min-w-0 flex-col gap-5">
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+        <div className="min-w-0">
+          <p className="text-2xs font-semibold tracking-[0.12em] text-text-muted uppercase">{tickets.length} {tickets.length === 1 ? "ticket" : "tickets"} · your own key scheme</p>
+          <h1 className="tkt-title mt-1">Tickets</h1>
+        </div>
+        <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center">
+          <SearchPill id="ticket-search" label="Search tickets" value={query} placeholder="Search key, title, project" onChange={setQuery} shortcut className="w-full md:w-80" />
+          <Button size="lg" onClick={() => setCreating(true)}><Plus aria-hidden="true" />New ticket</Button>
+        </div>
+      </header>
 
       {creating ? (
-        <section aria-labelledby="new-ticket-heading" className="rounded-2xl border border-border bg-surface p-4 md:p-5">
+        <section aria-labelledby="new-ticket-heading" className="tkt-card p-4 md:p-5">
           <div className="flex items-center justify-between gap-3"><h2 id="new-ticket-heading" className="text-xl font-bold text-text">New ticket</h2><Button variant="ghost" onClick={() => setCreating(false)} disabled={createSaving}>Cancel</Button></div>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <Field label="Ticket number" htmlFor="new-ticket-key"><Input id="new-ticket-key" value={newKey} maxLength={64} autoFocus disabled={createSaving} onChange={(event) => { setNewKey(event.target.value); setCreateError(""); }} /></Field>
@@ -174,8 +186,6 @@ export function TicketBoard({ initialTickets, loadError, daysOff = [] }: { initi
           <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><p role="alert" className="text-sm font-medium text-danger">{createError}</p><Button loading={createSaving} onClick={() => void saveNewTicket()}>Create ticket</Button></div>
         </section>
       ) : null}
-
-      {tickets.length ? <UnderlineTabs label="Filter by status" items={statusTabs} current={status} onSelect={(key) => setStatus(key as StatusFilter)} /> : null}
 
       {loadError ? (
         <div role="alert" className="rounded-xl border border-danger bg-danger-subtle p-4 text-md font-medium text-danger">
@@ -190,52 +200,67 @@ export function TicketBoard({ initialTickets, loadError, daysOff = [] }: { initi
           description="Create your first ticket from a work log, then manage its updates here."
           action={<Link href="/work-logs" className={buttonVariants({ variant: "primary" })}>Open work logs</Link>}
         />
-      ) : visibleTickets.length === 0 ? (
-        <EmptyState
-          icon={Search}
-          title="No matching tickets"
-          description="Try another ticket ID, title, or status."
-          action={<Button variant="secondary" onClick={() => { setQuery(""); setStatus("All"); }}>Clear filters</Button>}
-        />
-      ) : (
-        <div className="grid min-w-0 items-start gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
-          {/* The list: open rows under a heavy rule, like the Tracker queue. */}
-          <nav aria-label="Ticket list" className="wl-scroll min-w-0 lg:sticky lg:top-6 lg:max-h-[calc(100dvh-var(--dock-clearance)-3rem)] lg:overflow-y-auto">
-            <h2 className="tk-eyebrow pb-3.5 text-accent-text">
-              {status === "All" ? "All tickets" : TICKET_STATUS_LABELS[status]} · <span className="tabular-nums">{visibleTickets.length}</span>
-            </h2>
-            <ul className="border-t-2 border-text">
-              {visibleTickets.map((ticket) => {
-                const selected = ticket.id === selectedTicket?.id;
-                return (
-                  <li key={ticket.id} className="border-b border-border">
-                    <button
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => select(ticket.id)}
-                      className={cn(
-                        "relative flex w-full cursor-pointer flex-col gap-2 py-4 pr-3 pl-4 text-left transition-colors duration-150",
-                        selected ? "bg-primary-subtle before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-primary" : "hover:bg-surface",
-                      )}
-                    >
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-md bg-sidebar px-2 py-0.5 font-mono text-sm font-semibold text-sidebar-fg">{ticket.ticketId}</span>
-                        <span className="ml-auto"><TicketStatusBadge status={ticket.status} /></span>
-                      </span>
-                      <span className="line-clamp-2 text-lg leading-snug font-semibold text-text">{ticket.title}</span>
-                      <span className="text-base text-text-muted">{ticket.projectName ?? "No project"} · {ticket.workLogCount} {ticket.workLogCount === 1 ? "log" : "logs"}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+      ) : tickets.length ? (
+        <div className="tkt-split">
+          <nav aria-label="Tickets" className="tkt-list tkt-card">
+            <div role="group" aria-label="Filter by status" className="tkt-filters">
+              {statusTabs.map((tab) => (
+                <button key={tab.key} type="button" aria-pressed={status === tab.key} onClick={() => setStatus(tab.key as StatusFilter)} className="tkt-filter">
+                  {tab.key !== "All" ? <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", TICKET_STATUS_DOT[tab.key as WorkflowStatus])} /> : null}
+                  {tab.label}
+                  <span className="tabular-nums">{tab.count}</span>
+                </button>
+              ))}
+            </div>
+            {visibleTickets.length === 0 ? (
+              <div className="p-4">
+                <EmptyState
+                  icon={Search}
+                  title="No matching tickets"
+                  description="Try another ticket ID, title, or status."
+                  action={<Button variant="secondary" onClick={() => { setQuery(""); setStatus("All"); }}>Clear filters</Button>}
+                />
+              </div>
+            ) : groups.map((group) => (
+              <section key={group.status} aria-label={TICKET_STATUS_LABELS[group.status]}>
+                <h2 className="tkt-group">
+                  <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", TICKET_STATUS_DOT[group.status])} />
+                  {TICKET_STATUS_LABELS[group.status]} · <span className="tabular-nums">{group.items.length}</span>
+                </h2>
+                <ul>
+                  {group.items.map((ticket) => {
+                    const selected = ticket.id === selectedTicket?.id;
+                    return (
+                      <li key={ticket.id}>
+                        <button type="button" aria-pressed={selected} onClick={() => select(ticket.id)} className="tkt-row">
+                          <span className="tkt-key">{ticket.ticketId}</span>
+                          <span className="line-clamp-2 text-md leading-snug font-semibold text-text">{ticket.title}</span>
+                          <span className="flex min-w-0 flex-wrap gap-x-2.5 text-xs text-text-muted">
+                            <span className="truncate">{ticket.projectName ?? "No project"}</span>
+                            <span>{ticket.workLogCount} {ticket.workLogCount === 1 ? "log" : "logs"}</span>
+                            <time dateTime={ticket.updatedAt}>{format(new Date(ticket.updatedAt), "d MMM")}</time>
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
           </nav>
 
-          <div id="ticket-drawer" className="min-w-0 scroll-mt-6">
-            {selectedTicket ? <TicketDetailPanel key={selectedTicket.id} ticket={selectedTicket} daysOff={daysOff} onChange={replaceTicket} /> : null}
+          <div id="ticket-drawer" data-open={phoneOpen || undefined} className="tkt-detail min-w-0 scroll-mt-[calc(var(--dock-clearance)+1rem)]">
+            {selectedTicket ? (
+              <>
+                <button type="button" onClick={() => setPhoneOpen(false)} className="tkt-back"><ArrowLeft className="size-4" aria-hidden="true" />All tickets</button>
+                <TicketDetailPanel key={selectedTicket.id} ticket={selectedTicket} daysOff={daysOff} onChange={replaceTicket} />
+              </>
+            ) : (
+              <p className="tkt-card p-8 text-center text-md text-text-muted">Pick a ticket to see its history.</p>
+            )}
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -315,7 +340,7 @@ function TicketDetailPanel({ ticket, daysOff, onChange }: {
       ticketId: ticket.id,
       ticketKey: nextKey,
       title: nextTitle,
-      projectName: projectName.trim() || null,
+      projectName: projectName.trim(),
     });
     setSavingDetails(false);
     if (!result.ok) {
@@ -387,24 +412,21 @@ function TicketDetailPanel({ ticket, daysOff, onChange }: {
   }
 
   return (
-    <article aria-labelledby={`ticket-heading-${ticket.id}`} className="min-w-0 overflow-hidden rounded-3xl border border-[var(--c-tk-rule)] bg-surface">
-      <header className="border-b border-border px-5 py-6 md:px-8">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-md bg-sidebar px-2 py-0.5 font-mono text-sm font-semibold text-sidebar-fg">{ticket.ticketId}</span>
-              <TicketStatusBadge status={ticket.status} />
-            </div>
-            <h2 id={`ticket-heading-${ticket.id}`} className="tk-section mt-3 text-text [overflow-wrap:anywhere]">{ticket.title}</h2>
-            {ticket.projectName ? <p className="mt-2 inline-flex items-center gap-1.5 text-md font-semibold text-text-muted"><Building2 className="size-4" aria-hidden="true" />{ticket.projectName}</p> : null}
-          </div>
-          <div className="shrink-0 text-base text-text-muted md:text-right">
-            <p>{ticket.workLogCount} {ticket.workLogCount === 1 ? "work log" : "work logs"}</p>
-            <time dateTime={ticket.updatedAt}>Updated {formatTicketDate(ticket.updatedAt)}</time>
-            <Button variant="outline" size="sm" className="mt-3" onClick={() => setEditingDetails(true)}>
+    <article aria-labelledby={`ticket-heading-${ticket.id}`} className="tkt-card min-w-0 overflow-hidden">
+      <header className="px-5 pt-5 pb-4 md:px-7 md:pt-6">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="tkt-key">{ticket.ticketId}</span>
+            <TicketStatusBadge status={ticket.status} />
+            {ticket.projectName ? <span className="inline-flex items-center gap-1.5 rounded-lg bg-surface-2 px-2 py-0.5 text-xs font-semibold text-text-muted"><Building2 className="size-3.5" aria-hidden="true" />{ticket.projectName}</span> : null}
+            <Button variant="outline" size="sm" className="ml-auto" onClick={() => setEditingDetails(true)}>
               <Pencil className="size-4" aria-hidden="true" /> Edit ticket details
             </Button>
           </div>
+          <h2 id={`ticket-heading-${ticket.id}`} className="tkt-detail-title mt-2.5 text-text [overflow-wrap:anywhere]">{ticket.title}</h2>
+          <p className="mt-1 text-sm text-text-muted">
+            {ticket.workLogCount} {ticket.workLogCount === 1 ? "work log" : "work logs"} · <time dateTime={ticket.updatedAt}>updated {formatTicketDate(ticket.updatedAt)}</time>
+          </p>
         </div>
         {editingDetails ? (
           <div className="mt-6 grid gap-4 border-t border-border pt-5 md:grid-cols-2">
@@ -428,9 +450,9 @@ function TicketDetailPanel({ ticket, daysOff, onChange }: {
         ) : null}
       </header>
 
-      {journey ? <TicketJourney journey={journey} /> : null}
+      <StatusSteps current={ticket.status} picked={status} journey={journey} disabled={saving !== null} onPick={(next) => { setStatus(next); setMessage(""); }} />
 
-      <div className="flex min-w-0 flex-col gap-8 p-5 md:p-8">
+      <div className="flex min-w-0 flex-col gap-7 px-5 pt-2 pb-6 md:px-7 md:pb-7">
         {timeline[0] ? (
           <section aria-labelledby={`latest-update-heading-${ticket.id}`} className="rounded-xl border border-primary/30 bg-primary-subtle p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -443,9 +465,9 @@ function TicketDetailPanel({ ticket, daysOff, onChange }: {
         <section aria-labelledby={`add-update-heading-${ticket.id}`}>
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
-              <h3 id={`add-update-heading-${ticket.id}`} className="text-xl font-bold tracking-[-0.02em] text-text">Add a ticket update</h3>
-              <p className="mt-1 max-w-[62ch] text-md leading-6 text-text-muted">
-                Change the status, write an update, or both — then save once. Each update becomes a history entry; work-log notes stay protected.
+              <h3 id={`add-update-heading-${ticket.id}`} className="tkt-label">Add a ticket update</h3>
+              <p className="mt-1 max-w-[62ch] text-sm leading-6 text-text-muted">
+                Pick a status above, write an update, or both — then save once. Each update becomes a history entry; work-log notes stay protected.
               </p>
             </div>
             <span className="inline-flex shrink-0 items-center gap-2 self-start rounded-full bg-success-subtle px-3 py-1.5 text-xs font-semibold text-success">
@@ -453,11 +475,6 @@ function TicketDetailPanel({ ticket, daysOff, onChange }: {
             </span>
           </div>
           <div className="mt-4 grid gap-4">
-            <Field label="Status" htmlFor={`ticket-status-${ticket.id}`} className="md:w-72">
-              <Select id={`ticket-status-${ticket.id}`} value={status} disabled={saving !== null} onChange={(event) => { setStatus(event.target.value as WorkflowStatus); setMessage(""); }} className="h-10">
-                {TICKET_STATUS_ORDER.map((option) => <option key={option} value={option}>{TICKET_STATUS_LABELS[option]}</option>)}
-              </Select>
-            </Field>
             <Field label="Update details" htmlFor={`ticket-body-${ticket.id}`} hint="Optional when you're only changing the status.">
               <MarkdownEditor
                 id={`ticket-body-${ticket.id}`}
@@ -480,7 +497,7 @@ function TicketDetailPanel({ ticket, daysOff, onChange }: {
 
         <section aria-labelledby={`history-heading-${ticket.id}`} className="border-t border-border pt-6">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2"><History className="size-4 text-accent-text" aria-hidden="true" /><h3 id={`history-heading-${ticket.id}`} className="text-xl font-bold tracking-[-0.02em] text-text">Ticket history</h3></div>
+            <div className="flex items-center gap-2"><History className="size-4 text-accent-text" aria-hidden="true" /><h3 id={`history-heading-${ticket.id}`} className="tkt-label">Ticket history</h3></div>
             {detail ? <span className="text-base text-text-muted">{timeline.length} {timeline.length === 1 ? "entry" : "entries"}</span> : null}
           </div>
 
@@ -617,33 +634,45 @@ function ticketJourney(ticket: TicketBoardItem, detail: TicketDetail, daysOff: S
   };
 }
 
-function TicketJourney({ journey }: { journey: Journey }) {
-  const reachedIndex = journey.stages.reduce((last, stage, index) => (stage.date ? index : last), 0);
+/**
+ * The status picker as six steps (2026-11-02): each shows when the ticket first
+ * reached it; reached steps are tinted, the picked one is solid. Clicking a step
+ * only picks the status — Save below applies it. Replaces the Status select and
+ * the separate timeline strip.
+ */
+function StatusSteps({ current, picked, journey, disabled, onPick }: { current: WorkflowStatus; picked: WorkflowStatus; journey: Journey | null; disabled: boolean; onPick: (status: WorkflowStatus) => void }) {
   return (
-    <section aria-label="Ticket timeline" className="mx-5 mt-4 rounded-xl border border-border px-3 py-2.5 md:mx-8 md:px-4">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="flex items-center gap-2 text-md font-semibold text-text"><CalendarDays className="size-4 text-accent-text" aria-hidden="true" />Ticket timeline</h3>
-        <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", journey.done ? "bg-status-completed-bg text-status-completed-fg ring-1 ring-inset ring-status-completed/50" : "bg-status-progress-bg text-status-progress-fg ring-1 ring-inset ring-status-progress/40")}>
-          {journey.done ? "Done in" : "Open for"} {journey.workingDays} {journey.workingDays === 1 ? "day" : "days"}
-        </span>
-      </div>
-      <ol className="grid grid-cols-6 gap-1">
-        {journey.stages.map((stage, index) => {
-          const reached = stage.date !== null;
+    <section aria-label="Status" className="px-5 pb-4 md:px-7">
+      <div role="radiogroup" aria-label="Status" className="tkt-steps">
+        {TICKET_STATUS_ORDER.map((option) => {
+          const date = journey?.stages.find((stage) => stage.status === option)?.date ?? null;
           return (
-            <li key={stage.status} className="relative flex min-w-0 flex-col items-center text-center">
-              {index > 0 ? <span aria-hidden="true" className={cn("absolute top-1.5 right-1/2 h-px w-full", index <= reachedIndex ? "bg-primary" : "bg-border")} /> : null}
-              <span aria-hidden="true" className={cn("relative z-10 size-3 rounded-full border", reached ? cn("border-transparent", TICKET_STATUS_DOT[stage.status]) : "border-border-strong bg-surface")} />
-              <span className={cn("mt-1 text-xs font-semibold leading-tight", reached ? "text-text" : "text-text-subtle")}>{TICKET_STATUS_LABELS[stage.status]}</span>
-              <span className="text-xs text-text-muted tabular-nums">{stage.date ? format(stage.date, "d MMM") : "—"}</span>
-            </li>
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={picked === option}
+              data-reached={date ? "" : undefined}
+              data-current={current === option ? "" : undefined}
+              disabled={disabled}
+              onClick={() => onPick(option)}
+              className="tkt-step"
+            >
+              <span className="flex items-center gap-1.5"><span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", TICKET_STATUS_DOT[option])} />{TICKET_STATUS_LABELS[option]}</span>
+              <span className="tkt-step-date tabular-nums">{date ? format(date, "d MMM") : "—"}</span>
+            </button>
           );
         })}
-      </ol>
-      <p className="mt-1.5 text-xs text-text-muted">
-        Started {format(journey.start, "EEE d MMM")} {journey.done ? `· Done ${format(journey.end, "EEE d MMM")}` : "· not done yet"}
-        {journey.daysOffSkipped > 0 ? ` · ${journey.daysOffSkipped} holiday/leave ${journey.daysOffSkipped === 1 ? "day" : "days"} not counted` : ""}
-      </p>
+      </div>
+      {journey ? (
+        <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-muted">
+          <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", journey.done ? "bg-status-completed-bg text-status-completed-fg ring-1 ring-inset ring-status-completed/50" : "bg-status-progress-bg text-status-progress-fg ring-1 ring-inset ring-status-progress/40")}>
+            {journey.done ? "Done in" : "Open for"} {journey.workingDays} {journey.workingDays === 1 ? "day" : "days"}
+          </span>
+          Started {format(journey.start, "EEE d MMM")} {journey.done ? `· Done ${format(journey.end, "EEE d MMM")}` : "· not done yet"}
+          {journey.daysOffSkipped > 0 ? ` · ${journey.daysOffSkipped} holiday/leave ${journey.daysOffSkipped === 1 ? "day" : "days"} not counted` : ""}
+        </p>
+      ) : null}
     </section>
   );
 }

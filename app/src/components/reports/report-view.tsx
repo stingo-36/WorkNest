@@ -68,31 +68,6 @@ export function ReportView({ sprintKey, sprints, report, stale, aiOn }: { sprint
     <div className="tk-focus flex w-full min-w-0 flex-col gap-8">
       <PageHead title="Reports" description="A 5-15 report for each sprint, built from your work logs — copy it straight into your doc." stats={[{ value: sprints.length, label: sprints.length === 1 ? "sprint" : "sprints" }, { value: sprints.filter((entry) => entry.hasReport).length, label: "reports saved" }]} />
 
-      {/* Sprint rail (2026-10-08): one card per sprint, newest first. */}
-      <nav aria-label="Choose a sprint" className="-mx-1 flex gap-2.5 overflow-x-auto px-1 py-1 [scrollbar-width:none]">
-        {sprints.map((s) => {
-          const on = s.key === sprintKey;
-          return (
-            <button
-              key={s.key}
-              type="button"
-              aria-pressed={on}
-              onClick={() => router.push(`/reports?sprint=${s.key}`)}
-              className={cn(
-                "flex w-52 shrink-0 cursor-pointer flex-col gap-2 rounded-2xl border p-4 text-left transition-colors duration-150",
-                on ? "border-sidebar bg-sidebar text-sidebar-fg" : "border-border bg-surface text-text hover:border-border-strong",
-              )}
-            >
-              <span className="text-sm font-semibold">{s.label}</span>
-              <span className="flex flex-wrap gap-1.5">
-                <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", on ? "bg-sidebar-2 text-sidebar-fg" : "border border-border text-text-muted")}>{s.logCount} {s.logCount === 1 ? "log" : "logs"}</span>
-                {s.hasReport ? <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", on ? "bg-surface text-text" : "bg-primary-subtle text-accent-text")}>Saved</span> : null}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
-
       {!aiOn ? (
         <p role="status" className="wl-card flex items-start gap-2 px-4 py-3 text-sm text-text md:px-5">
           <CircleAlert className="mt-0.5 size-4 shrink-0 text-accent-text" aria-hidden="true" />
@@ -111,55 +86,82 @@ export function ReportView({ sprintKey, sprints, report, stale, aiOn }: { sprint
         </p>
       ) : null}
 
-      {/* The desk: a toolbar, then the report as a sheet of paper. */}
-      <section aria-labelledby="report-heading" aria-busy={pending} className="flex flex-col items-center gap-4 rounded-3xl border border-border bg-surface px-3 py-5 md:px-6 md:py-8">
-        <div className="flex w-full max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-border bg-surface p-2 pl-4">
-          <h2 id="report-heading" className="mr-auto text-sm font-semibold text-text">{selected ? `${selected.label} report` : "Report"}</h2>
+      <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
+        {/* Sprint list (Ocean, 2026-11-01): a column beside the paper from lg, a sideways strip below; newest first. */}
+        <nav aria-label="Choose a sprint" className="-mx-1 flex gap-2 overflow-x-auto px-1 py-1 [scrollbar-width:none] lg:sticky lg:top-[calc(var(--dock-clearance)+1.5rem)] lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0">
+          {sprints.map((s) => {
+            const on = s.key === sprintKey;
+            return (
+              <button
+                key={s.key}
+                type="button"
+                aria-pressed={on}
+                onClick={() => router.push(`/reports?sprint=${s.key}`)}
+                className={cn(
+                  "flex w-52 shrink-0 cursor-pointer flex-col gap-2 rounded-2xl border p-4 text-left transition-colors duration-150 lg:w-full",
+                  on ? "border-primary bg-surface text-text shadow-card ring-1 ring-primary" : "border-transparent bg-surface/50 text-text hover:bg-surface",
+                )}
+              >
+                <span className="text-sm font-semibold">{s.label}</span>
+                <span className="flex flex-wrap gap-1.5">
+                  <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", "border border-border text-text-muted")}>{s.logCount} {s.logCount === 1 ? "log" : "logs"}</span>
+                  {s.hasReport ? <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", "bg-primary-subtle text-accent-text")}>Saved</span> : null}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* The desk: a floating toolbar, then the report as a sheet of paper. */}
+        <section aria-labelledby="report-heading" aria-busy={pending} className="flex min-w-0 flex-col items-center gap-4">
+          <div className="flex w-full max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-border bg-surface/90 p-2 pl-4 shadow-card">
+            <h2 id="report-heading" className="mr-auto text-sm font-semibold text-text">{selected ? `${selected.label} report` : "Report"}</h2>
+            {report ? (
+              <>
+                <Button size="sm" variant="secondary" onClick={() => void copy("text")} disabled={pending || !parsed}>
+                  {copied === "text" ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+                  {copied === "text" ? "Copied" : "Copy as plain text"}
+                </Button>
+                <Button size="sm" onClick={() => void copy("doc")} disabled={pending || !parsed}>
+                  {copied === "doc" ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+                  {copied === "doc" ? "Copied" : "Copy for Google Docs"}
+                </Button>
+              </>
+            ) : null}
+            <Button size="sm" variant={report ? "secondary" : "primary"} onClick={generate} loading={pending} disabled={!aiOn || !selected?.logCount}>
+              {!pending ? <RefreshCw aria-hidden="true" /> : null}
+              {pending ? "Generating…" : report ? "Regenerate" : "Generate report"}
+            </Button>
+          </div>
+
           {report ? (
             <>
-              <Button size="sm" variant="secondary" onClick={() => void copy("text")} disabled={pending || !parsed}>
-                {copied === "text" ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-                {copied === "text" ? "Copied" : "Copy as plain text"}
-              </Button>
-              <Button size="sm" onClick={() => void copy("doc")} disabled={pending || !parsed}>
-                {copied === "doc" ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-                {copied === "doc" ? "Copied" : "Copy for Google Docs"}
-              </Button>
+              {stale ? <p className="w-full max-w-3xl text-sm font-semibold text-text">Logs in this sprint changed since this was generated — regenerate to include them.</p> : null}
+              <div className="w-full max-w-3xl rounded-lg border border-border bg-surface shadow-card">
+                {parsed ? <ReportDocument report={parsed} /> : null}
+              </div>
+              <p className="w-full max-w-3xl text-xs text-text-muted" aria-live="polite">
+                AI report · {report.model} · Generated{" "}
+                <time dateTime={report.generatedAt}>{format(new Date(report.generatedAt), "d MMM yyyy, h:mm a")}</time>
+              </p>
             </>
-          ) : null}
-          <Button size="sm" variant={report ? "secondary" : "primary"} onClick={generate} loading={pending} disabled={!aiOn || !selected?.logCount}>
-            {!pending ? <RefreshCw aria-hidden="true" /> : null}
-            {pending ? "Generating…" : report ? "Regenerate" : "Generate report"}
-          </Button>
-        </div>
-
-        {report ? (
-          <>
-            {stale ? <p className="w-full max-w-3xl text-sm font-semibold text-text">Logs in this sprint changed since this was generated — regenerate to include them.</p> : null}
-            <div className="w-full max-w-3xl rounded-md border border-border bg-surface">
-              {parsed ? <ReportDocument report={parsed} /> : null}
+          ) : (
+            <div className="flex w-full max-w-3xl flex-col items-start gap-2 rounded-lg border border-dashed border-border-strong bg-surface/60 px-6 py-10">
+              <FileText className="size-6 text-accent-text" aria-hidden="true" />
+              <p className="text-base font-semibold text-text">
+                {pending ? "Writing the report…" : selected?.logCount ? "No report for this sprint yet." : "No work logs in this sprint yet."}
+              </p>
+              <p className="max-w-[60ch] text-sm text-text-muted">
+                {!selected?.logCount
+                  ? "Log some days first, then come back to generate the report."
+                  : aiOn
+                    ? "Generate one and AI groups the sprint’s tickets, work done and to-dos into Completed This Week and Problems or Blockers."
+                    : "Set up AI (above) to generate it."}
+              </p>
             </div>
-            <p className="w-full max-w-3xl text-xs text-text-muted" aria-live="polite">
-              AI report · {report.model} · Generated{" "}
-              <time dateTime={report.generatedAt}>{format(new Date(report.generatedAt), "d MMM yyyy, h:mm a")}</time>
-            </p>
-          </>
-        ) : (
-          <div className="flex w-full max-w-3xl flex-col items-start gap-2 rounded-md border border-dashed border-border-strong px-6 py-10">
-            <FileText className="size-6 text-accent-text" aria-hidden="true" />
-            <p className="text-base font-semibold text-text">
-              {pending ? "Writing the report…" : selected?.logCount ? "No report for this sprint yet." : "No work logs in this sprint yet."}
-            </p>
-            <p className="max-w-[60ch] text-sm text-text-muted">
-              {!selected?.logCount
-                ? "Log some days first, then come back to generate the report."
-                : aiOn
-                  ? "Generate one and AI groups the sprint’s tickets, work done and to-dos into Completed This Week and Problems or Blockers."
-                  : "Set up AI (above) to generate it."}
-            </p>
-          </div>
-        )}
-      </section>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

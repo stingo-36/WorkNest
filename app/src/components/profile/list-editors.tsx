@@ -73,14 +73,16 @@ function AddRow({ id, label, placeholder, pending, onAdd, leading }: { id: strin
  * A titled card. The navy header band is the page's dark anchor — it says
  * "this is the section you opened" — with the white body below for the work.
  */
-export function ListCard({ title, description, action, children }: { title: string; description: string; action?: React.ReactNode; children: React.ReactNode }) {
+export function ListCard({ title, description, icon, action, children }: { title: string; description: string; icon?: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     // No overflow-hidden: popovers in a row (the resource-type icon picker) must be able to escape the card.
-    <section aria-label={title} data-reveal className="wl-card min-w-0">
-      <div className="flex items-start gap-3 rounded-t-[inherit] bg-sidebar px-5 py-4 text-sidebar-fg md:px-6">
+    // White header with an icon tile (Ocean v2 profile, 2026-11-02; was a dark band).
+    <section aria-label={title} data-reveal className="pf-card wl-card min-w-0">
+      <div className="pf-card-head">
+        {icon ? <span className="pf-card-icon" aria-hidden="true">{icon}</span> : null}
         <div className="min-w-0 flex-1">
-          <h2 className="text-xl font-semibold tracking-[-0.015em] text-balance">{title}</h2>
-          <p className="mt-0.5 text-sm text-pretty text-sidebar-muted">{description}</p>
+          <h2 className="text-lg font-semibold tracking-[-0.015em] text-balance text-text">{title}</h2>
+          <p className="mt-0.5 text-sm text-pretty text-text-muted">{description}</p>
         </div>
         {action}
       </div>

@@ -2,7 +2,6 @@ import { format } from "date-fns";
 import { ArrowRight, ArrowUpRight, FileText, Star } from "lucide-react";
 import Link from "next/link";
 
-import { cn } from "@/components/cn";
 import { NoteIcon } from "@/components/notes/NoteIcon";
 import { PageHead, UnderlineTabs, outlinePill } from "@/components/shell/page-head";
 import { isLightColor, noteAccent } from "@/lib/note-colors";
@@ -22,10 +21,10 @@ const KIND = {
 } as const;
 
 /**
- * Everything you've starred, in one place (2026-10-11, from the owner's
- * screenshot): underline tabs (All · Important · Notes · Resources, `?show=`),
- * then open two-column items under section headings. On "All", Important comes
- * first, then Notes and Resources side by side.
+ * Everything you've starred, in one place: underline tabs (All · Important ·
+ * Notes · Resources, `?show=`), then one shelf per kind (Ocean redesign,
+ * 2026-11-01) — a sideways row of cover tiles. On "All" the shelves stack:
+ * Important, Notes, Resources.
  */
 export default async function FavouritesPage({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
   const { show: rawShow } = await searchParams;
@@ -65,7 +64,8 @@ export default async function FavouritesPage({ searchParams }: { searchParams: P
       <Item
         key={entry.id}
         href={kind.href}
-        disc={<span className="grid size-10.5 shrink-0 place-items-center rounded-full bg-sidebar text-wl-amber"><Star className="size-4.5 fill-current" aria-hidden="true" /></span>}
+        cover="linear-gradient(140deg, var(--c-sidebar), var(--c-sidebar-3))"
+        disc={<span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/15 text-wl-amber"><Star className="size-5 fill-current" aria-hidden="true" /></span>}
         meta={[kind.label, entry.person, due].filter(Boolean).join(" · ")}
         title={entry.subject}
       />
@@ -78,9 +78,11 @@ export default async function FavouritesPage({ searchParams }: { searchParams: P
       <Item
         key={note.id}
         href={`/notes/${note.id}`}
+        cover={accent}
+        coverInk={isLightColor(accent) ? "var(--c-text)" : "var(--c-text-inverse)"}
         disc={
-          <span style={{ background: accent, color: isLightColor(accent) ? "var(--c-text)" : "var(--c-text-inverse)" }} className="grid size-10.5 shrink-0 place-items-center rounded-full">
-            <NoteIcon icon={note.iconLibrary && note.iconName ? { library: note.iconLibrary, name: note.iconName } : null} className="size-5" fallback={<FileText className="size-5" />} />
+          <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/20 [&_svg]:!text-inherit">
+            <NoteIcon icon={note.iconLibrary && note.iconName ? { library: note.iconLibrary, name: note.iconName } : null} className="size-6" fallback={<FileText className="size-6" />} />
           </span>
         }
         meta={`Notebook · ${note._count.sections} ${note._count.sections === 1 ? "section" : "sections"} · ${format(note.updatedAt, "d MMM")}`}
@@ -98,7 +100,8 @@ export default async function FavouritesPage({ searchParams }: { searchParams: P
         key={resource.id}
         href={external ? resource.url! : "/resources"}
         external={external}
-        disc={<span className="grid size-10.5 shrink-0 place-items-center rounded-full bg-sidebar text-base font-bold text-sidebar-fg">{initials(resource.title)}</span>}
+        cover={code ? "var(--c-text)" : "linear-gradient(140deg, var(--c-primary), var(--c-sidebar-3))"}
+        disc={<span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/15 font-mono text-base font-bold">{code ? ">_" : initials(resource.title)}</span>}
         meta={external ? host(resource.url!) : resource.type}
         title={resource.title}
         description={code ? null : markdownPreview(resource.description)}
@@ -126,14 +129,14 @@ export default async function FavouritesPage({ searchParams }: { searchParams: P
       ) : null}
 
       {show === "all" ? (
-        <div className="grid gap-x-20 gap-y-12 border-t border-[var(--c-tk-rule)] pt-10 md:grid-cols-2">
-          <Section title="Notes" count={notes.length} empty="Star a note on the Notes page to pin it here." go={{ href: "/notes", label: "Go to Notes" }} column>
+        <>
+          <Section title="Notes" count={notes.length} empty="Star a note on the Notes page to pin it here." go={{ href: "/notes", label: "Go to Notes" }}>
             {noteItems}
           </Section>
-          <Section title="Resources" count={resources.length} empty="Star a resource on the Resources page to pin it here." go={{ href: "/resources", label: "Go to Resources" }} column>
+          <Section title="Resources" count={resources.length} empty="Star a resource on the Resources page to pin it here." go={{ href: "/resources", label: "Go to Resources" }}>
             {resourceItems}
           </Section>
-        </div>
+        </>
       ) : null}
 
       {show === "notes" ? (
@@ -152,22 +155,21 @@ export default async function FavouritesPage({ searchParams }: { searchParams: P
 }
 
 /**
- * A heading (title + count or a note, optional action on the right), then its
- * items in two columns — or one when `column` (the All view's side-by-side
- * pair). Empty: a line saying how to fill it and a link there.
+ * A shelf: a heading (title + count or a note, optional action on the right),
+ * then its items as a sideways row of cover tiles. Empty: a line saying how to
+ * fill it and a link there.
  */
-function Section({ title, count, note, action, empty, go, column = false, children }: {
+function Section({ title, count, note, action, empty, go, children }: {
   title: string;
   count?: number;
   note?: string;
   action?: React.ReactNode;
   empty: string;
   go: { href: string; label: string };
-  column?: boolean;
   children: React.ReactNode[];
 }) {
   return (
-    <section aria-label={title} className="flex min-w-0 flex-col gap-7">
+    <section aria-label={title} className="flex min-w-0 flex-col gap-5">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-3.5 gap-y-1">
           <h2 className="tk-section">{title}</h2>
@@ -185,7 +187,7 @@ function Section({ title, count, note, action, empty, go, column = false, childr
           </Link>
         </div>
       ) : (
-        <ul className={cn("grid gap-x-20 gap-y-10", !column && "md:grid-cols-2")}>{children}</ul>
+        <ul className="fav-row -mx-1 flex snap-x gap-4 overflow-x-auto px-1 pb-3 md:gap-5">{children}</ul>
       )}
     </section>
   );
@@ -194,10 +196,12 @@ function Section({ title, count, note, action, empty, go, column = false, childr
 /** The title link covers the whole item (its ::after). */
 const LINK = "decoration-2 underline-offset-4 after:absolute after:inset-0 group-hover:underline";
 
-/** One starred thing: a disc, a meta line, a big title (the whole item is the link), optional text. */
-function Item({ href, external = false, disc, meta, title, description, code }: {
+/** One starred thing as a cover tile: the cover (disc + star), a meta line, the title (the whole tile is the link), optional text. */
+function Item({ href, external = false, cover, coverInk = "var(--c-text-inverse)", disc, meta, title, description, code }: {
   href: string;
   external?: boolean;
+  cover: string;
+  coverInk?: string;
   disc: React.ReactNode;
   meta: string;
   title: string;
@@ -205,12 +209,13 @@ function Item({ href, external = false, disc, meta, title, description, code }: 
   code?: string | null;
 }) {
   return (
-    <li className="group relative flex min-w-0 flex-col gap-3">
-      <div aria-hidden="true" className="flex min-w-0 items-center gap-3">
+    <li className="group relative flex w-[13.5rem] shrink-0 snap-start flex-col gap-2 md:w-60">
+      <div aria-hidden="true" style={{ background: cover, color: coverInk }} className="relative flex h-32 items-end overflow-hidden rounded-2xl p-3.5 shadow-card transition-transform duration-200 group-hover:-translate-y-1 md:h-36">
         {disc}
-        <span className="min-w-0 truncate text-md font-medium text-text-muted">{meta}</span>
+        <Star className="absolute top-3 right-3 size-4 fill-current opacity-90" />
       </div>
-      <h3 className="tk-card-title [overflow-wrap:anywhere]">
+      <span className="mt-1 min-w-0 truncate text-sm font-medium text-text-muted">{meta}</span>
+      <h3 className="line-clamp-2 text-lg leading-snug font-semibold text-text [overflow-wrap:anywhere]">
         {external ? (
           <a href={href} target="_blank" rel="noreferrer" className={LINK}>
             {title}
@@ -224,8 +229,8 @@ function Item({ href, external = false, disc, meta, title, description, code }: 
           </Link>
         )}
       </h3>
-      {description ? <p className="line-clamp-2 text-lg text-text-muted">{description}</p> : null}
-      {code ? <code className="line-clamp-2 block rounded-xl border border-[var(--c-tk-rule)] bg-surface px-4 py-3 font-mono text-sm text-text">{code}</code> : null}
+      {description ? <p className="line-clamp-2 text-base text-text-muted">{description}</p> : null}
+      {code ? <code className="line-clamp-2 block rounded-xl border border-[var(--c-tk-rule)] bg-surface px-3 py-2 font-mono text-sm text-text">{code}</code> : null}
     </li>
   );
 }

@@ -50,10 +50,10 @@ Models: `WorkLog`, `Meeting`, `WorkLogAttachment`, `TicketWorkUpdate`
 - API: `app/api/work-logs/[workLogId]/attachments/route.ts`, `app/api/work-logs/[workLogId]/ai-refresh/route.ts`, `app/api/attachments/[attachmentId]/route.ts`
 - Actions: `actions/worklog.ts`
 - Lib: `lib/worklogs.ts`, `lib/worklog-summary.ts` (AI input), `lib/day-tracker.ts` (day's Tracker items)
-- Deck: `components/work-log/sprint-deck.tsx`, `deck-search.tsx`, `create-day-tile.tsx`, `open-day-bar.tsx`, `day-stamp.tsx`, `day-todos.tsx`
-- Editor: `components/work-log/work-log-editor.tsx`, `save-status.tsx` (autosave provider), `markdown-editor.tsx`, `meeting-section.tsx`, `learning-section.tsx`, `attachments-section.tsx`, `attachment-utils.ts`, `section-heading.tsx`, `day-type-toggle.tsx`, `day-type.ts`, `create-work-log-form.tsx`
+- Deck: `components/work-log/sprint-deck.tsx`, `deck-search.tsx`, `open-day-bar.tsx`, `day-todos.tsx`
+- Editor: `components/work-log/work-log-editor.tsx`, `save-status.tsx` (autosave provider), `markdown-editor.tsx`, `meeting-section.tsx`, `learning-section.tsx`, `attachments-section.tsx`, `attachment-utils.ts`, `section-heading.tsx`, `day-type-toggle.tsx`, `day-type.ts`
 - Tickets inside a log: `components/work-log/ticket-search.tsx`, `ticket-work-card.tsx`, `ticket-history.tsx`
-- Detail/summary: `components/work-log/work-log-summary.tsx`, `work-log-glance.tsx`, `copy-log-button.tsx`, `types.ts` (client view models)
+- Detail/summary: `components/work-log/work-log-summary.tsx`, `copy-log-button.tsx`, `types.ts` (client view models)
 
 ### Tickets — PRD §5.2 · Arch §6 (append-only history)
 Models: `Ticket`, `TicketWorkUpdate`, `TicketHistoryEntry`
@@ -116,7 +116,7 @@ Bearer token, no cookie; `/api/mobile/*` is public in the proxy and checks its o
 - UI: `components/admin/admin-dashboard.tsx`
 
 ### Installable app (PWA) — PRD §5.11
-- `app/manifest.ts`, `app/public/sw.js`, `app/public/offline.html`, `components/pwa/pwa-provider.tsx`, `components/pwa/install-app.tsx`
+- `app/manifest.ts`, `app/public/sw.js`, `app/public/offline.html`, `components/pwa/pwa-provider.tsx` (install state + auto-update), `components/pwa/install-app.tsx`, `app/api/version/route.ts`, `next.config.ts` (`NEXT_PUBLIC_APP_VERSION`)
 
 ### Auth screens — DS §3
 - Routes: `app/(auth)/login/page.tsx`, `app/(auth)/register/page.tsx`, `app/(auth)/auth-motion.css`
@@ -127,7 +127,7 @@ Bearer token, no cookie; `/api/mobile/*` is public in the proxy and checks its o
 - UI: `components/home/home-page.tsx`, `feature-showcase.tsx`, `doodles.tsx`, `recap-avatar.tsx`, `screen-motion.tsx`
 
 ### Shell & navigation — DS §8 "Shell" · Recipes §4
-- `components/shell/app-shell.tsx`, `app-nav.tsx`, `nav-items.ts` (`PRIMARY_NAV`, `navFor`), `menu.tsx`, `page-head.tsx` (`PageHead`, current header), `page-header.tsx` (older `PageHeader`), `page-motion.tsx` (GSAP), `page-band.tsx` + `components/ui/band-sx.ts` (leftovers), `coming-soon-page.tsx`
+- `components/shell/app-shell.tsx`, `app-nav.tsx`, `nav-items.ts` (`PRIMARY_NAV`, `navFor`), `menu.tsx`, `page-head.tsx` (`PageHead`, current header), `page-header.tsx` (older `PageHeader`), `page-motion.tsx` (GSAP), `coming-soon-page.tsx`
 - Coming soon / retired routes: `app/(app)/tasks/page.tsx`, `app/(app)/links/page.tsx`, `app/(app)/settings/page.tsx`, `app/(app)/dashboard/page.tsx` (→ `/tracker`)
 
 ### UI primitives — DS §8 "Primitives" · Recipes §7
@@ -137,5 +137,5 @@ Bearer token, no cookie; `/api/mobile/*` is public in the proxy and checks its o
 
 - Root: `package.json`, `scripts/setup.mjs` (`npm run dev`), `scripts/check-docs.mjs` (`npm run docs:check`), `docker-compose.yml`
 - App: `app/package.json`, `app/scripts/hosted-db.mjs`, `app/scripts/vercel-build.mjs`, `app/prisma.config.ts`, `app/next.config.ts`
-- Seeds: `app/prisma/seed.ts`, `seed-sprint.ts`, `seed-tracker.ts`, `seed-workspace.ts`, `seed-notes.ts`, `seed-achievements.ts`, `seed-bulk.ts`, `seed-fill.ts`
+- Seeds: `app/prisma/seed.ts`, `seed-sprint.ts`, `seed-tracker.ts`, `seed-workspace.ts`, `seed-notes.ts`, `seed-achievements.ts`, `seed-bulk.ts`, `seed-fill.ts`, `seed-fresh-demo.ts` (resets tariboi36@gmail.com to a fictional "Lumen Health" workspace — destructive for that account only)
 - Agent setup: `AGENTS.md`, `CLAUDE.md`, `.claude/skills/worknest-*`, `.claude/agents/worknest-*`, `.claude/settings.json` (Stop hook → docs check)

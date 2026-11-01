@@ -4,7 +4,7 @@
 > (with the *why*), gotchas that cost time before, and a changelog. Newest first in
 > every section. Update rules are in `AGENTS.md` §2.
 >
-> Last synced with the codebase: **2026-10-27**
+> Last synced with the codebase: **2026-11-01**
 
 ---
 
@@ -26,6 +26,20 @@
 ## Decisions
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
+
+**2026-11-01 — Ocean redesign of the signed-in app: sidebar shell, sky→aqua palette, Sora/Inter.**
+The owner reviewed three directions on a design canvas (Cobalt & Stone, Ocean Glass, Ocean v2)
+and picked Ocean colours with new layouts. Reverses three earlier decisions: the top bar
+(2026-10-14) becomes a sticky left sidebar on ≥1024px with a slim header + bottom tab bar
+below that; "no shadows on the page" (2026-10-09) becomes hairline + soft blue card
+shadows; Teal & Ink (2026-10-11) becomes Ocean (`#0369a1` primary, `#0c4a6e` ink, sky/aqua
+for decoration only). Geist → Inter (UI) + Sora (display) + JetBrains Mono. Implemented as
+tokens + an appended `Ocean` block in `globals.css` and a rewritten `app-nav.tsx`; page
+components keep their fields, actions and behaviour; the page layouts were then rebuilt
+to the canvas (Work Logs ribbon, Tickets board, Notes library, Resources search,
+Favourites shelves, Reports column) without changing data or actions. Homepage, login and register were deliberately **not** changed (owner).
+*Rejected:* the canvas's per-page restructures that need new features (hour-by-hour work
+log view, Tickets board/list switch, two-step register) — not built.
 
 **2026-10-26 — Groq is a backup AI behind OpenRouter.**
 The free OpenRouter models are often rate-limited or down (a live 500 during testing).
@@ -809,6 +823,8 @@ is done on the real rendered app.
 
 ## Gotchas
 
+- **`position: fixed` inside an animated element.** Anything with a `transform` (including a running entrance animation like `auth-in`) becomes the containing block for fixed children, so a "fixed" bar sticks to that box instead of the viewport. Put fixed UI outside animated wrappers (2026-11-01, register progress bar).
+
 - **2026-10-26 — Docker Compose project name is pinned to `personalworkspace`.** Compose
   names projects after the folder; after the folder rename to `WorkNest` it wanted a new
   `worknest_workspace-pgdata` volume (empty) and clashed with the running
@@ -997,6 +1013,23 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-11-02 — Installed app updates itself: deploy id in `next.config.ts` (`NEXT_PUBLIC_APP_VERSION`), public `/api/version`, `PwaProvider` checks on open/return/online/5 min — reloads on open or return, Refresh toast + full load on next page change mid-use — `components/pwa/pwa-provider.tsx`, `app/api/version/route.ts`, `next.config.ts`, `proxy.ts`
+- 2026-11-02 — Dead-code cleanup: removed unused `create-day-tile.tsx`, `create-work-log-form.tsx`, `day-stamp.tsx`, `shell/page-band.tsx`, `ui/band-sx.ts` (+ the fields' `tone="band"`), `QuickLogButton`, and ~30 unused CSS classes (old accordion deck, ticket lanes, tracker week strip, notes bookshelf, `.wl-paper`, `.ocean-tint`, …) — `app/globals.css`, `components/*`
+- 2026-11-02 — Sanity-check fixes: one page-title size (28→36px) on every page; PageHead meta as an eyebrow above the title; tap-area on Tracker row titles and a 36px MUI clear icon on phones; Favourites rows fade at the edge while they scroll; Profile keeps the active chip in view — `app/globals.css`, `components/shell/page-head.tsx`, `components/tracker/tracker-board.tsx`, `app/(app)/favourites/page.tsx`, `components/profile/profile-form.tsx`
+- 2026-11-02 — Tickets Ocean v2 list + detail: filter chips + list grouped by status beside the open ticket; status steps (with first-reached dates) replace the Status select and journey strip; full-screen ticket under xl — `components/tickets/ticket-board.tsx`, `app/globals.css`
+- 2026-11-02 — Note reader: removed the xl "On this page" rail and the 52rem cap so the reading column fills the width — `components/notes/NoteReader.tsx`
+- 2026-11-02 — Profile Ocean v2 (identity card + grouped side menu/chips, icon-header cards, AI providers as panels) and Resources Ocean v2 (hero with search + type chips, link cards, dark command/snippet cards, Tags + Starred rail) — `components/profile/*`, `components/resources/resource-library.tsx`, `app/globals.css`
+- 2026-11-01 — Work-log detail Ocean v2: hero card with date badge, dated ‹ ›, ticket history folded into each ticket card, meetings + work done 2-up, rail of to-dos / attachments / activity; `work-log-glance.tsx` removed — `app/src/app/(app)/work-logs/[workLogId]/page.tsx`, `app/src/app/globals.css`
+- 2026-11-01 — Note section opener (`.note-band`) is now a deep ocean gradient with white title and sky-100 text — `app/src/app/globals.css`
+- 2026-11-01 — Demo account tariboi36@gmail.com wiped and reseeded with a fictional "Lumen Health" workspace (work logs Sep–Oct, LUM-1xx tickets, Tracker, notebooks, resources, achievements, two 5-15 reports); password = its email; own default-meeting and project lists — `app/prisma/seed-fresh-demo.ts`
+- 2026-11-01 — Register layout fix: the top progress bar (position: fixed) was trapped by the form's entrance transform and cut across the page; replaced by an inline 1 ── 2 stepper in one centred column — `components/auth/register-form.tsx`, `app/(auth)/auth-motion.css`
+- 2026-11-01 — Tracker polish: add bar no longer grows on Personal; sliding highlight on the tabs and Work/Personal, list fade on switch; rows as an open list with a colour rail per group, follow-up avatars, soft Mark nudged; fixed `<ol>` nesting in Upcoming — `components/tracker/tracker-board.tsx`, `app/globals.css`
+- 2026-11-01 — Tracker v3 (from the canvas concept): greeting header with sprint day and counts, pill tabs, command add bar, Next up card, compact grouped list, rail with week progress / waiting on / personal; page passes first name + sprint — `components/tracker/tracker-board.tsx`, `app/(app)/tracker/page.tsx`, `app/globals.css`
+- 2026-11-01 — Work Logs Ocean v2: sprint strip of day tiles (rows of five, progress line, legend) over a day card (date badge, tickets worked with status badges, follow-ups, notes) and a rail (missing-day backfill, the day's to-dos as a tick list, sprint numbers); the bar ribbon is gone — `app/(app)/work-logs/page.tsx`, `components/work-log/sprint-deck.tsx`, `components/work-log/deck-search.tsx`, `app/globals.css`
+- 2026-11-01 — Tracker Follow-ups redesigned to match Notes: New follow-up composer card (title + optional rich first message + who/date/star) beside one Follow-ups list; inbox/thread pane and its CSS removed — `components/tracker/tracker-board.tsx`, `app/globals.css`
+- 2026-11-01 — Ocean, matched to the canvas: desktop top bar (breadcrumb, Ask) and phone tab bar with raised Quick log + Ask (no Ask bubble; Ask is a right drawer); login/register redesigned (register in two steps on one form); Tracker week strip + four lanes + waiting band; Follow-ups inbox; Quick log full screen; work log page as a document; note section band; Admin table + drawer; new 404 — `components/shell/*`, `components/ask/ask-widget.tsx`, `components/auth/*`, `app/(auth)/auth-motion.css`, `components/tracker/tracker-board.tsx`, `components/ui/modal.tsx`, `components/quick-log/quick-log.tsx`, `app/(app)/work-logs/[workLogId]/page.tsx`, `components/notes/NoteReader.tsx`, `components/admin/admin-dashboard.tsx`, `app/not-found.tsx`, `app/globals.css`
+- 2026-11-01 — Ocean page layouts: Work Logs sprint ribbon + day panel, Tickets status board (default filter All), Notes library list + preview, Resources big search, Favourites shelves, Reports sprint column + paper; fixed ticket create/edit failing with an empty Project (sent `null`, schema wants a string) — `components/work-log/sprint-deck.tsx`, `components/tickets/ticket-board.tsx`, `components/notes/NoteLibrary.tsx`, `components/resources/resource-library.tsx`, `app/(app)/favourites/page.tsx`, `components/reports/report-view.tsx`, `app/globals.css`
+- 2026-11-01 — Ocean redesign of the signed-in app: sidebar + phone header/bottom tab bar, Ocean palette and gradient page, Inter/Sora/JetBrains Mono, rounder radii and soft card shadows, Tracker lanes and item tiles, Ask button and toasts clear the tab bar, Note reader sticky offsets follow `--dock-clearance` — `app/globals.css`, `app/layout.tsx`, `app/manifest.ts`, `components/shell/app-nav.tsx`, `components/shell/app-shell.tsx`, `components/tracker/tracker-board.tsx`, `components/ask/ask-widget.tsx`, `components/ui/toast.tsx`, `components/ui/mui-provider.tsx`, `components/notes/NoteReader.tsx`
 - 2026-10-27 — AI calls skip OpenRouter while it's out (free daily limit until its reset, or a cooldown) and go straight to Groq; OpenRouter timeout 40 s when Groq is set — `app/src/lib/ai-summary.ts`
 - 2026-10-27 — Profile AI card: OpenRouter and Groq (backup) parts; a user's own Groq key (encrypted, checked with Groq), used before `GROQ_API_KEY`; Ask treats a bare `openrouter/free` model as the default — `app/prisma/schema.prisma` + migration `user_groq_key`, `lib/ai-settings.ts`, `actions/profile.ts`, `components/profile/ai-settings.tsx`, `lib/validation.ts`, `lib/ask.ts`
 - 2026-10-27 — Ask handles notebooks with the AI: create / rename / describe / re-icon a notebook, save a pasted document into a new or existing one, asking when the title is missing or already used; Save changes / Revert cards with before → after; the rule-based paste shortcut is gone — `app/src/lib/ask.ts`, `lib/note-import.ts`, `lib/note-icons.ts` (`findIcon`), `lib/note-store.ts` (`updateNoteDetails`), `actions/notes.ts` (`saveNotebookDetails`, `importNotebook`), `components/ask/ask-widget.tsx`, `lib/validation.ts`

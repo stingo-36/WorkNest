@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Mail, User } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Mail, User } from "lucide-react";
 import * as React from "react";
 
 import { AuthField, AuthFormError, AuthInput } from "@/components/auth/auth-field";
@@ -16,7 +16,11 @@ import { PASSWORD_MIN_LENGTH } from "@/lib/validation";
 import type { ActionError } from "@/lib/result";
 
 /**
- * Register — Name / Email / Password / Confirm Password (spec §1).
+ * Register — Name / Email / Password / Confirm Password (spec §1), in two steps
+ * since the Ocean redesign (2026-11-01): 1 = name + email, 2 = passwords. Both
+ * steps stay mounted (the hidden one has `hidden`), so it is still ONE form and
+ * one submit with every field; Continue only checks step 1 on the client. A
+ * server error on name or email sends you back to step 1.
  *
  * `register` deliberately does not create a session, so on success this calls
  * `login` with the same credentials; that server action throws a Next redirect,
@@ -31,6 +35,11 @@ import type { ActionError } from "@/lib/result";
 export function RegisterForm() {
   const [pending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<ActionError | null>(null);
+  const [step, setStep] = React.useState<1 | 2>(1);
+  const [name, setName] = React.useState("");
+  const [stepOneTried, setStepOneTried] = React.useState(false);
+  // Bumped by a failed Continue; the effect below focuses the first invalid field once it has rendered.
+  const [stepOneCheck, setStepOneCheck] = React.useState(0);
 
   const [email, setEmail] = React.useState("");
   const [emailTouched, setEmailTouched] = React.useState(false);
@@ -48,8 +57,10 @@ export function RegisterForm() {
       ? "Enter a valid email address"
       : undefined;
 
-  const nameError = serverFields.name;
-  const emailError = serverFields.email ?? localEmailError;
+  const localNameError = stepOneTried && !name.trim() ? "Enter your name" : undefined;
+  const missingEmail = stepOneTried && !email.trim() ? "Enter your email address" : undefined;
+  const nameError = serverFields.name ?? localNameError;
+  const emailError = serverFields.email ?? localEmailError ?? missingEmail;
   const passwordError = serverFields.password;
   // The live `PasswordMatch` line below owns mismatch feedback, so the field's
   // own error slot only carries what the server said — otherwise a failed
@@ -66,8 +77,31 @@ export function RegisterForm() {
     (invalid ?? bannerRef.current)?.focus();
   }, [error]);
 
+  React.useEffect(() => {
+    if (!stepOneCheck) return;
+    formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+  }, [stepOneCheck]);
+
+  /** Step 1 → 2 once name and email look right; otherwise show why. */
+  function next() {
+    setStepOneTried(true);
+    setEmailTouched(true);
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+    if (!name.trim() || !emailOk) {
+      setStepOneCheck((count) => count + 1);
+      return;
+    }
+    setStep(2);
+    requestAnimationFrame(() => document.getElementById("password")?.focus());
+  }
+
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // Enter on step 1 moves on instead of submitting half a form.
+    if (step === 1) {
+      next();
+      return;
+    }
     const data = new FormData(event.currentTarget);
     setError(null);
 
@@ -81,6 +115,8 @@ export function RegisterForm() {
 
       if (!created.ok) {
         setError(created.error);
+        // Name and email live on step 1 — go back to show their messages.
+        if (created.error.fields?.name || created.error.fields?.email) setStep(1);
         return;
       }
 
@@ -96,6 +132,21 @@ export function RegisterForm() {
   }
 
   return (
+    <div className="auth-reg">
+      {/* A compact stepper: 1 ── 2, the line between them filling as you go. */}
+      <div className="auth-stepper">
+        <ol aria-label="Steps" className="auth-steps">
+          <li className="auth-step" data-state={step === 2 ? "done" : undefined} aria-current={step === 1 ? "step" : undefined}>
+            <span className="auth-step-num">{step === 2 ? <Check className="size-4" aria-hidden="true" /> : "1"}</span>
+            <span><b>About you</b>{step === 2 ? <span className="sr-only">, done</span> : null}</span>
+          </li>
+          <li className="auth-step-line" aria-hidden="true"><span style={{ width: step === 2 ? "100%" : "0%" }} /></li>
+          <li className="auth-step" aria-current={step === 2 ? "step" : undefined}>
+            <span className="auth-step-num">2</span>
+            <span><b>Password</b></span>
+          </li>
+        </ol>
+      </div>
     <form
       ref={formRef}
       onSubmit={onSubmit}
@@ -104,17 +155,18 @@ export function RegisterForm() {
       className="auth-rise flex min-w-0 flex-col gap-4"
     >
       <div className="flex flex-col gap-2">
-        <h1 className="text-4xl font-extrabold tracking-[-0.035em] text-text md:text-5xl">
-          Make it yours.
+        <p className="auth-eyebrow">Step {step} of 2</p>
+        <h1 className="text-4xl text-text md:text-5xl">
+          {step === 1 ? "Make it yours." : "Choose a password"}
         </h1>
         <p className="text-md text-text-muted">
-          Create your private workspace and write the first entry.
+          {step === 1 ? "Create your private workspace and write the first entry." : "At least " + PASSWORD_MIN_LENGTH + " characters — only you will use it."}
         </p>
       </div>
 
       <AuthFormError ref={bannerRef}>{formError}</AuthFormError>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2" hidden={step !== 1}>
         <div>
           <AuthField label="Name" htmlFor="name" error={nameError}>
             <AuthInput
@@ -125,6 +177,11 @@ export function RegisterForm() {
               placeholder="Alex Morgan"
               required
               autoFocus
+              value={name}
+              onChange={(event) => {
+                setName(event.target.value);
+                if (serverFields.name) setError(null);
+              }}
               aria-invalid={Boolean(nameError) || undefined}
               aria-describedby={nameError ? "name-error" : undefined}
             />
@@ -154,6 +211,9 @@ export function RegisterForm() {
           </AuthField>
         </div>
 
+      </div>
+
+      <div className="flex flex-col gap-2" hidden={step !== 2}>
         <div className="flex flex-col gap-3">
           <AuthField
             label="Password"
@@ -216,14 +276,28 @@ export function RegisterForm() {
       </div>
 
       <div className="flex flex-col gap-4">
-        <Button
-          type="submit"
-          loading={pending}
-          className="auth-cta h-11 w-full rounded-xl bg-primary-strong text-md hover:bg-primary-active"
-        >
-          {pending ? "Creating account…" : "Create account"}
-          {pending ? null : <ArrowRight aria-hidden="true" className="size-4" />}
-        </Button>
+        {step === 1 ? (
+          // A submit button so Enter in a field works; onSubmit sends step 1 to next().
+          <Button type="submit" className="auth-cta h-11 w-full rounded-xl bg-primary-strong text-md hover:bg-primary-active">
+            Continue
+            <ArrowRight aria-hidden="true" className="size-4" />
+          </Button>
+        ) : (
+          <div className="flex gap-3">
+            <Button type="button" variant="secondary" onClick={() => setStep(1)} disabled={pending} className="h-[54px] rounded-2xl px-5">
+              <ArrowLeft aria-hidden="true" className="size-4" />
+              Back
+            </Button>
+            <Button
+              type="submit"
+              loading={pending}
+              className="auth-cta h-11 flex-1 rounded-xl bg-primary-strong text-md hover:bg-primary-active"
+            >
+              {pending ? "Creating account…" : "Create account"}
+              {pending ? null : <ArrowRight aria-hidden="true" className="size-4" />}
+            </Button>
+          </div>
+        )}
 
         <p className="text-center text-base text-text-muted">
           Already have an account?{" "}
@@ -236,5 +310,6 @@ export function RegisterForm() {
         </p>
       </div>
     </form>
+    </div>
   );
 }

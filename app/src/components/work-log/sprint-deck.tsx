@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Check, Clock3, Contrast, MessageSquareReply, Pencil, Plus, Star, TriangleAlert, Zap } from "lucide-react";
+import { ArrowRight, Check, MessageSquareReply, Pencil, Plus, Star, Zap } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
@@ -8,6 +8,7 @@ import { cn } from "@/components/cn";
 import { OPEN_DAY_EVENT } from "@/components/work-log/deck-search";
 import { EmptyDayActions } from "@/components/work-log/open-day-bar";
 import { MarkdownContent } from "@/components/work-log/markdown-editor";
+import { TicketStatusBadge } from "@/components/ui/ticket-status-badge";
 import type { WorkflowStatus } from "@/lib/workflow-status";
 
 export type DeckDayState = "logged" | "off" | "today" | "missing" | "future";
@@ -52,12 +53,15 @@ type DayItem = Extract<DeckItem, { kind: "day" }>;
 
 const DAY_OFF_LABEL = { Holiday: "Holiday", Leave: "Leave", Work: "Work day" } as const;
 
+/** Five working days to a row: the sprint reads as Week 1 / Week 2 whatever weekday it starts on. */
+const WEEK = 5;
+
 /**
- * The sprint as an accordion of day columns (2026-10-09 redesign): every
- * weekday is a slim column; the selected one grows into the day's log.
- * Selection is client state so the grow/shrink can animate; it's mirrored to
+ * The sprint as a strip of day tiles over the open day and a rail (Ocean v2,
+ * 2026-11-01; was a ribbon of bars). Each tile says what the day holds; picking
+ * one opens it below. The rail offers the latest missing day, the open day's
+ * to-dos and the sprint's numbers. Selection is client state, mirrored to
  * `?day=` with replaceState so a reload or shared link lands on the same day.
- * Below lg the columns become rows and the open day expands in place.
  */
 export function SprintDeck({ items, initialDay }: { items: DeckItem[]; initialDay: string | null }) {
   const [selected, setSelected] = useState(initialDay);
@@ -73,77 +77,131 @@ export function SprintDeck({ items, initialDay }: { items: DeckItem[]; initialDa
       const key = (event as CustomEvent<string>).detail;
       setSelected(key);
       window.history.replaceState(null, "", `/work-logs?day=${key}`);
-      document.getElementById(`wl-day-${key}`)?.closest(".wl-col")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      requestAnimationFrame(() => document.getElementById(`wl-day-${key}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
     }
     window.addEventListener(OPEN_DAY_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_DAY_EVENT, onOpen);
   }, []);
 
+  const days = items.filter((item): item is DayItem => item.kind === "day");
+  const open = days.find((item) => item.key === selected) ?? null;
+  const weeks = Array.from({ length: Math.ceil(days.length / WEEK) }, (_, index) => days.slice(index * WEEK, (index + 1) * WEEK));
+  const past = days.filter((item) => item.state !== "future");
+  const logged = past.filter((item) => item.log).length;
+  const missing = past.filter((item) => item.state === "missing");
+  const left = days.length - past.length;
+  const ticketKeys = new Set(days.flatMap((item) => item.log?.tickets.map((ticket) => ticket.key) ?? []));
+  // The latest day still without a log, other than the one already open.
+  const backfill = missing.filter((item) => item.key !== open?.key).at(-1) ?? null;
+  const share = (count: number) => `${days.length ? (count / days.length) * 100 : 0}%`;
+
   return (
-    <ol className="wl-strip" aria-label="Days of the sprint">
-      {items.map((item, index) => {
-        const style = { "--i": index } as CSSProperties;
-        if (item.kind === "weekend") {
-          return (
-            <li key={item.key} className="wl-col wl-weekend" style={style} aria-hidden="true">
-              <span className="wl-vert text-2xs font-semibold tracking-[0.18em] text-text-subtle uppercase">Weekend</span>
-            </li>
-          );
-        }
-        const open = item.key === selected;
-        return (
-          <li key={item.key} className="wl-col" data-state={item.state} data-today={item.isToday || undefined} data-open={open || undefined} style={style}>
-            <DayFace item={item} open={open} onSelect={() => select(item.key)} />
-            {open ? <DayCard item={item} /> : null}
-          </li>
-        );
-      })}
-    </ol>
+    <div className="flex min-w-0 flex-col gap-5">
+      <section className="wl-strip2" aria-label="Days of the sprint">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <p className="text-sm whitespace-nowrap text-text-muted"><b className="font-semibold text-text">{logged} of {past.length}</b> days logged</p>
+          <span className="wl-prog" aria-hidden="true">
+            <i style={{ width: share(logged) }} />
+            <i data-missing style={{ width: share(missing.length) }} />
+          </span>
+          <p className="text-sm whitespace-nowrap text-text-muted">{left} {left === 1 ? "workday" : "workdays"} left</p>
+          <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-muted max-md:hidden" aria-label="Legend">
+            <li className="inline-flex items-center gap-1.5"><i className="wl-dot" aria-hidden="true" />Logged</li>
+            <li className="inline-flex items-center gap-1.5"><i className="wl-legend-missing" aria-hidden="true" />No log</li>
+            <li className="inline-flex items-center gap-1.5"><i className="wl-legend-today" aria-hidden="true" />Today</li>
+          </ul>
+        </div>
+        <div className="wl-weeks">
+          {weeks.map((week, index) => (
+            <div key={index} className="wl-week">
+              <p className="wl-wk">Week {index + 1}</p>
+              <ol className="wl-days">
+                {week.map((item) => (
+                  <li key={item.key} className="contents">
+                    <DayTile item={item} open={item.key === selected} onSelect={() => select(item.key)} />
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="wl-body">
+        {open ? <DayCard key={open.key} item={open} /> : <p className="text-base text-text-subtle">Pick a day above to see its log.</p>}
+        <aside className="flex min-w-0 flex-col gap-4" aria-label="Sprint at a glance">
+          {backfill ? (
+            <section className="wl-backfill">
+              <p className="text-xs font-semibold tracking-[0.12em] uppercase opacity-80">Missing day</p>
+              <p className="mt-1 mb-3 text-lg font-semibold" style={{ fontFamily: "var(--font-heading)" }}>{backfill.weekdayLong} {backfill.dayNumber} {backfill.month.slice(0, 3)} has no log yet.</p>
+              <button type="button" onClick={() => {
+                select(backfill.key);
+                // On a phone the rail sits under the day card: bring the opened day into view.
+                requestAnimationFrame(() => document.getElementById(`wl-day-${backfill.key}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+              }} className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-surface px-4 text-sm font-semibold text-sidebar transition-transform duration-150 active:scale-[0.98]">
+                <Plus className="size-4" aria-hidden="true" />Add {backfill.weekdayLong}&rsquo;s log
+              </button>
+            </section>
+          ) : null}
+          {open && open.tracker.todos.length ? <div className="wl-rail-card"><Todos todos={open.tracker.todos} /></div> : null}
+          <dl className="wl-rail-card grid grid-cols-3 gap-2 p-3.5">
+            {[[ticketKeys.size, ticketKeys.size === 1 ? "ticket this sprint" : "tickets this sprint"], [logged, logged === 1 ? "day logged" : "days logged"], [missing.length, "to backfill"]].map(([value, label]) => (
+              <div key={label} className="flex flex-col-reverse rounded-xl bg-surface-2 px-3 py-2.5">
+                <dt className="text-xs text-text-muted">{label}</dt>
+                <dd className="text-2xl font-bold text-sidebar tabular-nums" style={{ fontFamily: "var(--font-heading)" }}>{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </aside>
+      </div>
+    </div>
   );
 }
 
-/** The collapsed column (a row below lg): date on top, a vertical label, a state mark. */
-function DayFace({ item, open, onSelect }: { item: DayItem; open: boolean; onSelect: () => void }) {
+/** One tile in the strip: weekday, date and what the day holds; future days can't be opened. */
+function DayTile({ item, open, onSelect }: { item: DayItem; open: boolean; onSelect: () => void }) {
   const { log } = item;
-  const counts = `${item.ticketCount} ${item.ticketCount === 1 ? "ticket" : "tickets"} · ${item.meetingCount} ${item.meetingCount === 1 ? "meeting" : "meetings"}`;
-  let label: ReactNode;
-  if (log && log.dayType !== "Work") label = <><b>{DAY_OFF_LABEL[log.dayType]}</b> · day off</>;
-  else if (log) label = <><b>{log.title ?? "Work day"}</b> · {counts}</>;
-  else if (item.state === "today") label = <b>Today · start log</b>;
-  else if (item.state === "missing") label = <b>No log · add one</b>;
-  else label = item.isLast ? "Sprint ends" : "Upcoming";
-
-  const mark =
-    item.state === "today" && !log ? <Zap className="wl-zap size-4" aria-hidden="true" />
-    : item.state === "missing" ? <Plus className="size-4" aria-hidden="true" />
-    : log && log.dayType === "Work" ? <span className="wl-dot" aria-hidden="true" />
-    : null;
+  const status =
+    log && log.dayType !== "Work" ? DAY_OFF_LABEL[log.dayType]
+    : log ? (item.ticketCount ? `${item.ticketCount} ${item.ticketCount === 1 ? "ticket" : "tickets"}` : "Logged")
+    : item.state === "today" ? "Start log"
+    : item.state === "missing" ? "Add log"
+    : item.isLast ? "Sprint ends" : "Upcoming";
+  const short = log && log.dayType === "Work" ? String(item.ticketCount) : item.state === "missing" ? "Add" : item.state === "today" ? "Start" : log ? status : "—";
 
   const inner = (
     <>
-      <span className="wl-face-date">
-        <span className="text-2xs font-semibold tracking-[0.1em] uppercase opacity-80">{item.weekday}</span>
-        {/* Spaces for screen readers: the name read out is "Wed 30, No log · add one", not "Wed30No log". */}
-        <span className="sr-only"> </span>
-        <span className="text-xl font-semibold tabular-nums">{item.dayNumber}</span>
+      <span className="wl-tile-top"><span className="wl-tile-wd">{item.weekday}</span><span className="wl-tile-num">{item.dayNumber}</span></span>
+      <span className="wl-tile-s">
+        {item.state === "missing" ? <Plus className="size-3.5" aria-hidden="true" /> : log && log.dayType === "Work" ? <i className="wl-tile-dot" aria-hidden="true" /> : null}
+        <span className="wl-tile-long">{status}</span>
+        {/* Phones show a short form so the tile stays narrow. */}
+        <span className="wl-tile-short" aria-hidden="true">{short}</span>
       </span>
-      <span className="sr-only">, </span>
-      <span className="wl-face-label">{label}</span>
-      <span className="wl-face-mark">{mark}</span>
+      {item.isToday ? <span className="sr-only">, today</span> : null}
     </>
   );
 
   if (item.state === "future") {
-    return <span className="wl-face" aria-label={`${item.weekdayLong} ${item.dayNumber}: ${item.isLast ? "sprint ends" : "upcoming"}`}>{inner}</span>;
+    return <span className="wl-tile" data-state={item.state}>{inner}</span>;
   }
   return (
-    <button type="button" className="wl-face" onClick={onSelect} aria-expanded={open} aria-controls={`wl-day-${item.key}`} tabIndex={open ? -1 : 0}>
+    <button
+      type="button"
+      className="wl-tile"
+      data-state={item.state}
+      data-today={item.isToday || undefined}
+      data-open={open || undefined}
+      aria-pressed={open}
+      aria-controls={`wl-day-${item.key}`}
+      onClick={onSelect}
+    >
       {inner}
     </button>
   );
 }
 
-/** The open day: the big date and title, then Summary and To-dos beside Follow-ups and Notes. */
+/** The open day: a date badge and actions, then tickets, summary, follow-ups and notes. */
 function DayCard({ item }: { item: DayItem }) {
   const { log, tracker } = item;
   const chip =
@@ -152,59 +210,56 @@ function DayCard({ item }: { item: DayItem }) {
     : item.state === "today" ? { label: "Today", icon: <Zap className="size-3.5" aria-hidden="true" />, className: "bg-sidebar text-sidebar-fg" }
     : { label: "No log", icon: null, className: "bg-warning-subtle text-warning" };
   const titleParts = log?.title?.split("|").map((part) => part.trim()).filter(Boolean) ?? [];
+  const counts = [
+    log?.tickets.length ? `${log.tickets.length} ${log.tickets.length === 1 ? "ticket" : "tickets"}` : null,
+    tracker.followUps.length ? `${tracker.followUps.length} ${tracker.followUps.length === 1 ? "follow-up" : "follow-ups"}` : null,
+  ].filter(Boolean).join(" · ");
+  const hasAnything = hasSummary(item) || tracker.followUps.length > 0 || tracker.notes.length > 0;
 
   return (
-    <section id={`wl-day-${item.key}`} aria-labelledby={`wl-day-${item.key}-heading`} className="wl-card-open wl-scroll">
-      <div className="wl-reveal @container flex flex-col gap-5 p-5 md:p-6 xl:p-8">
-        {/* Date, day and actions on one row; they wrap only on a narrow card. */}
-        <header className={cn("flex flex-wrap items-center gap-x-4 gap-y-3", log && "@lg:flex-nowrap")} style={{ "--i": 0 } as CSSProperties}>
-          <span className="wl-numeral shrink-0" aria-hidden="true">{item.dayNumber}</span>
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <p className="text-xs font-semibold tracking-[0.14em] whitespace-nowrap text-text-muted uppercase">{item.weekdayLong} · {item.month}</p>
-            <span className={cn("inline-flex w-fit items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold", chip.className)}>{chip.icon}{chip.label}</span>
+    <section id={`wl-day-${item.key}`} aria-labelledby={`wl-day-${item.key}-heading`} className="wl-day-panel min-w-0">
+      <div className="wl-reveal flex flex-col">
+        <header className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-border px-5 py-4 md:px-6 md:py-5" style={{ "--i": 0 } as CSSProperties}>
+          <span className="wl-datebox" aria-hidden="true"><small>{item.month.slice(0, 3)}</small><b>{item.dayNumber}</b></span>
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <h2 id={`wl-day-${item.key}-heading`} className="text-xl font-semibold tracking-[-0.02em] text-text" style={{ fontFamily: "var(--font-heading)" }}>
+              {item.weekdayLong}<span className="sr-only"> {item.dayNumber} {item.month}</span>
+            </h2>
+            <p className="flex flex-wrap gap-1.5">
+              <span className={cn("inline-flex w-fit items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold", chip.className)}>{chip.icon}{chip.label}</span>
+              {counts ? <span className="inline-flex rounded-full bg-surface-2 px-2.5 py-0.5 text-xs font-semibold text-text-muted">{counts}</span> : null}
+            </p>
           </div>
           {log ? (
-            <div className="ml-auto flex shrink-0 gap-2">
-              <Link href={`/work-logs/${log.id}`} className="inline-flex h-11 items-center rounded-full border border-border bg-surface px-4 text-sm font-semibold whitespace-nowrap text-text transition-colors duration-150 hover:border-text-subtle hover:bg-surface-2 md:h-10">View full log</Link>
-              <Link href={`/work-logs/${log.id}/edit`} className="inline-flex h-11 items-center gap-2 rounded-full bg-sidebar px-4 text-sm font-semibold whitespace-nowrap text-sidebar-fg transition-[background-color,transform] duration-150 hover:bg-sidebar-3 active:scale-[0.98] md:h-10">
+            <div className="flex shrink-0 gap-2 max-md:grid max-md:w-full max-md:grid-cols-2 md:ml-auto">
+              <Link href={`/work-logs/${log.id}`} className="inline-flex h-11 items-center justify-center rounded-xl border border-border-strong bg-surface px-4 text-sm font-semibold whitespace-nowrap text-sidebar transition-colors duration-150 hover:bg-surface-2 md:h-10">View full log</Link>
+              <Link href={`/work-logs/${log.id}/edit`} className="wl-edit inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold whitespace-nowrap text-sidebar-fg transition-transform duration-150 active:scale-[0.98] md:h-10">
                 <Pencil className="size-4" aria-hidden="true" />Edit log
               </Link>
             </div>
           ) : (
             // No log yet: start it or mark the day off, in the same right-hand spot.
-            <div className="ml-auto"><EmptyDayActions date={item.key} isToday={item.isToday} /></div>
+            <div className="max-md:w-full md:ml-auto"><EmptyDayActions date={item.key} isToday={item.isToday} /></div>
           )}
         </header>
 
-        <h2 id={`wl-day-${item.key}-heading`} className="text-xl leading-snug font-semibold tracking-[-0.015em] text-text lg:text-2xl" style={{ "--i": 1 } as CSSProperties}>
-          {titleParts.length
-            ? titleParts.map((part, index) => <span key={index}>{index ? <span className="mx-2 font-normal text-border" aria-hidden="true">|</span> : null}{part}</span>)
-            : log ? (log.dayType === "Work" ? "Work day" : `${DAY_OFF_LABEL[log.dayType]} · day off`)
-            : item.state === "today" ? "Today’s log isn’t started" : "No log for this day"}
-        </h2>
+        {titleParts.length ? (
+          <p className="px-5 pt-5 text-lg leading-snug font-semibold text-text md:px-6" style={{ "--i": 1 } as CSSProperties}>
+            {titleParts.map((part, index) => <span key={index}>{index ? <span className="mx-2 font-normal text-border" aria-hidden="true">|</span> : null}{part}</span>)}
+          </p>
+        ) : null}
 
-        {(() => {
-          // The day's Tracker lists in a fixed order (to-dos, follow-ups, notes); only
-          // the ones with something in them. The first goes on the right; the second
-          // drops under Summary on the left to balance; a third goes back on the right
-          // (owner, 2026-10-09).
-          const lists = [
-            tracker.todos.length ? <Todos key="t" todos={tracker.todos} /> : null,
-            tracker.followUps.length ? <FollowUps key="f" followUps={tracker.followUps} /> : null,
-            tracker.notes.length ? <Notes key="n" notes={tracker.notes} /> : null,
-          ].filter(Boolean);
-          const left = [hasSummary(item) ? <Summary key="s" item={item} /> : null, lists[1] ?? null].filter(Boolean);
-          const right = [lists[0] ?? null, lists[2] ?? null].filter(Boolean);
-          const columns = [left, right].filter((column) => column.length);
-          if (!columns.length) return <p className="text-base text-text-subtle" style={{ "--i": 2 } as CSSProperties}>Nothing recorded for this day.</p>;
-          return (
-            <div className={cn("grid items-start gap-x-8 gap-y-7", columns.length === 2 && "@lg:grid-cols-2")}>
-              {columns.map((column, index) => (
-                <div key={index} className="flex min-w-0 flex-col gap-6" style={{ "--i": 2 + index } as CSSProperties}>{column}</div>
-              ))}
-            </div>
-          );
-        })()}
+        {hasAnything ? (
+          <div className="flex flex-col" style={{ "--i": 2 } as CSSProperties}>
+            {hasSummary(item) ? <Summary item={item} /> : null}
+            {tracker.followUps.length ? <FollowUps followUps={tracker.followUps} /> : null}
+            {tracker.notes.length ? <Notes notes={tracker.notes} /> : null}
+          </div>
+        ) : (
+          <p className="px-5 py-6 text-base text-text-subtle md:px-6" style={{ "--i": 2 } as CSSProperties}>
+            {log ? "Nothing recorded for this day." : item.state === "today" ? "Today’s log isn’t started." : "No log for this day yet."}
+          </p>
+        )}
       </div>
     </section>
   );
@@ -212,16 +267,16 @@ function DayCard({ item }: { item: DayItem }) {
 
 function Block({ title, count, href, children }: { title: string; count?: number; href?: string; children: ReactNode }) {
   return (
-    <section className="min-w-0">
-      <h3 className="flex items-center border-b border-border pb-2.5 text-xs font-semibold tracking-[0.14em] text-text-muted uppercase">
-        {title}{count !== undefined ? <span className="ml-1.5 tabular-nums">{count}</span> : null}
+    <section className="wl-block min-w-0 px-5 py-4 md:px-6 md:py-5">
+      <h3 className="mb-2 flex items-center text-xs font-semibold tracking-[0.12em] text-text-muted uppercase">
+        {title}{count !== undefined ? <span className="ml-1.5 tabular-nums">· {count}</span> : null}
         {href ? (
           <Link href={href} className="group/tr ml-auto -my-2 inline-flex min-h-9 items-center gap-1 px-1 text-sm font-semibold tracking-normal text-accent-text normal-case">
             Open<ArrowRight className="size-3.5 transition-transform duration-200 group-hover/tr:translate-x-0.5" aria-hidden="true" />
           </Link>
         ) : null}
       </h3>
-      <div className="pt-2">{children}</div>
+      {children}
     </section>
   );
 }
@@ -236,91 +291,81 @@ function firstLine(markdown: string) {
   return line ?? "";
 }
 
-const DONE: WorkflowStatus[] = ["Done", "Released"];
-
 /** Summary shows only when there's a log with something to say (no log: the header offers Start log). */
 function hasSummary({ log }: DayItem) {
   return log !== null && (log.dayType !== "Work" || Boolean(log.summary) || log.tickets.length > 0);
 }
 
 /**
- * The AI summary when there is one; otherwise one row per ticket update, marked
- * by its status. A day without a log offers to start one.
+ * The AI summary when there is one, then one row per ticket worked: key, title,
+ * the update's first line and its status. A day off says so instead.
  */
 function Summary({ item }: { item: DayItem }) {
   const { log } = item;
+  if (!log) return null;
+  if (log.dayType !== "Work") {
+    return <Block title="Summary"><Empty>Marked as {log.dayType === "Holiday" ? "a holiday" : "leave"} — nothing to log.</Empty></Block>;
+  }
   return (
-    <Block title="Summary">
-      {!log ? null : log.dayType !== "Work" ? (
-        <Empty>Marked as {log.dayType === "Holiday" ? "a holiday" : "leave"} — nothing to log.</Empty>
-      ) : log.summary ? (
-        <div className="wl-summary-md"><MarkdownContent value={log.summary} className="text-base text-text" /></div>
-      ) : log.tickets.length ? (
-        <ul className="flex flex-col">
-          {log.tickets.map((ticket) => {
-            const done = DONE.includes(ticket.status);
-            const progress = ticket.status === "InProgress";
-            return (
-              <li key={ticket.id} className="flex gap-3 border-b border-border py-2.5 text-base leading-relaxed text-text last:border-b-0">
-                <span className={cn("mt-px grid size-5.5 shrink-0 place-items-center rounded-full", done ? "bg-primary text-primary-fg" : progress ? "bg-status-progress-bg text-status-progress" : "bg-surface-2 text-text-subtle")} aria-hidden="true">
-                  {done ? <Check className="size-3.5" strokeWidth={3} /> : progress ? <Contrast className="size-3.5" /> : <Clock3 className="size-3.5" />}
+    <>
+      {log.summary ? <Block title="Summary"><div className="wl-summary-md"><MarkdownContent value={log.summary} className="text-base text-text" /></div></Block> : null}
+      {log.tickets.length ? (
+        <Block title="Tickets worked">
+          <ul className="flex flex-col">
+            {log.tickets.map((ticket) => (
+              <li key={ticket.id} className="wl-tk-row">
+                <span className="wl-key">{ticket.key}</span>
+                <span className="min-w-0">
+                  <span className="block text-md font-semibold text-text">{ticket.title}</span>
+                  {firstLine(ticket.description) ? <span className="mt-0.5 block text-base leading-relaxed text-text-muted">{firstLine(ticket.description)}</span> : null}
                 </span>
-                <span>
-                  {done ? "Completed" : progress ? "Made progress on" : "Worked on"} ticket{" "}
-                  <span className={cn("rounded-md px-1.5 py-0.5 tabular-nums", progress ? "bg-status-progress-bg text-status-progress-fg" : "bg-primary-subtle text-accent-text")}>{ticket.key}</span>{" "}
-                  {firstLine(ticket.description) || ticket.title}
-                </span>
+                <TicketStatusBadge status={ticket.status} />
               </li>
-            );
-          })}
-        </ul>
+            ))}
+          </ul>
+        </Block>
       ) : null}
-    </Block>
+    </>
   );
 }
 
 const TODO_ORDER = { overdue: 0, due: 1, added: 2, done: 3 } as const;
 
-/**
- * Every to-do is the same tinted card (owner's pick, 2026-10-09): an icon disc,
- * the state in bold, then the to-do. The tint says the state: overdue amber,
- * due red, created that day teal, done green (tick only, no word).
- */
-const TODO_LOOK = {
-  overdue: { label: "Overdue", card: "bg-warning-subtle", disc: "bg-wl-amber text-text", meta: "text-warning", Icon: TriangleAlert },
-  due: { label: "Due today", card: "bg-danger-subtle", disc: "bg-danger text-danger-fg", meta: "text-danger", Icon: Clock3 },
-  added: { label: "Created", card: "bg-primary-subtle", disc: "bg-primary text-primary-fg", meta: "text-accent-text", Icon: Plus },
-  done: { label: null, card: "bg-status-completed-bg", disc: "bg-status-completed text-primary-fg", meta: "text-status-completed-fg", Icon: Check },
+/** What a to-do was on that day, under its title (overdue and due read as urgent). */
+const TODO_META = {
+  overdue: { label: "Overdue", className: "font-semibold text-danger" },
+  due: { label: "Due today", className: "font-semibold text-danger" },
+  added: { label: "Created", className: "text-accent-text" },
+  done: { label: "Done", className: "text-text-subtle" },
 } as const;
 
+/** The open day's to-dos as a tick list (Ocean v2): the tick shows done, the line under says the state. */
 function Todos({ todos }: { todos: DeckTracker["todos"] }) {
   const sorted = [...todos].sort((a, b) => TODO_ORDER[a.state] - TODO_ORDER[b.state]);
   return (
     <Block title="To-do list" count={todos.length} href="/tracker">
-      {sorted.length ? (
-        <ul className="flex flex-col gap-2">
-          {sorted.map((todo) => {
-            // Finished on a later day: keep what it was that day, but tint it done and strike it through.
-            const look = todo.doneLater ? { ...TODO_LOOK[todo.state], card: TODO_LOOK.done.card, disc: TODO_LOOK.done.disc, meta: TODO_LOOK.done.meta, Icon: Check } : TODO_LOOK[todo.state];
-            const struck = todo.state === "done" || todo.doneLater;
-            return (
-              <li key={todo.id} className={cn("flex gap-3 rounded-2xl px-3.5 py-2.5 text-base leading-relaxed text-text", look.card)}>
-                <span className={cn("mt-0.5 grid size-6 shrink-0 place-items-center rounded-full", look.disc)} aria-hidden="true">
-                  <look.Icon className="size-3.5" strokeWidth={2.5} />
+      <ul className="flex flex-col">
+        {sorted.map((todo) => {
+          // Finished on a later day: keep what it was that day, but tick it and strike it through.
+          const struck = todo.state === "done" || Boolean(todo.doneLater);
+          const meta = TODO_META[todo.state];
+          return (
+            <li key={todo.id} className="flex gap-3 py-2">
+              <span className={cn("mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border-2", struck ? "border-status-completed bg-status-completed text-primary-fg" : "border-text-subtle")} aria-hidden="true">
+                {struck ? <Check className="size-3" strokeWidth={3.5} /> : null}
+              </span>
+              <span className="min-w-0 flex-1 text-base leading-snug">
+                {struck ? <span className="sr-only">Done: </span> : null}
+                <span className={struck ? "text-text-subtle line-through" : "text-text"}>{todo.subject}</span>
+                <span className={cn("mt-0.5 block text-sm", struck ? TODO_META.done.className : meta.className)}>
+                  {struck ? `Done${todo.doneOn ? ` ${todo.doneOn}` : ""}` : `${meta.label}${todo.state === "overdue" && todo.due ? ` · due ${todo.due}` : ""}`}
                 </span>
-                <span className="min-w-0 flex-1">
-                  {/* Done needs no word — the tick says it. */}
-                  {look.label ? <><b className="font-semibold">{look.label}:</b>{" "}</> : <span className="sr-only">Done: </span>}
-                  <span className={struck ? "line-through decoration-text-subtle" : undefined}>{todo.subject}</span>
-                  {todo.state === "overdue" && todo.due ? <span className={look.meta}> · due {todo.due}</span> : null}
-                  {struck && todo.doneOn ? <span className={look.meta}> · done {todo.doneOn}</span> : null}
-                </span>
-                {todo.pinned ? <Star className="mt-1.5 size-3.5 shrink-0 fill-current text-warning" aria-label="Important" /> : null}
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
+              </span>
+              {todo.pinned ? <Star className="mt-1 size-3.5 shrink-0 fill-current text-warning" aria-label="Important" /> : null}
+            </li>
+          );
+        })}
+      </ul>
     </Block>
   );
 }
@@ -328,25 +373,28 @@ function Todos({ todos }: { todos: DeckTracker["todos"] }) {
 function FollowUps({ followUps }: { followUps: DeckTracker["followUps"] }) {
   return (
     <Block title="Follow-ups" count={followUps.length} href="/tracker?view=followups">
-      {followUps.length ? (
-        <ul className="flex flex-col">
-          {followUps.map((entry) => (
-            <li key={entry.id} className="flex gap-3 border-b border-border py-3 last:border-b-0">
-              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-sidebar text-sm font-semibold text-sidebar-fg" aria-hidden="true">
-                {(entry.person ?? "?").trim().charAt(0).toUpperCase()}
-              </span>
-              <span className="flex min-w-0 flex-col gap-0.5">
-                <span className="text-base text-text">
-                  <b className="font-semibold">{entry.person ?? "Someone"}</b> · {entry.subject}
-                  {entry.ticketKey ? <span className="ml-1.5 rounded-md bg-primary-subtle px-1.5 py-0.5 text-sm text-accent-text tabular-nums">{entry.ticketKey}</span> : null}
+      <ul className="flex flex-col">
+        {followUps.map((entry) => {
+          const person = entry.person ?? "Someone";
+          const state = entry.done ? "Closed" : entry.fromThem ? "Replied" : "Waiting";
+          return (
+            <li key={entry.id} className="flex items-start gap-3 py-2.5">
+              <span className="tk-avatar tk-avatar-sm mt-0.5" aria-hidden="true">{person.trim().charAt(0).toUpperCase()}</span>
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="text-base font-semibold text-text">
+                  {entry.subject}
+                  {entry.ticketKey ? <span className="wl-key ml-1.5 align-[0.1em]">{entry.ticketKey}</span> : null}
                 </span>
-                {entry.note ? <span className="line-clamp-2 text-base text-text-muted">{entry.fromThem ? <MessageSquareReply className="mr-1 inline size-3.5 align-[-0.125em]" aria-label="Their reply:" /> : null}{entry.note}</span> : null}
-                <span className="text-sm text-text-subtle">{entry.done ? "Closed" : entry.fromThem ? "They replied" : "Waiting on them"}</span>
+                <span className="line-clamp-2 text-sm text-text-muted">
+                  {entry.fromThem ? <><MessageSquareReply className="mr-1 inline size-3.5 align-[-0.125em]" aria-hidden="true" />{person} replied</> : `Waiting on ${person}`}
+                  {entry.note ? ` · “${entry.note}”` : ""}
+                </span>
               </span>
+              <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold", entry.done ? "bg-surface-2 text-text-muted" : entry.fromThem ? "bg-primary-subtle text-accent-text" : "bg-warning-subtle text-warning")}>{state}</span>
             </li>
-          ))}
-        </ul>
-      ) : null}
+          );
+        })}
+      </ul>
     </Block>
   );
 }

@@ -70,11 +70,12 @@ export const config = {
     /*
      * Everything except:
      *  - /api/auth/*   sign in / sign out / session endpoints
+     *  - /api/version  the deploy id the installed app polls (no user data)
      *  - _next/*       build output and HMR
      *  - static asset file extensions and favicon
      *  - the installable-app files (manifest, service worker, offline page):
      *    the browser fetches them signed out too, e.g. installing from /login
      */
-    "/((?!api/auth|_next/static|_next/image|_next/webpack-hmr|favicon.ico|manifest.webmanifest|sw.js|offline.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|woff2?)$).*)",
+    "/((?!api/auth|api/version|_next/static|_next/image|_next/webpack-hmr|favicon.ico|manifest.webmanifest|sw.js|offline.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|woff2?)$).*)",
   ],
 };

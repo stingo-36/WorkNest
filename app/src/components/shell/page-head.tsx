@@ -7,9 +7,9 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/components/cn";
 
 /**
- * The page header every workspace list page shares (2026-10-11): a display
- * title (`.page-title`, one fluid size app-wide), an optional inline meta (the
- * date) and a description under it, optional stat counts, and actions on the
+ * The page header every workspace list page shares (2026-10-11): an optional
+ * eyebrow (meta, e.g. the date), a display title (`.page-title`, one fluid size
+ * app-wide) and a description under it, optional stat counts, and actions on the
  * right. Replaces the slate `PageBand`. Lives inside `.tk-focus` (globals.css),
  * which brings the teal-and-ink palette and the type classes.
  */
@@ -31,14 +31,15 @@ export function PageHead({
   children?: ReactNode;
 }) {
   return (
-    <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
-      <div className="flex min-w-0 flex-col gap-3">
-        {/* Phones: keep clear of the account avatar floating top-right. */}
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-4.5 gap-y-1.5 max-md:pr-14">
+    <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+      <div className="flex min-w-0 flex-col gap-2">
+        {/* Ocean v2 (2026-11-02): optional eyebrow (meta) above one shared title size.
+            Phones: keep clear of the account avatar floating top-right. */}
+        <div className="flex min-w-0 flex-col gap-1 max-md:pr-14">
+          {meta ? <p className="text-2xs font-semibold tracking-[0.12em] text-text-muted uppercase" suppressHydrationWarning>{meta}</p> : null}
           <h1 className="page-title [overflow-wrap:anywhere]">{title}</h1>
-          {meta ? <p className="tk-eyebrow text-text-muted" suppressHydrationWarning>{meta}</p> : null}
         </div>
-        {description ? <p className="max-w-[65ch] text-base text-text-muted md:text-lg">{description}</p> : null}
+        {description ? <p className="max-w-[65ch] text-base text-text-muted">{description}</p> : null}
         {children}
         {stats?.length ? (
           <ul className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-text-muted md:gap-x-6 md:text-md">

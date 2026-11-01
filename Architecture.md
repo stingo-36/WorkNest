@@ -89,6 +89,7 @@ authenticated shell.
 | `/dashboard` | `(app)/dashboard/page.tsx` | `redirect("/tracker")` (retired) |
 | `/manifest.webmanifest` | `app/manifest.ts` | public install metadata; starts at `/tracker` |
 | `/sw.js`, `/offline.html`, `/icons/*` | `public/*` | public PWA runtime and branded install assets |
+| `/api/version` | `app/api/version/route.ts` | public, uncached deploy id (`NEXT_PUBLIC_APP_VERSION`, set in `next.config.ts`) — the installed app compares it with its bundle to refresh itself |
 | any unknown URL | `app/not-found.tsx` | branded 404 → Tracker / homepage |
 | `/tasks`, `/links`, `/settings` | `(app)/*/page.tsx` | `ComingSoonPage` |
 | `GET/POST /api/auth/[...nextauth]` | route handler | NextAuth |
@@ -114,8 +115,11 @@ replays major regions when the pathname changes (see Design-System §7). Its sti
 full-width top bar has five labelled destinations on phones (Favourites moves to the
 account menu) and six on larger screens; the account menu opens below the bar.
 
-The root `Providers` mounts `PwaProvider`, which registers `/sw.js`, captures the
-Chromium install prompt, and exposes install state. `pwa/install-app.tsx` adds the
+The root `Providers` mounts `PwaProvider`, which registers `/sw.js`
+(`updateViaCache: "none"`), captures the Chromium install prompt, exposes install
+state, and keeps an open app on the latest deploy (`useAppUpdates`: polls
+`/api/version`; reloads on open/return, otherwise a Refresh toast + full load on the
+next route change; a sessionStorage guard stops reload loops). `pwa/install-app.tsx` adds the
 account-menu action and the iOS/other-browser instruction dialog. The dialog is
 mounted by `AppShell` so it inherits the workspace tokens.
 
@@ -179,7 +183,6 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `lib/content.ts` | tasks, links, resources (+ favourite) |
 | `components/shell/page-head.tsx` | the shared page header (`PageHead`), `SearchPill`, `UnderlineTabs`, `primaryPill` / `outlinePill` — every list page except Work Logs |
 | `components/shell/page-motion.tsx` | GSAP route-family choreography for authenticated page regions; reduced-motion safe, load-only and intentionally unrelated to scrolling |
-| `components/shell/page-band.tsx`, `components/ui/band-sx.ts` | leftovers: `bandField` (Quick log's band button) and the MUI `tone="band"` field styling |
 | `lib/sprint.ts` | **the only** sprint arithmetic (`getSprint`) — local calendar days |
 | `lib/rich-text.ts` | shared (client + server): `docToText` (TipTap JSON → plain text with "- " lists), `docFileIds`, `markdownPreview` (Markdown → one plain line), `TRACKER_FILE_PATH`, `MAX_TRACKER_FILE_BYTES` |
 | `components/ui/editor-uploads.ts` | client: `TrackerImage` (TipTap image node, upload-only sources), `uploadFiles`, `insertUploads` — shared by `tracker/update-editor.tsx` and `work-log/markdown-editor.tsx` |
