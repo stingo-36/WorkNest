@@ -84,8 +84,9 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
         <OverviewStat icon={ListChecks} label="Open tracker" value={data.totals.openTracker} detail={`${data.totals.trackerEntries} tracker entries`} />
       </section>
 
-      <section aria-labelledby="account-management" className="grid min-w-0 gap-6 lg:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.5fr)] lg:items-start">
-        <div className="min-w-0 overflow-hidden rounded-2xl border border-border bg-surface lg:sticky lg:top-6">
+      {/* Ocean (2026-11-01): the directory as a table, the picked account as a drawer beside it. */}
+      <section aria-labelledby="account-management" className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(20rem,0.95fr)] lg:items-start">
+        <div className="min-w-0 overflow-hidden rounded-2xl border border-border bg-surface">
           <div className="border-b border-border p-4 md:p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
@@ -97,6 +98,9 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
             <SearchPill id="admin-account-search" label="Search accounts" value={query} onChange={setQuery} placeholder="Name or email" className="w-full" />
           </div>
 
+          <div aria-hidden="true" className="hidden grid-cols-[minmax(0,1fr)_7rem_7rem_5rem] gap-3 border-b border-border px-5 py-2.5 text-2xs font-semibold tracking-[0.1em] text-text-subtle uppercase xl:grid">
+            <span>Account</span><span>Joined</span><span>Last active</span><span className="text-right">Records</span>
+          </div>
           <div className="max-h-64 overflow-y-auto p-2 md:max-h-[38rem]" role="listbox" aria-label="Accounts">
             {filtered.length ? filtered.map((user) => {
               const active = selected?.id === user.id;
@@ -117,7 +121,9 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
                     </span>
                     <span className={cn("mt-0.5 block truncate text-xs md:text-sm", active ? "text-sidebar-muted" : "text-text-muted")}>{user.email}</span>
                   </span>
-                  <span className={cn("text-sm font-semibold tabular-nums", active ? "text-sidebar-muted" : "text-text-subtle")}>{recordCount(user)}</span>
+                  <span className={cn("hidden w-28 shrink-0 text-sm xl:block", active ? "text-sidebar-muted" : "text-text-muted")}>{format(new Date(user.createdAt), "d MMM yyyy")}</span>
+                  <span className={cn("hidden w-28 shrink-0 text-sm xl:block", active ? "text-sidebar-muted" : "text-text-muted")}>{user.lastActivityAt ? format(new Date(user.lastActivityAt), "d MMM yyyy") : "—"}</span>
+                  <span className={cn("w-20 shrink-0 text-right text-sm font-semibold tabular-nums", active ? "text-sidebar-muted" : "text-text-subtle")}>{recordCount(user)}</span>
                 </button>
               );
             }) : <p className="px-3 py-8 text-center text-md text-text-muted">No accounts match that search.</p>}
@@ -125,7 +131,7 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
         </div>
 
         {selected ? (
-          <article className="min-w-0 overflow-hidden rounded-2xl border border-border bg-surface">
+          <article className="min-w-0 overflow-hidden rounded-2xl border border-border bg-surface shadow-card lg:sticky lg:top-[calc(var(--dock-clearance)+1.5rem)]">
             <header className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 border-b border-border p-4 md:flex md:gap-4 md:p-7">
               <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-sidebar text-base font-bold text-sidebar-fg md:size-14 md:rounded-2xl md:text-lg">{initials(selected)}</span>
               <div className="min-w-0 flex-1">
@@ -144,7 +150,7 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
               </div>
             </header>
 
-            <div className="grid grid-cols-2 gap-px bg-border md:grid-cols-4">
+            <div className="grid grid-cols-2 gap-px bg-border">
               {USER_STATS.map(({ key, label, icon: Icon }) => (
                 <div key={key} className="flex min-w-0 flex-col gap-2 bg-surface p-3 md:gap-3 md:p-5">
                   <div className="flex min-h-8 items-start justify-between gap-2 md:min-h-0 md:items-center"><p className="tk-label [overflow-wrap:anywhere] text-text-muted">{label}</p><Icon className="size-4 shrink-0 text-accent-text" aria-hidden="true" /></div>

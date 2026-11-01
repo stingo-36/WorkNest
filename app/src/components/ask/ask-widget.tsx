@@ -108,6 +108,16 @@ function localDay() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
+/**
+ * The shell opens Ask with this event (the desktop top bar's Ask button and the
+ * phone tab bar's Ask item — Ocean redesign, 2026-11-01; there is no floating
+ * bubble any more).
+ */
+export const ASK_OPEN_EVENT = "worknest:open-ask";
+export function openAsk() {
+  window.dispatchEvent(new Event(ASK_OPEN_EVENT));
+}
+
 export function AskWidget({ userId }: { userId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -116,8 +126,18 @@ export function AskWidget({ userId }: { userId: string }) {
   const [inputError, setInputError] = useState("");
   const [pending, startAsking] = useTransition();
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const launcherRef = useRef<HTMLButtonElement>(null);
+  // Whatever opened the panel gets focus back when it closes.
+  const launcherRef = useRef<HTMLElement | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onOpen() {
+      launcherRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setOpen(true);
+    }
+    window.addEventListener(ASK_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(ASK_OPEN_EVENT, onOpen);
+  }, []);
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
@@ -217,19 +237,6 @@ export function AskWidget({ userId }: { userId: string }) {
 
   return (
     <>
-      {open ? null : (
-        <button
-          ref={launcherRef}
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-haspopup="dialog"
-          className="fixed right-4 bottom-4 z-40 inline-flex h-12 cursor-pointer items-center gap-2 rounded-full bg-sidebar px-5 text-base font-semibold text-sidebar-fg shadow-lg transition-colors duration-150 hover:bg-sidebar-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:right-6 md:bottom-6"
-        >
-          <Sparkles className="size-4" aria-hidden="true" style={{ color: "inherit" }} />
-          Ask
-        </button>
-      )}
-
       {open ? (
         <section
           role="dialog"
@@ -237,7 +244,7 @@ export function AskWidget({ userId }: { userId: string }) {
           onKeyDown={(event) => {
             if (event.key === "Escape") close();
           }}
-          className="ask-panel fixed inset-x-0 bottom-0 z-40 flex h-[85dvh] flex-col overflow-hidden rounded-t-2xl border border-border bg-surface text-text shadow-lg md:inset-x-auto md:right-6 md:bottom-6 md:h-[min(40rem,calc(100dvh-7rem))] md:w-[26rem] md:rounded-2xl"
+          className="ask-panel fixed inset-x-0 bottom-0 z-40 flex h-[85dvh] flex-col overflow-hidden rounded-t-2xl border border-border bg-surface text-text shadow-lg md:inset-x-auto md:top-0 md:right-0 md:h-dvh md:w-[min(32rem,100vw)] md:rounded-none md:border-y-0 md:border-r-0"
         >
           <header className="flex items-center gap-2 border-b border-border px-4 py-3">
             <span className="grid size-8 place-items-center rounded-full bg-primary-subtle text-accent-text" aria-hidden="true">

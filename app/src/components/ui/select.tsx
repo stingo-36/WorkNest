@@ -6,7 +6,6 @@ import OutlinedInput from "@mui/material/OutlinedInput";
 import { ChevronDown } from "lucide-react";
 import * as React from "react";
 
-import { bandSx } from "@/components/ui/band-sx";
 
 /**
  * Dropdown — MUI Select with a themed menu (ui/mui-provider.tsx).
@@ -17,8 +16,6 @@ import { bandSx } from "@/components/ui/band-sx";
  */
 export type SelectProps = Omit<React.ComponentProps<"select">, "onChange"> & {
   onChange?: (event: { target: { value: string; name?: string } }) => void;
-  /** `band`: a nav-style pill for the slate page band. */
-  tone?: "default" | "band";
 };
 
 type OptionElement = React.ReactElement<React.OptionHTMLAttributes<HTMLOptionElement>>;
@@ -27,7 +24,7 @@ function DropdownIcon(props: { className?: string }) {
   return <ChevronDown {...props} aria-hidden="true" style={{ width: 18, height: 18, right: 12 }} />;
 }
 
-export function Select({ className, children, id, name, value, defaultValue, onChange, disabled, required, tone = "default", ...rest }: SelectProps) {
+export function Select({ className, children, id, name, value, defaultValue, onChange, disabled, required, ...rest }: SelectProps) {
   const options = React.Children.toArray(children).filter(React.isValidElement) as OptionElement[];
   return (
     <MuiSelect
@@ -39,7 +36,7 @@ export function Select({ className, children, id, name, value, defaultValue, onC
       displayEmpty
       fullWidth
       className={className}
-      input={<OutlinedInput sx={tone === "band" ? bandSx : undefined} />}
+      input={<OutlinedInput />}
       IconComponent={DropdownIcon}
       onChange={(event: SelectChangeEvent<string>) => onChange?.({ target: { value: event.target.value, name } })}
       SelectDisplayProps={{

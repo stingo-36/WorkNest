@@ -20,7 +20,6 @@ import { useRouter } from "next/navigation";
 import { createResource, deleteResource, toggleResourceFavorite, updateResource } from "@/actions/content";
 import { cn } from "@/components/cn";
 import { Menu, menuItemClass } from "@/components/shell/menu";
-import { primaryPill } from "@/components/shell/page-head";
 import { Button } from "@/components/ui/button";
 import { Field, FormError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -30,7 +29,6 @@ import { TagInput } from "@/components/ui/tag-input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { TypeIcon, TypeIconsProvider, type TypeIconMap } from "@/components/resources/type-icon";
-import { TagChip, tagChipClass, tagChipStyle } from "@/components/ui/tag-chip";
 import { MarkdownContent, MarkdownEditor } from "@/components/work-log/markdown-editor";
 import { resourceTypeKey, typeMeta } from "@/lib/resource-types";
 
@@ -71,7 +69,7 @@ const SORTS: Record<SortKey, { label: string; compare: (a: ResourceItem, b: Reso
   title: { label: "A–Z", compare: (a, b) => a.title.localeCompare(b.title) },
 };
 
-/** The mockup's search: an underline field with a ⌘K hint (⌘/Ctrl+K focuses it). */
+/** The big search box in the hero (Ocean v2, 2026-11-02), with a ⌘K hint (⌘/Ctrl+K focuses it). */
 function UnderlineSearch({ id, value, onChange }: { id: string; value: string; onChange: (value: string) => void }) {
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -85,8 +83,8 @@ function UnderlineSearch({ id, value, onChange }: { id: string; value: string; o
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
   return (
-    <label htmlFor={id} className="flex h-11 min-w-0 flex-1 items-center gap-3 border-b-2 border-text px-1 text-text-muted transition-colors duration-150 focus-within:border-primary md:w-80 md:flex-none">
-      <Search className="size-4.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+    <label htmlFor={id} className="rs-search flex h-13 w-full min-w-0 items-center gap-3 rounded-2xl bg-surface px-4 text-text-muted md:px-5">
+      <Search className="size-5 shrink-0 text-primary" strokeWidth={2} aria-hidden="true" />
       <span className="sr-only">Search resources</span>
       <input
         ref={ref}
@@ -97,7 +95,7 @@ function UnderlineSearch({ id, value, onChange }: { id: string; value: string; o
         onChange={(event) => onChange(event.target.value)}
         className="min-w-0 flex-1 bg-transparent text-md text-text outline-none placeholder:text-text-muted"
       />
-      <kbd aria-hidden="true" className="shrink-0 font-sans text-xs text-text-muted max-md:hidden">⌘K</kbd>
+      <kbd aria-hidden="true" className="shrink-0 rounded-md border border-border bg-surface-2 px-1.5 py-0.5 font-sans text-xs font-semibold text-text-muted max-md:hidden">⌘K</kbd>
     </label>
   );
 }
@@ -163,6 +161,10 @@ export function ResourceLibrary({
   const active = query && (!selected || !(byType.get(selected) ?? []).length) ? firstWithHits ?? selected : selected;
   // The React Compiler memoises this; a manual useMemo here trips its lint.
   const items = [...(active ? byType.get(active) ?? [] : [])].sort(SORTS[sort].compare);
+  // Links and docs as cards; commands and snippets as dark code cards.
+  const linkItems = items.filter((resource) => !CODE_TYPES.has(resourceTypeKey(resource.type)));
+  const codeItems = items.filter((resource) => CODE_TYPES.has(resourceTypeKey(resource.type)));
+  const starred = resources.filter((resource) => resource.favorite).sort((a, b) => a.title.localeCompare(b.title));
   // Every tag already used, most used first — the tag field's suggestions.
   const knownTags = useMemo(() => {
     const counts = new Map<string, number>();
@@ -179,21 +181,40 @@ export function ResourceLibrary({
 
   return (
     <TypeIconsProvider value={typeIcons}>
-    <div className="tk-focus motion-page-reveal flex min-w-0 flex-col gap-8">
-      {/* Owner's mockup (2026-10-14): title + line on the left, an underline search and
-          Add on the right, a rule; then a Type / Tags column beside one list of rows. */}
-      <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-5 border-b border-border pb-6">
-        <div className="flex min-w-0 flex-col gap-2">
-          <h1 className="page-title">Resources</h1>
-          <p className="text-md text-text-muted">Links, commands, apps, tools and references you reach for.</p>
-        </div>
-        <div className="flex w-full min-w-0 flex-wrap items-center gap-x-4 gap-y-3 md:w-auto">
-          <UnderlineSearch id="resource-search" value={search} onChange={setSearch} />
-          <button type="button" onClick={() => setComposer({ type: active && active !== ALL ? active : typeList[0] ?? "Other" })} className={primaryPill}>
-            <Plus strokeWidth={2} aria-hidden="true" />
+    <div className="rs tk-focus motion-page-reveal flex min-w-0 flex-col gap-6">
+      {/* Ocean v2 (2026-11-02): a deep-ocean hero (title, Add, search, type chips),
+          then link cards and dark command/snippet cards beside a Tags + Starred rail. */}
+      <header className="rs-hero">
+        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className="rs-eyebrow">{resources.length} {resources.length === 1 ? "resource" : "resources"}</p>
+            <h1 className="rs-title">Resources</h1>
+            <p className="rs-sub text-md">Links, commands, apps, tools and references you reach for.</p>
+          </div>
+          <button type="button" onClick={() => setComposer({ type: active && active !== ALL ? active : typeList[0] ?? "Other" })} className="rs-add">
+            <Plus className="size-4" strokeWidth={2.2} aria-hidden="true" />
             Add resource
           </button>
         </div>
+        <UnderlineSearch id="resource-search" value={search} onChange={setSearch} />
+        {types.length ? (
+          <nav aria-label="Resource types">
+            <ul className="rs-types">
+              {[ALL, ...types].map((type) => {
+                const on = active === type;
+                const count = (byType.get(type) ?? []).length;
+                return (
+                  <li key={type} className="shrink-0">
+                    <button type="button" aria-current={on ? "page" : undefined} onClick={() => setPicked(type)} className={cn("rs-type", Boolean(query) && !count && "opacity-50")}>
+                      {tabLabel(type)}
+                      <span className="tabular-nums">{count}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+        ) : null}
       </header>
 
       <FormError>{loadError}</FormError>
@@ -205,73 +226,17 @@ export function ResourceLibrary({
           <p className="text-lg text-text-muted">Add the links, commands and references you reach for with Add resource.</p>
         </div>
       ) : (
-        <div className="grid min-w-0 gap-x-14 gap-y-8 lg:grid-cols-[13rem_minmax(0,1fr)]">
-          {/* Type + tag column; a sideways strip above the list on smaller screens. */}
-          <aside className="flex min-w-0 flex-col gap-7">
-            <nav aria-label="Resource types" className="flex min-w-0 flex-col gap-2">
-              <h2 className="tk-label text-text-muted">Type</h2>
-              {/* A dark panel behind the whole list (owner, 2026-10-15), the current type lifted on it. */}
-              <ul className="flex gap-1 overflow-x-auto rounded-xl bg-sidebar p-1.5 [scrollbar-width:none] lg:flex-col lg:overflow-visible">
-                {[ALL, ...types].map((type) => {
-                  const on = active === type;
-                  const count = (byType.get(type) ?? []).length;
-                  return (
-                    <li key={type} className="shrink-0">
-                      <button
-                        type="button"
-                        aria-current={on ? "page" : undefined}
-                        onClick={() => setPicked(type)}
-                        className={cn(
-                          "flex min-h-11 w-full cursor-pointer items-center justify-between gap-6 rounded-lg px-3.5 text-md whitespace-nowrap transition-colors duration-150",
-                          on ? "bg-sidebar-fg font-semibold text-sidebar" : "text-sidebar-fg hover:bg-sidebar-3",
-                          Boolean(query) && !count && "opacity-50",
-                        )}
-                      >
-                        {tabLabel(type)}
-                        <span className={cn("text-sm font-medium tabular-nums", on ? "text-sidebar" : "text-sidebar-fg/75")}>{count}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </nav>
-
-            {/* Tag facets: one click shows All filtered by #tag; again clears. */}
-            {usedTags.length ? (
-              <div role="group" aria-labelledby="resource-tags-label" className="flex flex-col gap-2">
-                <h2 id="resource-tags-label" className="tk-label text-text-muted">Tags</h2>
-                <div className="flex flex-wrap gap-x-3.5 gap-y-0.5">
-                  {usedTags.map(([tag, count]) => {
-                    const on = query === `#${tag}`;
-                    return (
-                      <button
-                        key={tag}
-                        type="button"
-                        aria-pressed={on}
-                        onClick={() => { setSearch(on ? "" : `#${tag}`); if (!on) setPicked(ALL); }}
-                        style={tagChipStyle(tag)}
-                        // 36px tap target around a slim capsule; the selected tag gets a solid ring.
-                        className={cn(tagChipClass, "min-h-9 cursor-pointer decoration-2 underline-offset-4 hover:underline", on && "underline")}
-                      >
-                        #{tag} <span className="font-medium text-text-muted tabular-nums">{count}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
-          </aside>
-
+        <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_16rem] xl:grid-cols-[minmax(0,1fr)_18rem]">
           {active ? (
-            <section aria-label={active === ALL ? "All resources" : `${tabLabel(active)} resources`} className="flex min-w-0 flex-col">
-              <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b-2 border-text pb-2">
-                <h2 className="tk-eyebrow text-text">
+            <section aria-label={active === ALL ? "All resources" : `${tabLabel(active)} resources`} className="flex min-w-0 flex-col gap-6">
+              <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                <h2 className="rs-label">
                   {active === ALL ? "All resources" : tabLabel(active)} · <span className="tabular-nums">{items.length}</span>{query ? " match" : ""}
                 </h2>
                 <Menu
                   label="Sort resources"
                   trigger={(props) => (
-                    <button type="button" {...props} className="flex min-h-11 cursor-pointer items-center gap-1 text-sm font-medium whitespace-nowrap text-text">
+                    <button type="button" {...props} className="flex min-h-11 cursor-pointer items-center gap-1 rounded-xl border border-border bg-surface px-3.5 text-sm font-semibold whitespace-nowrap text-accent-text md:min-h-10">
                       {SORTS[sort].label}
                       <ChevronDown className="size-3.5" strokeWidth={2.2} aria-hidden="true" />
                     </button>
@@ -286,14 +251,77 @@ export function ResourceLibrary({
                 </Menu>
               </header>
               {items.length === 0 ? (
-                <p className="border-b border-border py-8 text-lg text-text-muted">Nothing matches that search.</p>
+                <p className="rounded-2xl border border-dashed border-border-strong px-4 py-8 text-center text-md text-text-muted">Nothing matches that search.</p>
               ) : (
-                <ul data-reveal-stagger>
-                  {items.map((resource) => <ResourceRow key={resource.id} resource={resource} onEdit={() => setComposer({ type: groupOf(resource.type), resource })} />)}
-                </ul>
+                <>
+                  {linkItems.length ? (
+                    <div className="flex min-w-0 flex-col gap-3">
+                      {codeItems.length ? <h3 className="rs-label">Links &amp; docs · <span className="tabular-nums">{linkItems.length}</span></h3> : null}
+                      <ul className="rs-cards" data-reveal-stagger>
+                        {linkItems.map((resource) => <ResourceCard key={resource.id} resource={resource} onEdit={() => setComposer({ type: groupOf(resource.type), resource })} />)}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {codeItems.length ? (
+                    <div className="flex min-w-0 flex-col gap-3">
+                      {linkItems.length ? <h3 className="rs-label">Commands &amp; snippets · <span className="tabular-nums">{codeItems.length}</span></h3> : null}
+                      <ul className="rs-terms" data-reveal-stagger>
+                        {codeItems.map((resource) => <CodeCard key={resource.id} resource={resource} onEdit={() => setComposer({ type: groupOf(resource.type), resource })} />)}
+                      </ul>
+                    </div>
+                  ) : null}
+                </>
               )}
             </section>
           ) : null}
+
+          <aside aria-label="Tags and starred" className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24">
+            {/* Tag facets: one click shows All filtered by #tag; again clears. */}
+            {usedTags.length ? (
+              <div role="group" aria-labelledby="resource-tags-label" className="rs-rail">
+                <h2 id="resource-tags-label" className="rs-label">Tags</h2>
+                <div className="flex flex-wrap gap-1.5">
+                  {usedTags.map(([tag, count]) => {
+                    const on = query === `#${tag}`;
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => { setSearch(on ? "" : `#${tag}`); if (!on) setPicked(ALL); }}
+                        className="rs-tag"
+                      >
+                        #{tag} <span className="tabular-nums">{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+            {starred.length ? (
+              <div className="rs-rail">
+                <h2 className="rs-label">Starred</h2>
+                <ul className="flex flex-col">
+                  {starred.map((resource) => (
+                    <li key={resource.id}>
+                      {resource.url ? (
+                        <a href={resource.url} target="_blank" rel="noreferrer" className="flex min-h-11 items-center gap-2.5 text-sm font-semibold text-text hover:underline">
+                          <span aria-hidden="true" className={cn("rs-fav size-8 text-2xs", tileTone(resource.title))}>{initials(resource.title)}</span>
+                          <span className="min-w-0 truncate">{resource.title}</span>
+                          <span className="sr-only"> (opens in a new tab)</span>
+                        </a>
+                      ) : (
+                        <p className="flex min-h-11 items-center gap-2.5 text-sm font-semibold text-text">
+                          <span aria-hidden="true" className={cn("rs-fav size-8 text-2xs", tileTone(resource.title))}>{initials(resource.title)}</span>
+                          <span className="min-w-0 truncate">{resource.title}</span>
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </aside>
         </div>
       )}
 
@@ -513,8 +541,8 @@ function DeleteButton({ resource, onClick, pending, className }: { resource: Res
   );
 }
 
-/** Three tones for the initials tiles, picked from the title so a resource keeps its colour. */
-const TILE_TONES = ["bg-sidebar text-sidebar-fg", "bg-primary text-primary-fg", "bg-warning text-primary-fg"];
+/** Five Ocean tones for the initials tiles, picked from the title so a resource keeps its colour. */
+const TILE_TONES = ["rs-tone-0", "rs-tone-1", "rs-tone-2", "rs-tone-3", "rs-tone-4"];
 function tileTone(title: string) {
   let hash = 0;
   for (const char of title) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
@@ -522,52 +550,80 @@ function tileTone(title: string) {
 }
 
 /**
- * One row: initials tile; title (opens the URL, ↗) + site in mono; description;
- * tags in mono; edit/delete on hover (md+) and the star. Commands and snippets
- * add their code line with Copy.
+ * A link / doc / app card: initials tile, title (opens the URL, ↗) + site in mono,
+ * the star; description; tags; edit/delete on hover (md+).
  */
-function ResourceRow({ resource, onEdit }: { resource: ResourceItem; onEdit: () => void }) {
+function ResourceCard({ resource, onEdit }: { resource: ResourceItem; onEdit: () => void }) {
   const { remove, pending, dialog } = useRemove(resource);
   const host = resource.url ? safeHost(resource.url) : undefined;
-  const isCode = CODE_TYPES.has(resourceTypeKey(resource.type));
-  const code = resource.content || resource.url || "";
   const reveal = "md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100";
   return (
-    <li className="group relative flex min-w-0 items-start gap-4 border-b border-border py-5">
-      <span aria-hidden="true" className={cn("grid size-10 shrink-0 place-items-center rounded-lg text-sm font-bold", tileTone(resource.title))}>{initials(resource.title)}</span>
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <h3 className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-          {resource.url && !isCode ? (
-            <a href={resource.url} target="_blank" rel="noreferrer" className="text-lg font-bold tracking-[-0.015em] text-text [overflow-wrap:anywhere] decoration-2 underline-offset-4 after:absolute after:inset-0 hover:underline">
+    <li className="rs-card group">
+      <div className="flex min-w-0 items-start gap-3">
+        <span aria-hidden="true" className={cn("rs-fav size-10 text-sm", tileTone(resource.title))}>{initials(resource.title)}</span>
+        <h3 className="flex min-w-0 flex-1 flex-col">
+          {resource.url ? (
+            <a href={resource.url} target="_blank" rel="noreferrer" className="truncate text-md font-semibold text-text decoration-2 underline-offset-4 after:absolute after:inset-0 hover:underline">
               {resource.title}
               <ArrowUpRight className="ml-1 inline size-[0.9em] align-[-0.1em]" strokeWidth={2.2} aria-hidden="true" />
               <span className="sr-only"> (opens in a new tab)</span>
             </a>
           ) : (
-            <span className="text-lg font-bold tracking-[-0.015em] text-text [overflow-wrap:anywhere]">{resource.title}</span>
+            <span className="truncate text-md font-semibold text-text">{resource.title}</span>
           )}
-          <span className="font-mono text-sm text-text-muted">{host && !isCode ? host : typeMeta(resource.type).label.toLowerCase()}</span>
+          <span className="truncate font-mono text-xs text-text-muted">{host ?? typeMeta(resource.type).label.toLowerCase()}</span>
         </h3>
-        {/* Formatted (links, images, files); relative z-10 keeps its links clickable above the
-            row-wide title link; capped so one long description can't take over the list. */}
-        {resource.description ? <MarkdownContent value={resource.description} className="relative z-10 max-h-64 overflow-hidden text-md text-text" /> : null}
-        {isCode && code ? (
-          <div className="relative z-10 mt-1 flex min-w-0 items-start gap-2 rounded-lg border border-[var(--c-tk-rule)] bg-surface py-2 pr-2 pl-3.5">
-            <pre className="min-w-0 flex-1 py-0.5 font-mono text-sm leading-relaxed break-words whitespace-pre-wrap text-text">{code}</pre>
-            <CopyButton value={code} />
-          </div>
-        ) : null}
-        {resource.tags.length ? (
-          <p className="flex flex-wrap gap-x-3 gap-y-1 pt-0.5">
-            {resource.tags.map((tag) => <TagChip key={tag} tag={tag} />)}
-          </p>
-        ) : null}
+        <FavoriteButton resource={resource} className="-mt-1 -mr-1.5 size-9" />
       </div>
-      <span className="-mt-1 -mr-2 flex shrink-0 items-center">
-        <EditButton resource={resource} onClick={onEdit} className={cn("size-9", reveal)} />
-        <DeleteButton resource={resource} onClick={remove} pending={pending} className={cn("size-9", reveal)} />
-        <FavoriteButton resource={resource} className="size-9" />
-      </span>
+      {/* Formatted (links, images, files); relative z-10 keeps its links clickable above the
+          card-wide title link; capped so one long description can't take over the grid. */}
+      {resource.description ? <MarkdownContent value={resource.description} className="relative z-10 line-clamp-3 text-sm text-text-muted" /> : null}
+      <div className="mt-auto flex min-w-0 items-end gap-2">
+        {resource.tags.length ? (
+          <p className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+            {resource.tags.map((tag) => <span key={tag} className="rs-chip">#{tag}</span>)}
+          </p>
+        ) : <span className="flex-1" />}
+        <span className="-mr-1.5 -mb-1 flex shrink-0 items-center">
+          <EditButton resource={resource} onClick={onEdit} className={cn("size-9", reveal)} />
+          <DeleteButton resource={resource} onClick={remove} pending={pending} className={cn("size-9", reveal)} />
+        </span>
+      </div>
+      {dialog}
+    </li>
+  );
+}
+
+/** A command / snippet on a dark card: title, kind, Copy, the code, description, tags, actions. */
+function CodeCard({ resource, onEdit }: { resource: ResourceItem; onEdit: () => void }) {
+  const { remove, pending, dialog } = useRemove(resource);
+  const code = resource.content || resource.url || "";
+  const isCommand = resourceTypeKey(resource.type) === resourceTypeKey("Command");
+  return (
+    <li className="rs-term group">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <h3 className="min-w-0 text-md font-semibold [overflow-wrap:anywhere] text-white">{resource.title}</h3>
+        <span className="rs-kind">{typeMeta(resource.type).label}</span>
+        <span className="ml-auto flex items-center gap-1">
+          {code ? <CopyButton value={code} /> : null}
+        </span>
+      </div>
+      {code ? (
+        <pre className="rs-code">{isCommand ? <span className="rs-prompt" aria-hidden="true">$ </span> : null}{code}</pre>
+      ) : null}
+      {resource.description ? <MarkdownContent value={resource.description} className="rs-term-desc relative z-10 text-sm" /> : null}
+      <div className="mt-auto flex min-w-0 items-end gap-2">
+        {resource.tags.length ? (
+          <p className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+            {resource.tags.map((tag) => <span key={tag} className="rs-chip rs-chip-dark">#{tag}</span>)}
+          </p>
+        ) : <span className="flex-1" />}
+        <span className="rs-term-actions -mr-1.5 -mb-1 flex shrink-0 items-center">
+          <EditButton resource={resource} onClick={onEdit} className="size-9" />
+          <DeleteButton resource={resource} onClick={remove} pending={pending} className="size-9" />
+          <FavoriteButton resource={resource} className="size-9" />
+        </span>
+      </div>
       {dialog}
     </li>
   );
@@ -590,7 +646,7 @@ function CopyButton({ value }: { value: string }) {
     window.setTimeout(() => setCopied(false), 1600);
   }
   return (
-    <button type="button" onClick={copy} aria-label="Copy to clipboard" className="inline-flex h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-surface px-2 text-xs font-semibold text-text-muted transition-colors duration-150 hover:border-border-strong hover:text-text md:h-7">
+    <button type="button" onClick={copy} aria-label="Copy to clipboard" className="rs-copy inline-flex h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold transition-colors duration-150 md:h-8">
       {copied ? <Check className="size-3.5" aria-hidden="true" /> : <Clipboard className="size-3.5" aria-hidden="true" />}
       {copied ? "Copied" : "Copy"}
     </button>

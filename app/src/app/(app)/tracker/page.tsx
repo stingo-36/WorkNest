@@ -1,6 +1,10 @@
+import { addDays, format, isWeekend } from "date-fns";
+
 import { listFollowUpPeople, listFollowUps } from "@/actions/follow-ups";
 import { TrackerBoard, type TrackerView } from "@/components/tracker/tracker-board";
 import { requireUserId } from "@/lib/session";
+import { getSprint } from "@/lib/sprint";
+import { getUserSettings } from "@/lib/user-settings";
 import { getOrderedList, getSavedTags } from "@/lib/user-lists";
 
 export const metadata = { title: "Tracker" };
@@ -22,12 +26,18 @@ export default async function TrackerPage({
 }) {
   const { view } = await searchParams;
   const userId = await requireUserId();
-  const [entries, people, channels, savedNoteTags] = await Promise.all([
+  const [entries, people, channels, savedNoteTags, settings] = await Promise.all([
     listFollowUps(),
     listFollowUpPeople(),
     getOrderedList(userId, "FollowUpChannel"),
     getSavedTags(userId, "NoteTag"),
+    getUserSettings(userId),
   ]);
+
+  // The header's "Sprint day 3 of 10": weekdays only, from the sprint calendar.
+  const now = new Date();
+  const sprint = getSprint(now, settings.sprint);
+  const weekdays = Array.from({ length: settings.sprint.days }, (_, index) => addDays(sprint.start, index)).filter((day) => !isWeekend(day));
 
   return (
     <TrackerBoard
@@ -57,6 +67,12 @@ export default async function TrackerPage({
       // browser's own clock on hydration (same trick as the top bar's date).
       serverToday={new Date().toISOString().slice(0, 10)}
       loadError={entries.ok ? undefined : entries.error.message}
+      greetingName={settings.name?.trim().split(/\s+/)[0] ?? null}
+      sprint={{
+        start: format(sprint.start, "yyyy-MM-dd"),
+        day: Math.max(1, weekdays.filter((day) => day <= now).length),
+        total: weekdays.length,
+      }}
     />
   );
 }

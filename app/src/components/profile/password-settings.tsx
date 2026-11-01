@@ -36,18 +36,18 @@ export function PasswordSettings() {
   }
 
   return (
-    <section aria-labelledby="password-settings-title" className="overflow-hidden rounded-2xl border border-border bg-surface">
-      <div className="flex items-start gap-3 border-b border-border px-5 py-4 md:px-6">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary-subtle text-accent-text">
+    <section aria-labelledby="password-settings-title" className="pf-card wl-card overflow-hidden">
+      <div className="pf-card-head">
+        <span className="pf-card-icon">
           <KeyRound className="size-5" aria-hidden="true" />
         </span>
         <div>
-          <h2 id="password-settings-title" className="text-xl font-semibold text-text">Password</h2>
+          <h2 id="password-settings-title" className="text-lg font-semibold tracking-[-0.015em] text-text">Password</h2>
           <p className="mt-0.5 text-sm text-text-muted">After saving, every signed-in device must sign in again.</p>
         </div>
       </div>
-      <form onSubmit={submit} noValidate className="grid gap-5 px-5 py-5 md:grid-cols-2 md:px-6">
-        <div className="md:col-span-2"><FormError>{error && !error.fields ? error.message : undefined}</FormError></div>
+      <form onSubmit={submit} noValidate className="grid gap-5 px-5 py-5 md:grid-cols-2 md:px-6 xl:grid-cols-3">
+        <div className="md:col-span-2 xl:col-span-3"><FormError>{error && !error.fields ? error.message : undefined}</FormError></div>
         <Field label="Current password" htmlFor="current-password" error={fields.currentPassword} required>
           <PasswordField
             id="current-password"
@@ -60,7 +60,7 @@ export function PasswordSettings() {
             required
           />
         </Field>
-        <div className="hidden md:block" aria-hidden="true" />
+        <div className="hidden md:block xl:hidden" aria-hidden="true" />
         <Field label="New password" htmlFor="new-password" error={fields.newPassword} hint="At least 8 characters." required>
           <PasswordField
             id="new-password"
@@ -88,7 +88,7 @@ export function PasswordSettings() {
           />
           <PasswordMatch password={newPassword} confirmation={confirmPassword} touched={confirmTouched} />
         </Field>
-        <div className="flex justify-end md:col-span-2">
+        <div className="pf-card-foot flex justify-end md:col-span-2 xl:col-span-3">
           <Button type="submit" size="lg" loading={pending} disabled={!currentPassword || !newPassword || !confirmPassword}>
             Change password
           </Button>

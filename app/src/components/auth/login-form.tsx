@@ -76,11 +76,11 @@ export function LoginForm({ callbackUrl, notice }: { callbackUrl?: string; notic
       className="auth-rise flex min-w-0 flex-col gap-4 md:gap-6"
     >
       <div className="flex flex-col gap-2">
-        <h1 className="text-4xl font-extrabold tracking-[-0.035em] text-text md:text-5xl">
-          Pick up your day.
+        <h1 className="text-4xl text-text md:text-5xl">
+          Welcome <span className="auth-ocean">back.</span>
         </h1>
         <p className="text-md text-text-muted">
-          Your latest work log and its full context are waiting.
+          Your desk is exactly as you left it.
         </p>
       </div>
 

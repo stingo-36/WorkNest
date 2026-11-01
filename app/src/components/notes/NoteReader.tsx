@@ -204,16 +204,18 @@ export function NoteReader({
   */
   const pages = useMemo(() => {
     let pageNumber = 0;
+    // Full width of the reading column — the "On this page" rail was removed (2026-11-02).
     return (
-      <div className="max-w-[52rem]">
+      <div className="min-w-0">
         {sections.map((section, sectionIndex) => (
           <section key={section.id} aria-labelledby={`${sectionAnchor(section.id)}-title`}>
             {/* Section opener */}
-            <header id={sectionAnchor(section.id)} className="pt-10 pb-2 md:pt-14">
+            {/* A soft sky→aqua band behind each section's title (Ocean, 2026-11-01). */}
+            <header id={sectionAnchor(section.id)} className={cn("note-band", sectionIndex === 0 ? "mt-4" : "mt-10 md:mt-14")}>
               <p className="text-2xs font-bold tracking-[0.08em] text-accent-text uppercase">
                 Section {sectionIndex + 1} of {sections.length} · {plural(section.pages.length, "page")}
               </p>
-              <h2 id={`${sectionAnchor(section.id)}-title`} className="mt-2 text-3xl font-semibold tracking-[-0.03em] text-balance text-text md:text-4xl">
+              <h2 id={`${sectionAnchor(section.id)}-title`} className="mt-2 text-3xl font-bold tracking-[-0.04em] text-balance text-text md:text-4xl" style={{ fontFamily: "var(--font-heading)" }}>
                 {section.title}
               </h2>
               {sectionIndex === 0 && note.description ? (
@@ -250,10 +252,10 @@ export function NoteReader({
   }, [sections, note.description, note.title, note.updatedLabel]);
 
   return (
-    <div style={{ "--note": accent } as CSSProperties} className="grid min-w-0 gap-8 lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[17rem_minmax(0,1fr)_13rem] xl:gap-12">
+    <div style={{ "--note": accent } as CSSProperties} className="grid min-w-0 gap-8 lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[17rem_minmax(0,1fr)] xl:gap-12">
       {/* Chapter list — the note's identity and every section with all its topics. */}
       <aside className="hidden lg:block">
-        <div className="sticky top-[calc(4rem+1.5rem)] flex max-h-[calc(100dvh-6.5rem)] flex-col gap-4 rounded-2xl border border-border bg-surface p-3">
+        <div className="sticky top-[calc(var(--dock-clearance)+1.5rem)] flex max-h-[calc(100dvh-var(--dock-clearance)-3rem)] flex-col gap-4 rounded-2xl border border-border bg-surface p-3">
           <div className="flex items-start gap-3 px-1 pt-1">
             <span aria-hidden="true" style={{ color: iconColor }} className="grid size-11 shrink-0 place-items-center rounded-xl border border-border bg-surface">
               {icon}
@@ -272,7 +274,7 @@ export function NoteReader({
 
       <div className="min-w-0">
         {/* Where am I + actions — solid, so headings never show through as they pass under it. */}
-        <div className="sticky top-[calc(4rem+1px)] z-20 -mx-4 border-b border-border bg-bg px-4 md:-mx-5 md:px-5 lg:mx-0 lg:px-0">
+        <div className="sticky top-[var(--dock-clearance)] z-20 -mx-4 border-b border-border bg-bg px-4 md:-mx-5 md:px-5 lg:mx-0 lg:px-0">
           <div className="flex h-14 items-center gap-3">
             <button
               type="button"
@@ -336,34 +338,6 @@ export function NoteReader({
         )}
       </div>
 
-      {/* Right rail (xl, 2026-10-08): the pages of the section you're in, and how far through the note you are. */}
-      {activeSection ? (
-        <aside aria-label="On this page" className="hidden xl:block">
-          <div className="sticky top-[calc(4rem+5rem)] flex flex-col gap-3">
-            <p className="text-2xs font-bold tracking-[0.08em] text-text-subtle uppercase">On this page</p>
-            <ul className="flex flex-col border-l-2 border-border">
-              {activeSection.pages.map((page) => {
-                const active = pageAnchor(page.id) === activeId;
-                return (
-                  <li key={page.id}>
-                    <a
-                      href={`#${pageAnchor(page.id)}`}
-                      onClick={(event) => jumpTo(event, pageAnchor(page.id))}
-                      className={cn("-ml-0.5 block border-l-2 py-1.5 pl-3 text-sm leading-snug transition-colors duration-150", active ? "border-primary font-semibold text-text" : "border-transparent text-text-muted hover:text-text")}
-                    >
-                      {page.title}
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-            <div className="mt-2 h-1 overflow-hidden rounded-full bg-surface-3" aria-hidden="true">
-              <span className="block h-full rounded-full bg-primary" style={{ width: `${((activeSectionIndex + 1) / sections.length) * 100}%` }} />
-            </div>
-            <p className="text-xs text-text-subtle tabular-nums">Section {activeSectionIndex + 1} of {sections.length} · updated {note.updatedLabel}</p>
-          </div>
-        </aside>
-      ) : null}
     </div>
   );
 }

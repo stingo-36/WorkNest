@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, KeyRound } from "lucide-react";
+import { ExternalLink, KeyRound, Sparkles } from "lucide-react";
 import { useState, useTransition } from "react";
 
 import { removeAiGroqKey, removeAiKey, saveAiGroqKey, saveAiKey, saveAiModel } from "@/actions/profile";
@@ -101,7 +101,10 @@ export function AiSettingsCard({ initial }: { initial: AiSettingsView }) {
     : "Off — if OpenRouter fails or is busy, AI requests fail. Add a free Groq key as a backup.";
 
   return (
-    <ListCard title="AI summaries" description="Work-log summaries, 5-15 reports and Ask are written by AI: OpenRouter first, Groq as the backup. Free keys work for both.">
+    <ListCard title="AI summaries" icon={<Sparkles className="size-5" />} description="Work-log summaries, 5-15 reports and Ask are written by AI: OpenRouter first, Groq as the backup. Free keys work for both.">
+      {/* OpenRouter and Groq as two provider panels, side by side from xl. */}
+      <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+      <div className="pf-provider">
       <h3 className="text-md font-semibold text-text">OpenRouter</h3>
       <div className="flex items-start gap-3 rounded-xl border border-border-strong bg-surface-2 p-4">
         <KeyRound className="mt-0.5 size-4 shrink-0 text-accent-text" aria-hidden="true" />
@@ -114,7 +117,7 @@ export function AiSettingsCard({ initial }: { initial: AiSettingsView }) {
 
       <form className="flex flex-col gap-2" onSubmit={(event) => { event.preventDefault(); saveKey(); }}>
         <Field label={settings.keySource === "user" ? "Replace API key" : "OpenRouter API key"} htmlFor="ai-key" error={keyError} hint="Stored encrypted and never shown again. Checked with OpenRouter when you save.">
-          <div className="flex flex-col gap-2 md:flex-row">
+          <div className="flex flex-col gap-2 md:flex-row xl:flex-col xl:items-end">
             <Input
               id="ai-key"
               type="password"
@@ -124,7 +127,7 @@ export function AiSettingsCard({ initial }: { initial: AiSettingsView }) {
               value={apiKey}
               onChange={(event) => setApiKey(event.target.value)}
               aria-invalid={Boolean(keyError)}
-              className="md:flex-1"
+              className="md:flex-1 xl:w-full xl:flex-none"
             />
             <Button type="submit" loading={pending} disabled={!apiKey.trim()}>Save key</Button>
           </div>
@@ -136,7 +139,7 @@ export function AiSettingsCard({ initial }: { initial: AiSettingsView }) {
 
       <form className="flex flex-col gap-2" onSubmit={(event) => { event.preventDefault(); saveModel(); }}>
         <Field label="OpenRouter model" htmlFor="ai-model" error={modelError} hint={`Leave empty for the recommended free default (${settings.defaultModel}) — Ask then uses free models that are good at its tools. Several ids, comma-separated, are tried in order.`}>
-          <div className="flex flex-col gap-2 md:flex-row">
+          <div className="flex flex-col gap-2 md:flex-row xl:flex-col xl:items-end">
             <Input
               id="ai-model"
               spellCheck={false}
@@ -144,14 +147,17 @@ export function AiSettingsCard({ initial }: { initial: AiSettingsView }) {
               value={model}
               onChange={(event) => setModel(event.target.value)}
               aria-invalid={Boolean(modelError)}
-              className="md:flex-1"
+              className="md:flex-1 xl:w-full xl:flex-none"
             />
             <Button type="submit" variant="secondary" disabled={pending || model.trim() === settings.model}>Save model</Button>
           </div>
         </Field>
       </form>
 
-      <h3 className="mt-2 text-md font-semibold text-text">Groq (backup)</h3>
+      </div>
+
+      <div className="pf-provider">
+      <h3 className="text-md font-semibold text-text">Groq (backup)</h3>
       <div className="flex items-start gap-3 rounded-xl border border-border-strong bg-surface-2 p-4">
         <KeyRound className="mt-0.5 size-4 shrink-0 text-accent-text" aria-hidden="true" />
         <div className="min-w-0 flex-1">
@@ -163,7 +169,7 @@ export function AiSettingsCard({ initial }: { initial: AiSettingsView }) {
 
       <form className="flex flex-col gap-2" onSubmit={(event) => { event.preventDefault(); saveGroq(); }}>
         <Field label={settings.groqSource === "user" ? "Replace Groq key" : "Groq API key"} htmlFor="ai-groq-key" error={groqError} hint="Stored encrypted and never shown again. Checked with Groq when you save.">
-          <div className="flex flex-col gap-2 md:flex-row">
+          <div className="flex flex-col gap-2 md:flex-row xl:flex-col xl:items-end">
             <Input
               id="ai-groq-key"
               type="password"
@@ -173,7 +179,7 @@ export function AiSettingsCard({ initial }: { initial: AiSettingsView }) {
               value={groqKey}
               onChange={(event) => setGroqKey(event.target.value)}
               aria-invalid={Boolean(groqError)}
-              className="md:flex-1"
+              className="md:flex-1 xl:w-full xl:flex-none"
             />
             <Button type="submit" loading={pending} disabled={!groqKey.trim()}>Save key</Button>
           </div>
@@ -182,6 +188,8 @@ export function AiSettingsCard({ initial }: { initial: AiSettingsView }) {
           Get a free key at console.groq.com<ExternalLink className="size-3.5" aria-hidden="true" />
         </a>
       </form>
+      </div>
+      </div>
 
       <p className="text-sm text-text-muted">
         When AI is on, a log’s tickets, meeting notes and work done (and what you ask) are sent to OpenRouter or Groq and the model’s provider. Free models may log prompts.

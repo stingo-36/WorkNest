@@ -62,9 +62,9 @@ export function DeckSearch({ days }: { days: DeckSearchDay[] }) {
   const showList = open && query.trim().length > 0;
 
   return (
-    <div className="relative w-full lg:w-[26rem]">
+    <div className="relative w-full lg:w-[22rem]">
       <label htmlFor={`${id}-input`} className="sr-only">Jump to a day or ticket</label>
-      <div className="wl-search flex h-12 items-center gap-2.5 rounded-full border border-border bg-surface pr-2 pl-4">
+      <div className="wl-search flex h-11 items-center gap-2.5 rounded-2xl border border-border bg-surface pr-2 pl-4">
         <Search className="size-4 shrink-0 text-text-muted" aria-hidden="true" />
         <input
           ref={inputRef}
