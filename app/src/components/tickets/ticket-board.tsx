@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { appendTicketHistoryEntry, createTicket, deleteTicketHistoryEntry, getTicket, updateTicket } from "@/actions/tickets";
 import { cn } from "@/components/cn";
-import { SearchPill } from "@/components/shell/page-head";
+import { SearchPill, UnderlineTabs } from "@/components/shell/page-head";
 import { MarkdownContent, MarkdownEditor } from "@/components/work-log/markdown-editor";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
@@ -53,8 +53,8 @@ export function TicketBoard({ initialTickets, loadError, daysOff = [] }: { initi
   const [tickets, setTickets] = useState(initialTickets);
   const [selectedId, setSelectedId] = useState("");
   const [query, setQuery] = useState("");
-  // "All" by default so the board shows every status lane (Ocean redesign, 2026-11-01).
-  const [status, setStatus] = useState<StatusFilter>("All");
+  // Open on the work in flight; "All" is one click away.
+  const [status, setStatus] = useState<StatusFilter>("InProgress");
   const [creating, setCreating] = useState(false);
   const [newKey, setNewKey] = useState("");
   const [newTitle, setNewTitle] = useState("");
@@ -201,17 +201,10 @@ export function TicketBoard({ initialTickets, loadError, daysOff = [] }: { initi
           action={<Link href="/work-logs" className={buttonVariants({ variant: "primary" })}>Open work logs</Link>}
         />
       ) : tickets.length ? (
+        <>
+        <UnderlineTabs label="Filter by status" items={statusTabs} current={status} onSelect={(key) => setStatus(key as StatusFilter)} />
         <div className="tkt-split">
           <nav aria-label="Tickets" className="tkt-list tkt-card">
-            <div role="group" aria-label="Filter by status" className="tkt-filters">
-              {statusTabs.map((tab) => (
-                <button key={tab.key} type="button" aria-pressed={status === tab.key} onClick={() => setStatus(tab.key as StatusFilter)} className="tkt-filter">
-                  {tab.key !== "All" ? <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", TICKET_STATUS_DOT[tab.key as WorkflowStatus])} /> : null}
-                  {tab.label}
-                  <span className="tabular-nums">{tab.count}</span>
-                </button>
-              ))}
-            </div>
             {visibleTickets.length === 0 ? (
               <div className="p-4">
                 <EmptyState
@@ -260,6 +253,7 @@ export function TicketBoard({ initialTickets, loadError, daysOff = [] }: { initi
             )}
           </div>
         </div>
+        </>
       ) : null}
     </div>
   );
