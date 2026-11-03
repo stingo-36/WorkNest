@@ -102,6 +102,7 @@ const FOLLOW_UP_SELECT = {
   personal: true,
   dueDate: true,
   completedAt: true,
+  archivedAt: true,
   createdAt: true,
   updatedAt: true,
   updates: {
@@ -241,6 +242,16 @@ export async function setFollowUpPinned(userId: string, followUpId: string, pinn
   return getFollowUp(userId, followUpId);
 }
 
+/** Archive / restore an entry. Archiving leaves its status alone, so a restore puts it back as it was. */
+export async function setFollowUpArchived(userId: string, followUpId: string, archived: boolean) {
+  const result = await prisma.followUp.updateMany({
+    where: { id: followUpId, userId },
+    data: { archivedAt: archived ? new Date() : null },
+  });
+  if (result.count === 0) return null;
+  return getFollowUp(userId, followUpId);
+}
+
 /** Replace an entry's tags. Tags are labels, not history, so they are editable. */
 export async function setFollowUpTags(userId: string, followUpId: string, tags: string[]) {
   const result = await prisma.followUp.updateMany({
@@ -284,7 +295,7 @@ export async function listTodosAroundDay(userId: string, day: Date) {
         { completedAt: { gte: from, lt: to } },
         {
           dueDate: { lte: day },
-          OR: [{ status: FollowUpStatus.Open }, { completedAt: { gte: from } }],
+          OR: [{ status: FollowUpStatus.Open, archivedAt: null }, { completedAt: { gte: from } }],
         },
       ],
     },
@@ -308,7 +319,7 @@ export async function listTrackerForRange(userId: string, from: Date, to: Date) 
         { createdAt: { gte: from, lt: to } },
         { completedAt: { gte: from, lt: to } },
         { updates: { some: { occurredAt: { gte: from, lt: to } } } },
-        { kind: EntryKind.Task, status: FollowUpStatus.Open, dueDate: { lt: to } },
+        { kind: EntryKind.Task, status: FollowUpStatus.Open, archivedAt: null, dueDate: { lt: to } },
       ],
     },
     orderBy: [{ pinned: "desc" }, { createdAt: "asc" }],

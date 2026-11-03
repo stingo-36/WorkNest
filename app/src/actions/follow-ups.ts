@@ -11,6 +11,7 @@ import {
   deleteFollowUpSchema,
   editPersonalTodoSchema,
   rescheduleFollowUpSchema,
+  setFollowUpArchivedSchema,
   setFollowUpPinnedSchema,
   setFollowUpStatusSchema,
   setFollowUpTagsSchema,
@@ -46,6 +47,18 @@ export async function addFollowUpUpdate(input: unknown) {
   if (!followUp) return notFound("Follow-up not found");
 
   revalidatePath("/tracker");
+  return ok(followUp);
+}
+
+/** Archive / restore. Input: { followUpId, archived } */
+export async function setFollowUpArchived(input: unknown) {
+  const userId = await requireUserId();
+  const parsed = parseOrFail(setFollowUpArchivedSchema, input);
+  if (!parsed.ok) return parsed;
+  const followUp = await followUps.setFollowUpArchived(userId, parsed.data.followUpId, parsed.data.archived);
+  if (!followUp) return notFound("Entry not found");
+  revalidatePath("/tracker");
+  revalidatePath("/favourites");
   return ok(followUp);
 }
 

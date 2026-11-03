@@ -83,6 +83,7 @@ export async function listMobileTracker(userId: string) {
   const rows = await prisma.followUp.findMany({
     where: {
       userId,
+      archivedAt: null,
       OR: [
         { status: FollowUpStatus.Open },
         { completedAt: { gte: new Date(Date.now() - KEEP_DONE_MS) } },

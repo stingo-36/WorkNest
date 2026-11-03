@@ -382,6 +382,9 @@ model FollowUp {
   /// When the next nudge is due. Null = logged for the record, no date attached.
   dueDate     DateTime?      @db.Date
   completedAt DateTime?
+  /// Put away without finishing or deleting: off the Tracker lists, kept in
+  /// Tracker → Archived and in history (Work Logs, reports, Ask). Null = live.
+  archivedAt  DateTime?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 

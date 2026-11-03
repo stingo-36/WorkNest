@@ -9,7 +9,7 @@ import { getOrderedList, getSavedTags } from "@/lib/user-lists";
 
 export const metadata = { title: "Tracker" };
 
-const VIEWS = new Set<TrackerView>(["todo", "followups", "notes"]);
+const VIEWS = new Set<TrackerView>(["todo", "followups", "notes", "archived"]);
 
 /**
  * Three lists on one page: to-dos (what you owe), follow-ups (what you told
@@ -49,6 +49,7 @@ export default async function TrackerPage({
                 ? entry.dueDate.toISOString().slice(0, 10)
                 : null,
               completedAt: entry.completedAt?.toISOString() ?? null,
+              archivedAt: entry.archivedAt?.toISOString() ?? null,
               createdAt: entry.createdAt.toISOString(),
               updatedAt: entry.updatedAt.toISOString(),
               updates: entry.updates.map((update) => ({
