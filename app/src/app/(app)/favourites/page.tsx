@@ -42,7 +42,7 @@ export default async function FavouritesPage({ searchParams }: { searchParams: P
       select: { id: true, title: true, description: true, type: true, url: true, content: true },
     }),
     prisma.followUp.findMany({
-      where: { userId, pinned: true, status: "Open" },
+      where: { userId, pinned: true, status: "Open", archivedAt: null },
       orderBy: [{ dueDate: "asc" }, { updatedAt: "desc" }],
       select: { id: true, kind: true, subject: true, person: true, dueDate: true },
     }),

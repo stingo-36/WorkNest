@@ -17,7 +17,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ fil
   if (!file) return new Response("Not found", { status: 404 });
 
   const inline = INLINE_TYPES.has(file.mimeType);
-  const safeName = file.name.replace(/["\\\r\n]/g, "_");
+  // Header values must be ASCII (macOS screenshot names contain U+202F); the real name goes in filename*.
+  const safeName = file.name.replace(/[^\x20-\x7e]|["\\]/g, "_");
   return new Response(new Uint8Array(file.data), {
     headers: {
       "Content-Type": inline ? file.mimeType : "application/octet-stream",

@@ -3,6 +3,8 @@
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import {
+  Archive,
+  ArchiveRestore,
   ArrowRight,
   CalendarDays,
   Pencil,
@@ -27,6 +29,7 @@ import {
   deleteFollowUp,
   editPersonalTodo,
   rescheduleFollowUp,
+  setFollowUpArchived,
   setFollowUpPinned,
   setFollowUpStatus,
   setFollowUpTags,
@@ -80,6 +83,8 @@ export type TrackerEntry = {
   /** "YYYY-MM-DD" or null. A plain calendar day — no time, no timezone. */
   dueDate: string | null;
   completedAt: string | null;
+  /** Put away from the lists (Archived tab); null = live. Notes archive through `status` instead. */
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
   /** Newest first. */
@@ -92,12 +97,13 @@ export type TrackerEntry = {
  *   follow-up  something you told someone — waiting on them, or they replied
  *   note       something to keep — add updates to it over time
  */
-export type TrackerView = "todo" | "followups" | "notes";
+export type TrackerView = "todo" | "followups" | "notes" | "archived";
 
-const VIEWS: Array<{ id: TrackerView; kind: EntryKind; label: string }> = [
-  { id: "todo", kind: "Task", label: "To-do" },
-  { id: "followups", kind: "FollowUp", label: "Follow-ups" },
-  { id: "notes", kind: "Note", label: "Notes" },
+const VIEWS: Array<{ id: TrackerView; label: string }> = [
+  { id: "todo", label: "To-do" },
+  { id: "followups", label: "Follow-ups" },
+  { id: "notes", label: "Notes" },
+  { id: "archived", label: "Archived" },
 ];
 
 const KIND_LABEL: Record<EntryKind, string> = { Task: "To-do", FollowUp: "Follow-up", Note: "Note" };
@@ -259,6 +265,9 @@ const FOLLOW_STATE: Record<FollowState, { label: string; tone: string }> = {
 // --- what needs you ------------------------------------------------------------
 
 const isOpen = (entry: TrackerEntry) => entry.status !== "Done";
+/** Shown on the Archived tab: put away with Archive, or a note archived the old way (Done). */
+const isArchived = (entry: TrackerEntry) => entry.archivedAt !== null || (entry.kind === "Note" && entry.status === "Done");
+const byArchived = (a: TrackerEntry, b: TrackerEntry) => (b.archivedAt ?? b.completedAt ?? b.updatedAt).localeCompare(a.archivedAt ?? a.completedAt ?? a.updatedAt);
 
 /**
  * The amber "needs you" set: to-dos overdue or due today, follow-ups where they
@@ -340,12 +349,15 @@ export function TrackerBoard({
   const today = useSyncExternalStore(subscribeNever, todayIso, () => serverToday);
   const needle = query.trim().toLowerCase();
 
+  // Archived entries leave every list (and every count) for the Archived tab.
+  const live = useMemo(() => entries.filter((entry) => entry.archivedAt === null), [entries]);
+  const archived = useMemo(() => entries.filter(isArchived), [entries]);
   const byKind = useMemo(() => {
     const next: Record<EntryKind, TrackerEntry[]> = { Task: [], FollowUp: [], Note: [] };
-    for (const entry of entries) next[entry.kind].push(entry);
+    for (const entry of live) next[entry.kind].push(entry);
     return next;
-  }, [entries]);
-  const workEntries = useMemo(() => entries.filter((entry) => !entry.personal), [entries]);
+  }, [live]);
+  const workEntries = useMemo(() => live.filter((entry) => !entry.personal), [live]);
   const personalTodos = useMemo(() => byKind.Task.filter((entry) => entry.personal), [byKind]);
   const scopeCounts: Record<TodoScope, number> = {
     work: byKind.Task.filter((entry) => !entry.personal && isOpen(entry)).length,
@@ -357,6 +369,7 @@ export function TrackerBoard({
     todo: scopeCounts.work + scopeCounts.personal,
     followups: byKind.FollowUp.filter(isOpen).length,
     notes: byKind.Note.filter(isOpen).length,
+    archived: archived.length,
   };
   const opened = entries.find((entry) => entry.id === openId) ?? null;
   const lists = useMemo(() => ({ channels, noteTags: savedNoteTags }), [channels, savedNoteTags]);
@@ -367,7 +380,7 @@ export function TrackerBoard({
   // dropped, so following the same link again opens it again.
   const linkedId = useSearchParams().get("open");
   const linked = linkedId ? entries.find((entry) => entry.id === linkedId) : undefined;
-  const linkedTab: TrackerView = linked?.kind === "FollowUp" ? "followups" : linked?.kind === "Note" ? "notes" : "todo";
+  const linkedTab: TrackerView = linked?.archivedAt ? "archived" : linked?.kind === "FollowUp" ? "followups" : linked?.kind === "Note" ? "notes" : "todo";
   const [handledLink, setHandledLink] = useState<string | null>(null);
   if ((linked?.id ?? null) !== handledLink) {
     setHandledLink(linked?.id ?? null);
@@ -464,6 +477,7 @@ export function TrackerBoard({
             {view === "todo" ? <AddTodo key={scope} today={today} personal={scope === "personal"} /> : null}
             {view === "followups" ? <p className="px-2 py-3 text-md text-text-muted">Start a follow-up below — the newest update shows on each card.</p> : null}
             {view === "notes" ? <p className="px-2 py-3 text-md text-text-muted">Write a note below — the newest update shows on each card.</p> : null}
+            {view === "archived" ? <p className="px-2 py-3 text-md text-text-muted">Put away from your lists, kept with their history. Restore puts one back.</p> : null}
           </div>
         </div>
       </header>
@@ -491,6 +505,7 @@ export function TrackerBoard({
         ) : null}
         {view === "todo" && scope === "personal" ? <StickyBoard entries={personalTodos} today={today} needle={needle} onOpen={openEntry} /> : null}
         {view === "followups" ? <FollowUpQueue entries={byKind.FollowUp} people={people} today={today} needle={needle} onOpen={openEntry} /> : null}
+        {view === "archived" ? <ArchiveList entries={archived} today={today} needle={needle} onOpen={openEntry} /> : null}
         {view === "notes" ? <NoteQueue entries={byKind.Note} suggestions={tagSuggestions} today={today} needle={needle} onOpen={openEntry} onTag={(tag) => setQuery(`#${tag}`)} /> : null}
         </div>
       </section>
@@ -1904,6 +1919,48 @@ function NoteRow({ entry, today, onOpen, onTag }: { entry: TrackerEntry; today: 
   );
 }
 
+// --- archived ------------------------------------------------------------------
+
+/** Every archived entry, newest first, grouped by kind. Restore puts it back on its list. */
+function ArchiveList({ entries, today, needle, onOpen }: { entries: TrackerEntry[]; today: string; needle: string; onOpen: (entry: TrackerEntry) => void }) {
+  const shown = entries.filter((entry) => matches(entry, needle)).sort(byArchived);
+  if (shown.length === 0) return <Empty>{needle ? "Nothing matches." : "Nothing archived. Archive a to-do or follow-up from its window to put it here."}</Empty>;
+  const groups = (["Task", "FollowUp", "Note"] as const)
+    .map((kind) => ({ kind, items: shown.filter((entry) => entry.kind === kind) }))
+    .filter((group) => group.items.length);
+  return (
+    <div className="flex flex-col gap-8">
+      {groups.map((group) => (
+        <Bucket key={group.kind} label={`${group.kind === "Task" ? "To-dos" : group.kind === "FollowUp" ? "Follow-ups" : "Notes"} · ${group.items.length}`}>
+          {group.items.map((entry) => (
+            <Row
+              key={entry.id}
+              eyebrow={entryLabel(entry)}
+              title={entry.subject}
+              onOpen={() => onOpen(entry)}
+              meta={
+                <span className="text-base font-medium text-text-muted" suppressHydrationWarning>
+                  {entry.person ? `${entry.person} · ` : ""}{entry.status === "Done" && entry.kind !== "Note" ? "Done · " : ""}Archived {ago(entry.archivedAt ?? entry.completedAt ?? entry.updatedAt, today)}
+                </span>
+              }
+              actions={
+                <>
+                  <DeleteEntry entry={entry} />
+                  <ActionPill
+                    label="Restore"
+                    action={() => (entry.archivedAt ? setFollowUpArchived({ followUpId: entry.id, archived: false }) : setFollowUpStatus({ followUpId: entry.id, status: "Open" }))}
+                    success="Restored"
+                  />
+                </>
+              }
+            />
+          ))}
+        </Bucket>
+      ))}
+    </div>
+  );
+}
+
 // --- the opened entry ----------------------------------------------------------
 
 function EntryEyebrow({ entry }: { entry: TrackerEntry }) {
@@ -1931,12 +1988,17 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
   const doneLabel = kind === "Note" ? (isDone ? "Restore" : "Archive") : kind === "FollowUp" ? (isDone ? "Reopen" : "Close") : isDone ? "Reopen" : "Mark done";
   const doneToast = kind === "Note" ? (isDone ? "Restored" : "Archived") : isDone ? "Reopened" : kind === "FollowUp" ? "Closed" : "Done";
 
+  // Notes archive through their main button (status); to-dos and follow-ups have their own.
+  const canArchive = kind !== "Note";
+  const shelved = entry.archivedAt !== null;
+
   const facts: Array<{ label: string; value: React.ReactNode }> = [
     ...(entry.person ? [{ label: "With", value: entry.person }] : []),
     ...(state ? [{ label: "Status", value: <span style={tone(FOLLOW_STATE[state].tone)} className="font-semibold text-[color-mix(in_srgb,var(--tone)_80%,var(--c-text))]">{FOLLOW_STATE[state].label}</span> }] : []),
     ...(kind === "Task" ? [{ label: "Status", value: isDone ? `Done${entry.completedAt ? ` · ${format(parseISO(entry.completedAt), "d MMM")}` : ""}` : "Open" }] : []),
     ...(entry.ticketKey ? [{ label: "Ticket", value: <span className="font-mono">{entry.ticketKey}</span> }] : []),
     { label: "Added", value: format(parseISO(entry.createdAt), "d MMM yyyy") },
+    ...(entry.archivedAt ? [{ label: "Archived", value: format(parseISO(entry.archivedAt), "d MMM yyyy") }] : []),
   ];
 
   return (
@@ -1986,6 +2048,18 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
           >
             <Star aria-hidden="true" className={cn(entry.pinned && "fill-current text-warning")} />
           </Button>
+          {canArchive ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              iconOnly
+              aria-label={shelved ? "Restore from archive" : "Archive"}
+              title={shelved ? "Restore from archive" : "Archive"}
+              onClick={() => run(() => setFollowUpArchived({ followUpId: entry.id, archived: !shelved }), shelved ? "Restored" : "Archived")}
+            >
+              {shelved ? <ArchiveRestore aria-hidden="true" /> : <Archive aria-hidden="true" />}
+            </Button>
+          ) : null}
           <Button size="sm" variant="ghost" iconOnly className="hover:text-danger" aria-label={`Delete ${entry.subject}`} title="Delete" onClick={() => setConfirmDelete(true)}>
             <Trash2 aria-hidden="true" />
           </Button>

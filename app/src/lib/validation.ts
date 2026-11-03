@@ -499,6 +499,11 @@ export const setFollowUpPinnedSchema = z.object({
   pinned: z.boolean(),
 });
 
+export const setFollowUpArchivedSchema = z.object({
+  followUpId: idSchema,
+  archived: z.boolean(),
+});
+
 export const setFollowUpStatusSchema = z.object({
   followUpId: idSchema,
   status: followUpStatusSchema,
