@@ -240,7 +240,7 @@ export function WorkLogEditor({ workLog, relative, adjacent, ticketsEnabled, day
             ) : null}
 
             <div className={dayType !== "Work" ? "hidden" : "flex min-w-0 flex-col"}>
-              <MeetingSection workLogId={workLog.id} meetings={workLog.meetings} onCompletedChange={setMeetingsDone} />
+              <MeetingSection workLogId={workLog.id} dateKey={workLog.date.toISOString().slice(0, 10)} meetings={workLog.meetings} onCompletedChange={setMeetingsDone} />
 
               {ticketsEnabled ? (
               <section aria-labelledby="tickets-heading" className="wl-card overflow-hidden">

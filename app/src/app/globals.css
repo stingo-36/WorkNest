@@ -400,7 +400,8 @@ html:not(.dark) body:has(.app-shell) { --c-bg: #ffffff; }
 /* The strip: rows below lg, columns from lg (fixed height so the card scrolls inside). */
 
 /* The open card's sections arrive after the column has mostly grown. */
-.wl-reveal > * { animation: wl-fade-up var(--duration-slow) var(--ease-smooth-out) both; animation-delay: calc(180ms + var(--i, 0) * 70ms); }
+/* Quick cascade (2026-11-12; was 400ms after 180ms + 70ms per card, so the deck took ~1.5s to settle). */
+.wl-reveal > * { animation: wl-fade-up var(--duration-fast) var(--ease-smooth-out) both; animation-delay: calc(var(--i, 0) * 25ms); }
 
 .wl-summary-md .worklog-prose ul { list-style: none; padding-left: 0; }
 .wl-summary-md .worklog-prose { font-size: var(--text-base); line-height: 1.6; }
@@ -410,7 +411,7 @@ html:not(.dark) body:has(.app-shell) { --c-bg: #ffffff; }
 @keyframes wl-rise { from { opacity: 0; transform: translateY(-1.25rem); } }
 @keyframes wl-fade-up { from { opacity: 0; transform: translateY(calc(var(--distance-medium) * -1)); filter: blur(var(--blur-small)); } }
 @keyframes wl-numeral { from { opacity: 0; transform: translateY(-40%) scale(0.92); } }
-.wl-head { animation: wl-fade-up var(--duration-slow) var(--ease-smooth-out) both; }
+.wl-head { animation: wl-fade-up var(--duration-fast) var(--ease-smooth-out) both; }
 
 @media (prefers-reduced-motion: reduce) {
   .wl-reveal > *, .wl-head { animation: none; }
@@ -1104,6 +1105,27 @@ html:not(.dark) body:has(.app-shell) { --c-bg: #ffffff; }
   }
 }
 
+/* ---- Page entrance (signed-in app, 2026-11-12) -------------------------------
+   Each page's major regions (the page root's children, plus any [data-reveal])
+   drop in over 200ms, ~30ms apart, done by ~0.32s. Pure CSS so nothing writes to
+   server-rendered markup before hydration (the GSAP version caused hydration
+   mismatches once pages streamed in behind the loading boundary). `translate`, not
+   `transform`, and fill `backwards`, so it never overrides a card's own hover
+   transform and has no effect once finished. */
+@keyframes app-page-in {
+  from { opacity: 0; translate: 0 calc(var(--distance-medium) * -0.6); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .app-page-motion > * > :not(dialog),
+  .app-page-motion [data-reveal] {
+    animation: app-page-in 200ms var(--ease-smooth-out) backwards;
+  }
+  .app-page-motion > * > :nth-child(2) { animation-delay: 30ms; }
+  .app-page-motion > * > :nth-child(3) { animation-delay: 60ms; }
+  .app-page-motion > * > :nth-child(4) { animation-delay: 90ms; }
+  .app-page-motion > * > :nth-child(n + 5) { animation-delay: 120ms; }
+}
+
 /* Inside the signed-in app, scroll-driven reveals are OFF. Content must never
    sit half-faded waiting for a scroll (it hid note sections and cards below the
    fold once the page, not <main>, became the scroll container). The one-shot
@@ -1673,14 +1695,15 @@ dialog.t-modal[open]::backdrop {
   to { opacity: 1; transform: none; filter: none; }
 }
 .t-reveal > * {
-  animation: t-reveal-line var(--duration-very-slow) var(--ease-smooth-out) both;
+  /* --duration-fast, not very-slow (2026-11-12): a 500ms blur on every page header made each click feel slow. */
+  animation: t-reveal-line var(--duration-fast) var(--ease-smooth-out) both;
 }
 .t-reveal > :nth-child(2) { animation-delay: var(--duration-stagger); }
 .t-reveal > :nth-child(3) { animation-delay: calc(var(--duration-stagger) * 2); }
 
 /* Page-level fade now carries the same soft blur as the header lines. */
 .motion-page-enter {
-  animation: t-reveal-line var(--duration-very-slow) var(--ease-smooth-out) both;
+  animation: t-reveal-line var(--duration-fast) var(--ease-smooth-out) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2120,6 +2143,13 @@ dialog.t-modal[open]::backdrop {
   backdrop-filter: blur(14px);
 }
 .app-shell .tk-lane-needs { background: rgba(255, 247, 237, 0.75); }
+/* Composer inside a popup (New note): its Who / date / tag panels sit in the flow
+   under the card, because the popup's scrolling body would clip a floating one. */
+.tk-inline-panels > [role="group"] { position: static; width: auto; margin-top: 0.75rem; }
+/* backdrop-filter makes each lane its own stacking context, so an add panel's z-30
+   only counts inside its lane and the next lane paints over it. Lift the lane that
+   has a panel open. */
+.app-shell .tk-lane:has(.t-dropdown) { position: relative; z-index: 20; }
 .app-shell .tk-lane .tk-col-title { font-size: var(--text-2xl); letter-spacing: -0.03em; }
 .app-shell .tk-item {
   border: 1px solid #e3edf6;
@@ -2253,14 +2283,16 @@ button.wl-tile:not([data-open]):hover { transform: translateY(-2px); box-shadow:
 .app-deskbar {
   position: sticky;
   top: 0;
-  z-index: 20;
+  /* Above page headers that lift themselves to z-20 (Tracker's, for its add
+     panels) — at equal z the later header painted over the bar on scroll. */
+  z-index: 30;
   display: none;
   min-height: 3.75rem;
   align-items: center;
   gap: 1rem;
   padding: 0 2.5rem;
   border-bottom: 1px solid rgba(207, 224, 238, 0.8);
-  background: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.78);
   -webkit-backdrop-filter: blur(16px) saturate(1.4);
   backdrop-filter: blur(16px) saturate(1.4);
 }
@@ -2422,7 +2454,7 @@ dialog.modal-full > div > header, dialog.modal-full > div > footer { background:
 
 /* The list fades up when you switch lists. */
 @keyframes tk-swap-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.tk-swap { animation: tk-swap-in 320ms var(--ease-smooth-out) both; }
+.tk-swap { animation: tk-swap-in var(--duration-quick) var(--ease-smooth-out) both; }
 
 /* The add bar keeps one height whichever list is picked. */
 .tk-command .tk-add { min-height: 3.25rem; align-items: center; }

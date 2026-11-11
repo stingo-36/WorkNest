@@ -54,6 +54,13 @@ export const workLogInclude = {
   meetings: {
     where: { NOT: { isDefault: true, name: "Others" } },
     orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+    // Linked minutes (MoM) — Tracker Notes; see `lib/meeting-minutes.ts`.
+    include: {
+      minutes: {
+        orderBy: { createdAt: "asc" },
+        select: { followUp: { select: { id: true, subject: true, tags: true, archivedAt: true } } },
+      },
+    },
   },
   ticketUpdates: {
     orderBy: { createdAt: "asc" },

@@ -4,7 +4,7 @@
 > changes scope, or is retired, update the matching section here (see
 > `AGENTS.md → Keeping the docs current`).
 >
-> Last synced with the codebase: **2026-11-01**
+> Last synced with the codebase: **2026-11-11**
 
 ---
 
@@ -56,7 +56,7 @@ placeholder page) · **Retired** (redirects).
 | Auth | `/login`, `/register` | Live (public) | Email + password; Ocean look (2026-11-01): sign-in centred over waves, register in two steps (name + email, then passwords) on one form. Direct admin sign-ins land on `/admin`; regular users land on `/tracker`. |
 | Work Logs | `/work-logs`, `/work-logs/[id]`, `/work-logs/[id]/edit` | Live | The core workflow — see §5.1. |
 | Tickets | `/tickets` | Live · hidden when *Tickets* is off in Profile | Master-detail ticket manager — see §5.2. |
-| Tracker | `/tracker` | Live — **post-login landing page** | To-do · Follow-ups · Notes tabs (`?view=`), Work to-dos (v3) as a greeting header, a Next up card and one compact list (Overdue · Due today · Needs you · Upcoming · Someday) beside a rail (this week's progress, waiting on, personal), Follow-ups laid out like Notes — a New follow-up composer card (title, optional rich first message, who/where, reminder date, star) beside the follow-up list (Your turn · Nudge due · Waiting), rows open the entry dialog (2026-11-01); To-do has a **Work / Personal** toggle (Work by default), Personal shows sticky notes — see §5.3. |
+| Tracker | `/tracker` | Live — **post-login landing page** | To-do · Follow-ups · Notes tabs (`?view=`), Work to-dos (v3) as a greeting header, a Next up card and one compact list (Overdue · Due today · Needs you · Upcoming · Someday) beside a rail (this week's progress, waiting on, personal), Follow-ups laid out like Notes — a **New update** composer card (type dropdown — General / Waiting on / I told / They told me — title, optional rich first message, who/where, reminder or "said on" date, star) beside the follow-up list (Your turn · Nudge due · Waiting), rows open the entry dialog (2026-11-01); To-do has a **Work / Personal** toggle (Work by default), Personal shows sticky notes — see §5.3. |
 | Notes | `/notes`, `/notes/new`, `/notes/[id]`, `/notes/[id]/edit` | Live | Notebooks: note → sections → pages — see §5.4. |
 | Resources | `/resources` | Live | Typed personal library — see §5.5. |
 | Favourites | `/favourites` | Live | Everything starred in one place — see §5.6. |
@@ -119,6 +119,14 @@ update.*
      (Profile; built-in: *ASU Sync-up*, *Veritech Sync-up*, *Client Sync-up*).
      Additional cards can be added and removed per log.
      Notes are Markdown (TipTap WYSIWYG, saved as Markdown text).
+     **Minutes of meeting (MoM)** (2026-11-11): under each meeting's notes a *Minutes*
+     row links to full minutes kept in **Tracker → Notes**. *Add full minutes (MoM)*
+     opens a dialog: **Write new** (title, suggested "<meeting> — <date>", and the
+     Tracker rich editor; saved as a Note tagged `#mom` and linked) or **Link existing**
+     (search the Tracker notes, `#mom` first). Links open the note
+     (`/tracker?open=<id>`); one MoM can be linked from several days; unlinking (×)
+     keeps the note. The day's read page lists the links under each meeting. Meeting
+     notes stay the short "decisions, actions" summary; the minutes are the full record.
   2. **Tickets** (only when tickets are enabled) — type a key such as `ASU-1234`:
      - exists for this user → attach it, show title, status, recent history;
      - doesn't exist → create inline (key, title, project/site). No modal.
@@ -212,14 +220,14 @@ The latest saved update appears under each to-do and follow-up title (*Latest re
 only their title, tags and when they changed. Finished items sit in one collapsed **Completed / Closed / Archived** group
 (*Show*/*Hide*; a search opens it) grouped by completion date. New reminder dates default to today,
 Slack is the default channel, and the required **Who** field filters saved names as the
-user types while still accepting a new name. Reminder copy explains that the selected
+user types and completes the first match inline (Tab/Enter accepts), while still accepting a new name. Reminder copy explains that the selected
 date is when WorkNest should prompt the user to follow up again if nobody has replied.
 
 | Tab (`EntryKind`) | Tab badge | Add | Columns | Row actions |
 |---|---|---|---|---|
 | **To-do** (`Task`) | overdue/due-today to-dos + follow-ups that need you | title · due date · ★ | left **Today** (incl. follow-ups: nudge due / replied) + "✓ N completed today · Show"; right **Upcoming** by *tomorrow's date · Later this week · Next week · Later · No date* (to-dos + future nudges) | round tick (done / close / reopen) · ★; follow-ups: Mark nudged / Got it |
 | **Follow-ups** (`FollowUp`) | replies + nudges due | title · who + where (channel) · nudge date | left **Needs you** (*Your turn* · *Nudge due*) + collapsed closed line; right **Waiting** | Mark nudged · Got it (= close); replied: Got it · Open |
-| **Notes** (`Note`) | open notes | left **New note** composer: title · body · formatting · tags · ★ (+ collapsed archive) | right **Notes** (favourites first, then recently updated; title, tags and "Updated …" only — the text stays inside) | Open · ★ |
+| **Notes** (`Note`) | open notes | **New note** button in the card header opens the composer in a popup: title · body · formatting · tags · ★ | one full-width **Notes** card (2026-11-11): count, search (beside New note from 1024px), tag filter chips (All + each tag), then **Pinned · This week · Earlier** (title, tag chips and "2 days ago" / "28 Oct" only — the text stays inside), collapsed archive at the bottom | ★ (Restore on archived) |
 
 - **Work / Personal** (2026-10-21): the To-do tab has a two-option toggle beside the title,
   **Work** selected every time the page opens. *Work* is the Today | Upcoming queue above.
@@ -240,6 +248,18 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   *Status: Done · 17 Oct*. Row previews ("Last note:") skip these entries.
 - A follow-up needs a person: *Add* without one opens the Who panel with an error. The
   title is recorded as the first message (with the channel).
+- The **New update** card (titled *New follow-up* until 2026-11-11) has a **type dropdown** in
+  its bottom toolbar — **General** (default) · **Waiting on** · **I told** · **They told me** — which
+  replaced the pill switch above the card (2026-11-11). *General* is the catch-all for any
+  conversation: saved like *I told*, with neutral copy (*What was it about?*, *Talked on*, *With …*).
+  *Waiting on* is the original flow: the date is **Remind me on** (the nudge
+  date). *I told* and *They told me* use the date as **Told them on / They told me on** — it
+  backdates the first message and sets no reminder. *They told me* records that first
+  message as theirs, so the thread opens in *Your turn*. Placeholders and the Who label
+  follow the choice. "Nudge" throughout means "ping them again": *Nudge due* = the reminder
+  date has arrived and they still haven't replied. The button reads *Add follow-up* when
+  waiting and *Save* otherwise; on I told / They told me the date button reads
+  *Said: Today* so it isn't mistaken for a reminder.
 - Writing (new note body and every add-update field) uses a **rich editor** (2026-10-15)
   with its toolbar inside the field: bold, italic, underline, strike, highlight, inline
   code · heading, subheading · bulleted, numbered, checklist, quote, code block, divider ·
@@ -255,10 +275,15 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   **file attach** (paste/drop too; Markdown text pastes as formatting). They still store
   Markdown — links as `[text](url)`, images as `![alt](/api/tracker-files/…)` — and render
   formatted; Favourites shows a plain preview. Single-line fields stay plain.
-- A new note is a composer card: title, the editor (saved as its first update), an
-  optional **date** (defaults to today; sets the first update's date), tags and ★.
-  Tag chips on note rows put `#tag` in the search (the old tag-chip filter row and
-  *Group by tag* were dropped with the redesign).
+- A new note is written in a popup opened by **New note** (2026-11-11; was a composer card
+  beside the list): title, the editor (saved as its first update), an optional **date**
+  (defaults to today; sets the first update's date), tags and ★. Its tag / date panels open
+  inside the popup. The Notes card has its own search and a **tag filter row** (All + every
+  tag on open notes, most used first; brought back 2026-11-11); a tag chip on a row filters
+  to that tag. Notes group into *Pinned* (starred), *This week* (changed in the last 7 days)
+  and *Earlier*; each group's rows flow into 2 columns from 1024px and 3 from 1440px.
+- Notes also hold **minutes of meeting**: ones written from a work-log meeting card are
+  tagged `#mom` (search `#mom` to list them) and linked back from that meeting (§5.1).
 - Any entry can be **starred as a favourite** (sorts first; open ones show in Favourites).
 - Every row has a **delete** button (trash, shown on hover/focus from md, always on phones)
   with a confirmation; the dialog keeps its own Delete too. *Today* lists to-dos before

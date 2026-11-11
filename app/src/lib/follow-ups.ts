@@ -33,6 +33,8 @@ export type FollowUpInput = {
   channel?: string;
   /** When that first conversation happened. Defaults to now. */
   occurredAt?: Date | null;
+  /** The first message is something THEY told you ("They told me"). FollowUp only. */
+  fromThem?: boolean;
   /** Labels — used by Notes. Normalised by `normalizeTags`. */
   tags?: string[];
   /** A personal to-do (sticky note). Only kept on a Task. */
@@ -140,6 +142,7 @@ export async function createFollowUp(userId: string, input: FollowUpInput) {
                 doc,
                 channel: input.channel ?? "Slack",
                 occurredAt: input.occurredAt ?? new Date(),
+                fromThem: (input.kind ?? EntryKind.FollowUp) === EntryKind.FollowUp && Boolean(input.fromThem),
               },
             },
           }

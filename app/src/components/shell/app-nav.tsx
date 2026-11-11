@@ -93,11 +93,17 @@ const TAB_TRACKER: NavItem = { href: "/tracker", label: "Tracker", icon: ListChe
 const TAB_LOGS: NavItem = { href: "/work-logs", label: "Logs", icon: NotebookPen };
 const TAB_NOTES: NavItem = { href: "/notes", label: "Notes", icon: FileText };
 
+/**
+ * Main destinations prefetch in full (`prefetch`, 2026-11-12): page AND data load in the
+ * background, so a click opens the page at once instead of a loading screen. Production
+ * only. Kept for `staleTimes.static` (60s, next.config.ts); any server action's
+ * revalidatePath clears it, so your own edits show immediately.
+ */
 function TabLink({ item, pathname }: { item: NavItem; pathname: string }) {
   const active = isActivePath(pathname, item);
   return (
     <li className="min-w-0 flex-1">
-      <Link href={item.href} aria-current={active ? "page" : undefined} className="app-tab">
+      <Link href={item.href} prefetch aria-current={active ? "page" : undefined} className="app-tab">
         <item.icon aria-hidden="true" />
         <span className="max-w-full truncate">{item.label}</span>
       </Link>
@@ -158,7 +164,7 @@ function SideGroup({ label, items, pathname }: { label: string; items: NavItem[]
           const active = isActivePath(pathname, item);
           return (
             <li key={item.href}>
-              <Link href={item.href} aria-current={active ? "page" : undefined} className="app-side-link">
+              <Link href={item.href} prefetch aria-current={active ? "page" : undefined} className="app-side-link">
                 <item.icon aria-hidden="true" />
                 <span className="truncate">{item.label}</span>
               </Link>

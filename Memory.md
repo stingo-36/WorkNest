@@ -4,7 +4,7 @@
 > (with the *why*), gotchas that cost time before, and a changelog. Newest first in
 > every section. Update rules are in `AGENTS.md` §2.
 >
-> Last synced with the codebase: **2026-11-01**
+> Last synced with the codebase: **2026-11-12**
 
 ---
 
@@ -26,6 +26,55 @@
 ## Decisions
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
+
+**2026-11-11 — Minutes of meeting (MoM) are Tracker Notes tagged `mom`, linked from a work-log meeting.**
+Owner wanted a place to dump full minutes (title + rich body) and link them from the
+day's Meeting notes. A Tracker Note already has a title, the rich editor (images, files),
+tags, search, star, archive, Ask and Work-log day visibility, and `/tracker?open=<id>`
+opens it — so the only new table is `MeetingMinutesLink` (meeting ↔ note, many-to-many,
+cascade both sides; no `userId` column — both ends are verified as the user's before
+insert in `lib/meeting-minutes.ts`). The note's body is its first update, so like every
+Tracker note it is append-only: corrections are added as a further update. Meeting
+`notes` stay the short summary. *Rejected:* a new `MeetingMinutes` model (duplicates the
+note editor, search, files and archive); notebooks (`Note` → sections → pages — too heavy
+for one dump, and no picker exists); a `minutesIds String[]` on `Meeting` (no FK, stale
+ids after a note is deleted).
+
+**2026-11-12 — Navigation speed: loading boundary, short motion, 30s client reuse.**
+Owner: "each click loads pages very slow". Measured click → fully visible at 0.8–2.0s;
+server time was only 0.1–0.4s. The rest was (1) no loading boundary, so a click waited for
+the server with nothing on screen and production could not prefetch the (all-dynamic)
+routes, and (2) entrance motion of 560ms + staggers. Fix: `(app)/loading.tsx`, GSAP 200ms
+with a capped stagger, header/list fades shortened, `staleTimes.dynamic = 30`. After (dev):
+feedback ~70ms, content 0.4s, revisits 40–140ms. *Rejected:* dropping motion entirely — the
+owner likes the entrance; it just must not delay content. Dev mode is still slower than
+production (no prefetch, on-demand compile). Production measured locally the same day
+(`next build` + `next start`): server renders a page in 20–35ms, the loading screen shows in
+10–35ms, a first visit lands in ~330ms and a revisit within 30s in 15–35ms. The ~300ms on a
+first visit is React's Suspense reveal throttle (it holds a shown fallback ≥300ms to avoid
+flicker), not the server. Kept the boundary anyway: on the hosted deploy server + DB round
+trips are far slower than local, and the boundary is what lets Next prefetch dynamic routes.
+Then (owner asked) the sidebar and phone tab-bar links got `<Link prefetch>` (full prefetch, page +
+data) with `staleTimes.static = 60`: production clicks to every sidebar page measured 18–56ms with
+no loading screen, and a note starred on the Tracker showed at once on the preloaded Favourites.
+Cost: each page view prefetches the visible nav destinations (~6 server renders of 20–35ms).
+Only links on screen preload — on phones that's the tab bar (Tracker · Logs · Notes); pages in
+the account menu fall back to the loading screen.
+
+**2026-11-11 — Tracker Notes is one list card; the composer moved into a popup.**
+Owner's mockup: header (count + New note), search, tag filter chips, Pinned · This week ·
+Earlier, flat rows with only a star. This brings back the tag filter row dropped in the
+2026-10 redesign — the owner asked for it. Row Open / delete buttons are gone (the title
+opens the entry; delete lives in the dialog). The popup composer shows its tag / date
+panels in the flow (`.tk-inline-panels`) because the dialog body clips a floating panel.
+
+**2026-11-11 — Follow-up direction (waiting / I told / they told me) is a composer choice, not a column.**
+"They told me" is just a first `FollowUpUpdate` with `fromThem`, and only "waiting" sets
+`dueDate`; the other two put the date on the first message's `occurredAt`. No migration,
+and replied/waiting stays derived. *Rejected:* a `direction` enum on `FollowUp` — it would
+duplicate what the update rows already say and could drift. Known gap: an "I told" entry
+with no reminder sits under *Waiting* like a dateless waiting one. Same for *General*
+(added later the same day, saved exactly like I told — the type is copy only, not stored).
 
 **2026-11-01 — Ocean redesign of the signed-in app: sidebar shell, sky→aqua palette, Sora/Inter.**
 The owner reviewed three directions on a design canvas (Cobalt & Stone, Ocean Glass, Ocean v2)
@@ -823,6 +872,15 @@ is done on the real rendered app.
 
 ## Gotchas
 
+- **Frosted lanes trap popups (2026-11-11).** `.tk-lane` uses `backdrop-filter`, which makes
+  each lane its own stacking context — a popup's z-index only counts inside its lane, so a
+  later lane paints over it when columns stack. Lift the lane instead (`.tk-lane:has(.t-dropdown)`).
+
+- **2026-11-11 — Root `npm run db:migrate` / `db:studio` ran Prisma from the repo root.**
+  `npm --prefix app exec prisma …` keeps the caller's cwd, so Prisma couldn't find
+  `prisma/schema.prisma`. The root scripts now call `npm --prefix app run db:migrate --`
+  / `db:studio` (which run inside `app/`); pass extra flags after `--`, e.g.
+  `npm run db:migrate -- --name x`.
 - **`position: fixed` inside an animated element.** Anything with a `transform` (including a running entrance animation like `auth-in`) becomes the containing block for fixed children, so a "fixed" bar sticks to that box instead of the viewport. Put fixed UI outside animated wrappers (2026-11-01, register progress bar).
 
 - **2026-10-26 — Docker Compose project name is pinned to `personalworkspace`.** Compose
@@ -1012,6 +1070,30 @@ is done on the real rendered app.
 ## Changelog
 
 `YYYY-MM-DD — what changed — key files`
+
+- 2026-11-12 — `seed-fresh-demo.ts` reads the account to reset from `DEMO_EMAIL` (app/.env, gitignored; blank in `.env.example`) instead of a hardcoded address — `app/prisma/seed-fresh-demo.ts`, `app/.env.example`
+- 2026-11-12 — Page entrance moved from GSAP to CSS (`.app-page-motion`): GSAP's inline styles on streamed, not-yet-hydrated HTML caused React hydration mismatches after `loading.tsx` landed. `gsap` uninstalled the same day — `components/shell/page-motion.tsx`, `app/package.json`, `app/globals.css`, Design-System §7
+- 2026-11-12 — Sidebar / tab-bar links preload their page + data (`<Link prefetch>`), `staleTimes.static` 60s: production clicks 18–56ms — `components/shell/app-nav.tsx`, `next.config.ts`, Architecture
+- 2026-11-12 — Faster page switches: shared `(app)/loading.tsx`, GSAP page motion 560ms → 200ms with capped stagger, header/Work Logs/Tracker fades shortened, `staleTimes.dynamic = 30` — `app/(app)/loading.tsx`, `components/shell/page-motion.tsx`, `app/globals.css`, `next.config.ts`, Architecture, Design-System §7
+- 2026-11-12 — Desktop top bar (`.app-deskbar`) z-index 20 → 30 and background 0.55 → 0.78 white: the Tracker header (`relative z-20`, later in the DOM) painted its greeting over the bar on scroll — `app/globals.css`
+- 2026-11-12 — Tracker Notes: each note is a bordered card (same height across a row, title clamps at 2 lines, hover lifts the border) — `components/tracker/tracker-board.tsx`
+- 2026-11-11 — Tracker Notes card uses the full width: search moves beside New note from lg, note rows grid into 2 (lg) / 3 (xl) columns — `components/tracker/tracker-board.tsx`, PRD §5.3
+- 2026-11-11 — Tracker Notes redesigned as one card: count + New note (composer in a popup), search, tag filter chips, Pinned / This week / Earlier, flat rows with star; unused `OpenPill` removed — `components/tracker/tracker-board.tsx`, `app/globals.css`, PRD §5.3
+- 2026-11-11 — Tracker add pills (Who / date): opening a panel no longer scrolls the page — `PillPanel` focuses its first field with `preventScroll` — `components/tracker/tracker-board.tsx`
+- 2026-11-11 — Follow-up composer: type is a dropdown in the toolbar (shell `Menu`) instead of the pill switch above the card; new default **General** type (saved like I told, neutral copy) — `components/tracker/tracker-board.tsx`, PRD §4/§5.3
+- 2026-11-11 — Tracker add panels (Who / date) no longer slide under the next lane when columns stack: the lane holding an open `.t-dropdown` is lifted (`z-index: 20`) — `app/globals.css`
+
+- 2026-11-11 — Who field completes inline: typing "Fa" fills "Fatima" with the rest selected (Tab/Enter keeps, Backspace drops); list puts names starting with the typed text first — `components/tracker/tracker-board.tsx` (`PersonAutocomplete`)
+
+- 2026-11-11 — `seed-fresh-demo.ts` refreshed and run on the local demo account: today = 11 Nov, logs to 10 Nov, Tracker dates +10 days, Sprint planning on each sprint start with linked `#mom` minutes, I told / They told me follow-ups, 28 Oct sprint report; no longer resets the password or name — `app/prisma/seed-fresh-demo.ts`, Architecture §8
+
+- 2026-11-11 — "Add full minutes (MoM)" button uses the teal-tinted `subtle` variant instead of `ghost`, so it reads as a button — `components/work-log/meeting-minutes.tsx`
+
+- 2026-11-11 — Minutes of meeting: a work-log meeting card can write a new MoM (Tracker Note tagged `#mom`) or link existing notes; links show on the editor and the day page; migration `meeting_minutes_links`; root `db:migrate`/`db:studio` fixed — `lib/meeting-minutes.ts`, `components/work-log/meeting-minutes.tsx`, `meeting-section.tsx`, `actions/worklog.ts`, `lib/validation.ts`, `lib/worklogs.ts`, `app/(app)/work-logs/[workLogId]/page.tsx`, `package.json`, Arch §4/§5, PRD §5.1/§5.3
+
+- 2026-11-11 — Follow-up composer polish: column titled "New update", per-mode button (Add follow-up / Save), "Said:" prefix on the date for I told / They told me, flat soft-tint mode switch instead of the gradient pill — `components/tracker/tracker-board.tsx`, PRD §4/§5.3
+
+- 2026-11-11 — New follow-up: Waiting on / I told / They told me switch; date is "Remind me on" only when waiting, otherwise when it was said; `createFollowUp` accepts `fromThem` for the first message — `components/tracker/tracker-board.tsx`, `lib/follow-ups.ts`, `lib/validation.ts`, PRD §5.3
 
 - 2026-11-02 — Installed app updates itself: deploy id in `next.config.ts` (`NEXT_PUBLIC_APP_VERSION`), public `/api/version`, `PwaProvider` checks on open/return/online/5 min — reloads on open or return, Refresh toast + full load on next page change mid-use — `components/pwa/pwa-provider.tsx`, `app/api/version/route.ts`, `next.config.ts`, `proxy.ts`
 - 2026-11-02 — Dead-code cleanup: removed unused `create-day-tile.tsx`, `create-work-log-form.tsx`, `day-stamp.tsx`, `shell/page-band.tsx`, `ui/band-sx.ts` (+ the fields' `tone="band"`), `QuickLogButton`, and ~30 unused CSS classes (old accordion deck, ticket lanes, tracker week strip, notes bookshelf, `.wl-paper`, `.ocean-tint`, …) — `app/globals.css`, `components/*`

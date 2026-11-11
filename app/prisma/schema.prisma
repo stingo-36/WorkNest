@@ -274,9 +274,26 @@ model Meeting {
   updatedAt DateTime @updatedAt
 
   workLog WorkLog @relation(fields: [workLogId], references: [id], onDelete: Cascade)
+  minutes MeetingMinutesLink[]
 
   @@index([workLogId])
   @@index([workLogId, order])
+}
+
+/// A day's meeting card → the full minutes (MoM) kept as a Tracker Note.
+/// The minutes live once in the Tracker; a meeting only points at them, so one
+/// MoM can be linked from several days. Deleting either side drops the link.
+model MeetingMinutesLink {
+  id         String   @id @default(cuid())
+  meetingId  String
+  followUpId String
+  createdAt  DateTime @default(now())
+
+  meeting  Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  followUp FollowUp @relation(fields: [followUpId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, followUpId])
+  @@index([followUpId])
 }
 
 // ---------------------------------------------------------------------------
@@ -391,6 +408,8 @@ model FollowUp {
   user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   updates FollowUpUpdate[]
   files   FollowUpFile[]
+  /// Meetings that link this Note as their minutes (MoM).
+  meetingLinks MeetingMinutesLink[]
 
   @@index([userId])
   @@index([userId, kind])

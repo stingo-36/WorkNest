@@ -191,6 +191,18 @@ export default async function WorkLogViewPage({ params }: { params: Promise<{ wo
                             <div className="min-w-0 flex-1">
                               <h3 className={cn("text-sm font-semibold", filled ? "text-text" : "text-text-subtle")}>{meeting.name}</h3>
                               {filled ? <MarkdownContent value={meeting.notes} className="mt-1 text-sm text-text-muted" /> : <p className="mt-0.5 text-sm text-text-subtle">No notes</p>}
+                              {meeting.minutes.length ? (
+                                <ul aria-label={`${meeting.name} minutes`} className="mt-2 flex flex-wrap gap-2">
+                                  {meeting.minutes.map(({ followUp }) => (
+                                    <li key={followUp.id} className="min-w-0 max-w-full">
+                                      <Link href={`/tracker?open=${followUp.id}`} className="flex min-w-0 items-center gap-1.5 rounded-full border border-border bg-surface-2 px-3 py-1 text-sm font-medium text-accent-text hover:underline">
+                                        <FileText className="size-3.5 shrink-0" aria-hidden="true" />
+                                        <span className="truncate">{followUp.subject}</span>
+                                      </Link>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : null}
                             </div>
                           </li>
                         );

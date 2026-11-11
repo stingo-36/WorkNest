@@ -217,6 +217,9 @@ export const updateMeetingSchema = z.object({
 
 export const deleteMeetingSchema = z.object({ meetingId: idSchema });
 
+/** Link / unlink a Tracker Note as a meeting's minutes (MoM). */
+export const meetingMinutesLinkSchema = z.object({ meetingId: idSchema, followUpId: idSchema });
+
 // --- learning & attachments ------------------------------------------------
 
 export const saveLearningNotesSchema = z.object({
@@ -410,6 +413,14 @@ const richDocSchema = z
   .refine((value) => value === undefined || (typeof value === "object" && value !== null && (value as { type?: unknown }).type === "doc"), "Invalid text")
   .refine((value) => value === undefined || JSON.stringify(value).length <= 300_000, "That note is too long");
 
+/** Write a new MoM from a meeting card: a Tracker Note tagged `mom`, linked to the meeting. */
+export const createMeetingMinutesSchema = z.object({
+  meetingId: idSchema,
+  subject: cleanLine(300),
+  doc: richDocSchema,
+  tags: tagsSchema,
+});
+
 export const createFollowUpSchema = z
   .object({
     kind: entryKindSchema.default("FollowUp"),
@@ -424,6 +435,8 @@ export const createFollowUpSchema = z
     doc: richDocSchema,
     channel: followUpChannelSchema.optional(),
     occurredAt: optionalDateSchema,
+    /** The first message came from them ("They told me"). Ignored for anything but a FollowUp. */
+    fromThem: z.boolean().optional(),
     tags: tagsSchema,
     /** A personal to-do (sticky note). Ignored for anything but a Task. */
     personal: z.boolean().optional(),
