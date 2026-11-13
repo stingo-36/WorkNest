@@ -8,15 +8,20 @@ import { cn } from "@/components/cn";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { toast } from "@/components/ui/toast";
 import { MarkdownEditor } from "@/components/work-log/markdown-editor";
+import { MeetingMinutes } from "@/components/work-log/meeting-minutes";
 import { useAutosave } from "@/components/work-log/save-status";
-import type { EditorMeeting } from "@/components/work-log/types";
+import type { EditorMeeting, MeetingMinutesRef } from "@/components/work-log/types";
 
 function ActiveMeetingEditor({
   meeting,
+  dateKey,
   onChange,
+  onMinutesChange,
 }: {
   meeting: EditorMeeting;
+  dateKey: string;
   onChange: (notes: string) => void;
+  onMinutesChange: (minutes: MeetingMinutesRef[]) => void;
 }) {
   const { flush } = useAutosave({
     id: `meeting:${meeting.id}`,
@@ -39,16 +44,20 @@ function ActiveMeetingEditor({
         minHeight="min-h-44"
         className="worklog-writing-field flex-1"
       />
+      <MeetingMinutes meeting={meeting} dateKey={dateKey} onChange={onMinutesChange} />
     </div>
   );
 }
 
 export function MeetingSection({
   workLogId,
+  dateKey,
   meetings: initialMeetings,
   onCompletedChange,
 }: {
   workLogId: string;
+  /** The log's day, YYYY-MM-DD (suggested MoM titles). */
+  dateKey: string;
   meetings: EditorMeeting[];
   onCompletedChange?: (count: number) => void;
 }) {
@@ -102,7 +111,7 @@ export function MeetingSection({
     startCreate(async () => {
       const result = await createMeeting({ workLogId, name, notes: "" });
       if (!result.ok) { toast.error(result.error.message); return; }
-      const meeting = { id: result.data.id, name: result.data.name, notes: result.data.notes, order: result.data.order, isDefault: result.data.isDefault };
+      const meeting = { id: result.data.id, name: result.data.name, notes: result.data.notes, order: result.data.order, isDefault: result.data.isDefault, minutes: [] };
       setMeetings((current) => [...current, meeting]);
       setActiveId(meeting.id);
       setNewName("");
@@ -209,7 +218,9 @@ export function MeetingSection({
       <ActiveMeetingEditor
         key={activeMeeting.id}
         meeting={activeMeeting}
+        dateKey={dateKey}
         onChange={(notes) => setMeetings((current) => current.map((meeting) => meeting.id === activeMeeting.id ? { ...meeting, notes } : meeting))}
+        onMinutesChange={(minutes) => setMeetings((current) => current.map((meeting) => meeting.id === activeMeeting.id ? { ...meeting, minutes } : meeting))}
       />
       <ConfirmationDialog
         open={pendingRemove !== null}

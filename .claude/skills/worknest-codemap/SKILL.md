@@ -10,7 +10,7 @@ description: File-level map of the WorkNest codebase — which route, action, li
 > section in the last column if you need the *why*. `npm run docs:check` fails when a
 > file is missing from this map or a listed path no longer exists — keep it green.
 >
-> Last synced with the codebase: **2026-10-26**
+> Last synced with the codebase: **2026-11-12**
 
 Paths are relative to `app/src/` unless they start with `app/` or `/`.
 Docs: **PRD** = `PRD.md`, **Arch** = `Architecture.md`, **DS** = `Design-System.md`,
@@ -45,13 +45,13 @@ Docs: **PRD** = `PRD.md`, **Arch** = `Architecture.md`, **DS** = `Design-System.
 ## Features
 
 ### Work Logs (core) — PRD §5.1 · Arch §3 · DS "Work Logs deck"
-Models: `WorkLog`, `Meeting`, `WorkLogAttachment`, `TicketWorkUpdate`
+Models: `WorkLog`, `Meeting`, `MeetingMinutesLink` (→ Tracker Note = MoM), `WorkLogAttachment`, `TicketWorkUpdate`
 - Routes: `app/(app)/work-logs/page.tsx` (sprint deck), `app/(app)/work-logs/[workLogId]/page.tsx` (detail), `app/(app)/work-logs/[workLogId]/edit/page.tsx`
 - API: `app/api/work-logs/[workLogId]/attachments/route.ts`, `app/api/work-logs/[workLogId]/ai-refresh/route.ts`, `app/api/attachments/[attachmentId]/route.ts`
 - Actions: `actions/worklog.ts`
-- Lib: `lib/worklogs.ts`, `lib/worklog-summary.ts` (AI input), `lib/day-tracker.ts` (day's Tracker items)
+- Lib: `lib/worklogs.ts`, `lib/worklog-summary.ts` (AI input), `lib/day-tracker.ts` (day's Tracker items), `lib/meeting-minutes.ts` (MoM link/create)
 - Deck: `components/work-log/sprint-deck.tsx`, `deck-search.tsx`, `open-day-bar.tsx`, `day-todos.tsx`
-- Editor: `components/work-log/work-log-editor.tsx`, `save-status.tsx` (autosave provider), `markdown-editor.tsx`, `meeting-section.tsx`, `learning-section.tsx`, `attachments-section.tsx`, `attachment-utils.ts`, `section-heading.tsx`, `day-type-toggle.tsx`, `day-type.ts`
+- Editor: `components/work-log/work-log-editor.tsx`, `save-status.tsx` (autosave provider), `markdown-editor.tsx`, `meeting-section.tsx`, `meeting-minutes.tsx` (MoM links + picker), `learning-section.tsx`, `attachments-section.tsx`, `attachment-utils.ts`, `section-heading.tsx`, `day-type-toggle.tsx`, `day-type.ts`
 - Tickets inside a log: `components/work-log/ticket-search.tsx`, `ticket-work-card.tsx`, `ticket-history.tsx`
 - Detail/summary: `components/work-log/work-log-summary.tsx`, `copy-log-button.tsx`, `types.ts` (client view models)
 
@@ -127,7 +127,8 @@ Bearer token, no cookie; `/api/mobile/*` is public in the proxy and checks its o
 - UI: `components/home/home-page.tsx`, `feature-showcase.tsx`, `doodles.tsx`, `recap-avatar.tsx`, `screen-motion.tsx`
 
 ### Shell & navigation — DS §8 "Shell" · Recipes §4
-- `components/shell/app-shell.tsx`, `app-nav.tsx`, `nav-items.ts` (`PRIMARY_NAV`, `navFor`), `menu.tsx`, `page-head.tsx` (`PageHead`, current header), `page-header.tsx` (older `PageHeader`), `page-motion.tsx` (GSAP), `coming-soon-page.tsx`
+- `components/shell/app-shell.tsx`, `app-nav.tsx`, `nav-items.ts` (`PRIMARY_NAV`, `navFor`), `menu.tsx`, `page-head.tsx` (`PageHead`, current header), `page-header.tsx` (older `PageHeader`), `page-motion.tsx` (pathname-keyed wrapper; entrance is CSS `.app-page-motion`), `coming-soon-page.tsx`
+- Shared loading placeholder for every signed-in page (enables prefetch of dynamic routes): `app/(app)/loading.tsx`
 - Coming soon / retired routes: `app/(app)/tasks/page.tsx`, `app/(app)/links/page.tsx`, `app/(app)/settings/page.tsx`, `app/(app)/dashboard/page.tsx` (→ `/tracker`)
 
 ### UI primitives — DS §8 "Primitives" · Recipes §7
@@ -137,5 +138,5 @@ Bearer token, no cookie; `/api/mobile/*` is public in the proxy and checks its o
 
 - Root: `package.json`, `scripts/setup.mjs` (`npm run dev`), `scripts/check-docs.mjs` (`npm run docs:check`), `docker-compose.yml`
 - App: `app/package.json`, `app/scripts/hosted-db.mjs`, `app/scripts/vercel-build.mjs`, `app/prisma.config.ts`, `app/next.config.ts`
-- Seeds: `app/prisma/seed.ts`, `seed-sprint.ts`, `seed-tracker.ts`, `seed-workspace.ts`, `seed-notes.ts`, `seed-achievements.ts`, `seed-bulk.ts`, `seed-fill.ts`, `seed-fresh-demo.ts` (resets tariboi36@gmail.com to a fictional "Lumen Health" workspace — destructive for that account only)
+- Seeds: `app/prisma/seed.ts`, `seed-sprint.ts`, `seed-tracker.ts`, `seed-workspace.ts`, `seed-notes.ts`, `seed-achievements.ts`, `seed-bulk.ts`, `seed-fill.ts`, `seed-fresh-demo.ts` (resets the `DEMO_EMAIL` account from `app/.env` to a fictional "Lumen Health" workspace — destructive for that account only)
 - Agent setup: `AGENTS.md`, `CLAUDE.md`, `.claude/skills/worknest-*`, `.claude/agents/worknest-*`, `.claude/settings.json` (Stop hook → docs check)

@@ -5,7 +5,7 @@
 > and `app/src/app/(auth)/auth-motion.css` (login / register). This file explains the system and the rules. If you change a token,
 > update the table here in the same change.
 >
-> Last synced with the codebase: **2026-11-01**
+> Last synced with the codebase: **2026-11-12**
 
 ---
 
@@ -458,7 +458,7 @@ What the eye should hit, in order — one step per level, never two the same siz
   0 12px 30px -18px rgba(2,132,199,.32)`, `--sh-card-hover` stronger, `--sh-button` for
   primary pills. `--sh-md` / `--sh-lg` stay for layers that float (menus, toasts, dialogs).
 - **Shell additions (Ocean):** `.app-deskbar` (≥ 1024 top bar: breadcrumb + Ask, raises
-  `--dock-clearance` to 3.75rem); phone `.app-tabbar` = Tracker · Logs · `.app-tab-plus`
+  `--dock-clearance` to 3.75rem; sticky at z-index 30 — above page headers that lift to z-20); phone `.app-tabbar` = Tracker · Logs · `.app-tab-plus`
   (Quick log) · Notes · Ask; Ask opens via `openAsk()` (`ASK_OPEN_EVENT`), no floating
   bubble; Ask is a full-height right drawer from md; `Modal size="full"` (`.modal-full`)
   for Quick log; 404 = "Lost at sea." with numbered ways out.
@@ -487,16 +487,15 @@ What the eye should hit, in order — one step per level, never two the same siz
 
 ## 7. Motion
 
-**Authenticated app motion (2026-10-11).** `PageMotion` uses GSAP to choreograph each
-route's major header/section/card regions on load, always beginning above the resting
-position and proceeding in reading order. Motion varies by page family rather than
-using one effect everywhere: Tracker/Notes = editorial vertical sequence;
-Resources/Favourites = soft depth/scale; Admin/Profile = lateral console panels;
-Tickets/Reports/Achievements = compact alternating workflow rows; editors/new pages =
-quiet document settle. Durations are 560ms with 65–100ms family-specific staggers.
-Existing `data-reveal` / `data-reveal-stagger` markup participates in load choreography.
-Work Logs keeps its own indexed 500ms date-card animation and is excluded from GSAP so
-it is not double-animated. Nothing animates in response to scrolling. No JS and
+**Authenticated app motion (2026-11-12, was GSAP from 2026-10-11).** `PageMotion` keys the
+page on its pathname; CSS `.app-page-motion` drops each page root's child regions (and any
+`[data-reveal]`) in over 200ms, 30ms apart, all settled by ~0.32s. One effect for every
+route (the GSAP per-route families are gone). It is CSS because pages stream in behind
+`(app)/loading.tsx`: GSAP wrote inline styles onto server HTML before hydration and React
+reported hydration mismatches. It animates `translate` with fill `backwards`, so it never
+overrides a card's own hover `transform`. Header `t-reveal` / `motion-page-enter` use
+`--duration-fast`; the Tracker list swap uses `--duration-quick`. Work Logs keeps its own
+indexed date-card animation (`--duration-fast`, 25ms per card). Nothing animates in response to scrolling. No JS and
 `prefers-reduced-motion` show everything immediately.
 
 **Local environment marker.** When Git-ignored `app/.env.local` sets
@@ -512,7 +511,7 @@ tokens. Utilities: `.motion-page-enter`, `.motion-stagger`, `.motion-lift`,
 
 - Motion dial for the app: **4/10** (standard, not cinematic). State transitions
   150–250ms. Buttons press with `active:scale-[0.98]`.
-- Animate `transform` and `opacity` only; GSAP route choreography follows the same rule. List CSS properties explicitly
+- Animate `transform`/`translate` and `opacity` only; the page entrance follows the same rule. List CSS properties explicitly
   (`transition-[transform,opacity]`), never `transition-all`. Moving indicators
   (such as meeting tabs) position with `translate3d`, not `left/top`.
 - Navigation never animates in; only the route content well is keyed.

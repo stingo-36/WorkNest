@@ -24,7 +24,7 @@ export default async function EditWorkLogPage({ params }: { params: Promise<{ wo
     attachments: data.attachments.map((item) => ({ ...item, createdAt: new Date(item.createdAt) })),
     date: new Date(data.date),
     updatedAt: new Date(data.updatedAt),
-    meetings: data.meetings.map((meeting) => ({ id: meeting.id, name: meeting.name, notes: meeting.notes, order: meeting.order, isDefault: meeting.isDefault })),
+    meetings: data.meetings.map((meeting) => ({ id: meeting.id, name: meeting.name, notes: meeting.notes, order: meeting.order, isDefault: meeting.isDefault, minutes: meeting.minutes.map(({ followUp }) => ({ id: followUp.id, subject: followUp.subject, archived: Boolean(followUp.archivedAt) })) })),
     tickets: data.ticketUpdates.map((update) => ({
       id: update.ticket.id,
       ticketKey: update.ticket.ticketId,

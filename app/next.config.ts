@@ -38,6 +38,12 @@ const nextConfig: NextConfig = {
     ];
   },
   experimental: {
+    // Reuse a page you visited in the last 30s instead of re-rendering it on the
+    // server, so going back and forth between sections is instant. Server actions
+    // call revalidatePath, which clears this cache, so edits still show at once.
+    // `static` also covers the nav's full prefetches (<Link prefetch>): a preloaded page
+    // is used for up to 60s (default 5 min) so data edited elsewhere is never older than that.
+    staleTimes: { dynamic: 30, static: 60 },
     serverActions: {
       allowedOrigins: ["192.168.31.130:3000"],
     },

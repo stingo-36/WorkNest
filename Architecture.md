@@ -4,7 +4,7 @@
 > delete a module, route, model or script, update the relevant section in the same
 > change.
 >
-> Last synced with the codebase: **2026-10-27**
+> Last synced with the codebase: **2026-11-12**
 
 ---
 
@@ -13,7 +13,7 @@
 | Layer | Choice | Notes |
 |---|---|---|
 | Framework | **Next.js 16.3** (App Router, `src/` dir, alias `@/*`) | Breaking changes vs. older Next — read `app/node_modules/next/dist/docs/` before using an unfamiliar API. `middleware.ts` is now **`proxy.ts`**. Production build uses `next build --webpack`. |
-| UI | **React 19.2**, TypeScript 5, GSAP | Server Components by default; `"use client"` only where needed. GSAP owns route-specific load choreography; CSS owns small state transitions and Work Logs' dedicated calendar sequence. |
+| UI | **React 19.2**, TypeScript 5 | Server Components by default; `"use client"` only where needed. CSS owns all motion: the page entrance (`.app-page-motion`), small state transitions and Work Logs' calendar sequence. (GSAP was removed on 2026-11-12 when the page entrance moved to CSS.) |
 | Styling | **Tailwind CSS 4** (CSS-first, no `tailwind.config`) | All tokens in `src/app/globals.css` via `@theme inline`. |
 | Form fields | **MUI 9** (`@mui/material`, `@mui/material-nextjs`) + Emotion | In `@layer mui` so Tailwind wins. |
 | Rich text | **TipTap 3** (+ lowlight) | Notes pages (JSON) and work-log Markdown fields. |
@@ -110,8 +110,14 @@ authenticated shell.
 `(app)/layout.tsx` runs `requireUser()` + `getUserSettings()` once, wraps children in
 `MuiProvider` + `AppShell`, and passes `ticketsEnabled` and `isAdmin` to the nav. `AppShell` mounts
 `QuickLogProvider` (the Quick log dialog) inside `.app-shell`. Its content well is
-wrapped by `shell/page-motion.tsx`, which assigns a GSAP motion family by route and
-replays major regions when the pathname changes (see Design-System §7). Its sticky,
+wrapped by `shell/page-motion.tsx`, a pathname-keyed wrapper whose CSS entrance
+(`.app-page-motion`) replays when the pathname changes (see Design-System §7). `(app)/loading.tsx`
+is the shared loading boundary: every signed-in page is dynamic (it reads the session), and
+without a boundary a click waited for the server and production could not prefetch the route.
+`next.config.ts` sets `experimental.staleTimes` `{ dynamic: 30, static: 60 }`: a page visited in the
+last 30s is reused on the client, and the nav's sidebar / tab-bar links use `<Link prefetch>` so
+each destination (page + data) is preloaded in production and opens without a loading screen;
+a preload is used for up to 60s. Server actions' `revalidatePath` clears both, so edits show at once. Its sticky,
 full-width top bar has five labelled destinations on phones (Favourites moves to the
 account menu) and six on larger screens; the account menu opens below the bar.
 
@@ -176,13 +182,14 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `lib/ask.ts` | Ask your workspace — a tool-using agent. Starts with CONTEXT (keyword matches via `searchTerms`/`findCandidates`/`rank`, every open Tracker entry via `openTracker` with exact counts and due wording, the work-log date span), then up to 4 tool rounds via `openRouterChat`: `search_workspace`, `get_work_logs` (≤ 62 days), `list_tracker` (open/done, done-in-range), `create_tracker_item`, `change_tracker_item` (done/reopen/reschedule/add_update by record number → id mapped server-side by `Records`). Last round goes without tools (`flatten`). Proposals are returned, never applied. Uses `ASK_MODELS` (tool-capable free models) while the user is on the default model list; falls back to one plain completion with an `<items>` block (`askWithoutTools`/`parseItems`) when no model supports tools. Cites `[n]`; if none, lists what the tools looked up. Notebook tools: `create_notebook`, `change_notebook`, `save_document` (a pasted document — found by `splitMessage`, or sent again by the chat as `document` — is described to the AI as an outline via `documentOutline`; the server turns its text into pages). A new notebook whose name already exists, a missing title, or an empty notebook while a document is in the chat come back to the AI as errors so it asks the user. Notebook proposals carry `before` and a page plan for the card |
 | `lib/quick-log.ts` | Quick log: `draftQuickLog` (AI → JSON read leniently with Zod, then matched to the user's tickets / meeting cards / people / channels; to-dos fall back to one per line without AI) `workLogTemplate` (headings: the day's meetings, open tickets, Work done), and `applyQuickLog` (writes via `worklogs`/`tickets`/`follow-ups` lib functions; same-day re-apply appends) |
 | `lib/workflow-status.ts` | 5-stage workflow + legacy status normalisation |
+| `lib/meeting-minutes.ts` | minutes of meeting (MoM): `listMinutesCandidates` (the user's Tracker Notes, `mom`-tagged first), `linkMeetingMinutes` / `unlinkMeetingMinutes` (both ends checked against `userId`; unlink never deletes the note), `createMeetingMinutes` (a new Note tagged `mom` via `createFollowUp`, then linked) |
 | `lib/follow-ups.ts` | Tracker entries + append-only updates, pin, status, reschedule, tags, `editPersonalTodo` (rewrites a personal to-do's text only), `listTodosAroundDay` (work-log to-dos card) |
 | `lib/note-store.ts`, `lib/notes.ts`, `lib/note-icons.ts`, `lib/note-colors.ts` | notebooks, trash/restore, icon search, accent colours |
 | `lib/note-import.ts` | a pasted document → notebook pages (`marked` lexer → TipTap JSON); the AI in `lib/ask.ts` decides where it goes. `splitMessage` (instruction vs document), `parseDocument` (`#` = the document's own title, `##` = a page, `###`+ headings inside the page), `documentOutline` (what the AI sees), `planDocumentSave` (pages new/changed/removed, `reshaped`) and `saveDocument` (new notebook with one section, or reshape notebook `noteId` to match: pages matched by title anywhere, ignoring case and a leading number; pages and sections not in the document are deleted by `updateNote`). Saved via `importNotebook` in `actions/notes.ts`; title/description/icon-only changes via `saveNotebookDetails` (`updateNoteDetails` in `lib/note-store.ts`); icons found by `findIcon` in `lib/note-icons.ts` |
 | `components/notes/smooth-scroll.ts`, `components/notes/doc-height.ts` | client: frame-by-frame smooth jump that follows a moving target and pauses lazy page mounting while in flight (`isJumping`, `NOTE_SCROLL_END`); estimated height for an unmounted page body. Used by the reader and the editor |
 | `lib/content.ts` | tasks, links, resources (+ favourite) |
 | `components/shell/page-head.tsx` | the shared page header (`PageHead`), `SearchPill`, `UnderlineTabs`, `primaryPill` / `outlinePill` — every list page except Work Logs |
-| `components/shell/page-motion.tsx` | GSAP route-family choreography for authenticated page regions; reduced-motion safe, load-only and intentionally unrelated to scrolling |
+| `components/shell/page-motion.tsx` | Pathname-keyed wrapper for authenticated pages; the entrance itself is CSS (`.app-page-motion`, no JS writes to the markup — hydration-safe with streaming); reduced-motion safe |
 | `lib/sprint.ts` | **the only** sprint arithmetic (`getSprint`) — local calendar days |
 | `lib/rich-text.ts` | shared (client + server): `docToText` (TipTap JSON → plain text with "- " lists), `docFileIds`, `markdownPreview` (Markdown → one plain line), `TRACKER_FILE_PATH`, `MAX_TRACKER_FILE_BYTES` |
 | `components/ui/editor-uploads.ts` | client: `TrackerImage` (TipTap image node, upload-only sources), `uploadFiles`, `insertUploads` — shared by `tracker/update-editor.tsx` and `work-log/markdown-editor.tsx` |
@@ -204,7 +211,7 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 |---|---|
 | `actions/auth.ts` | `register`, role-aware `login` (`Admin` → `/admin`, `User` → `/tracker`; safe callback may override), `logout` (→ `/login`) |
 | `actions/admin.ts` | Admin-only password reset, whole-workspace record erasure and account deletion; Zod → `lib/admin.ts` → `/admin` revalidation |
-| `actions/worklog.ts` | open today/by date, get, adjacent, list, update, delete, meetings CRUD, learning notes, link attachments, delete attachment |
+| `actions/worklog.ts` | open today/by date, get, adjacent, list, update, delete, meetings CRUD, meeting minutes (`listMeetingMinutesOptions`, `linkMeetingMinutes`, `createMeetingMinutes`, `unlinkMeetingMinutes`), learning notes, link attachments, delete attachment |
 | `actions/tickets.ts` | create standalone, find, upsert-for-work-log, save work update, detach, get, list, projects, active, update, append/delete history entry, delete ticket |
 | `actions/follow-ups.ts` | create, add update, pin, status, reschedule, `setFollowUpTags`, `editPersonalTodo`, `listTodosForDay`, delete, list, people |
 | `actions/notes.ts` | create, update, delete (trash), restore, toggle favourite |
@@ -226,7 +233,7 @@ Every domain table has `userId` → `User` with `onDelete: Cascade`, and indexes
 `userId`.
 
 ```
-User ─┬─ WorkLog ─┬─ Meeting
+User ─┬─ WorkLog ─┬─ Meeting ── MeetingMinutesLink ──► FollowUp (a Note = the MoM)
       │           ├─ WorkLogAttachment (File bytes | Link)
       │           └─ TicketWorkUpdate ─┐
       ├─ Ticket ──┬────────────────────┘   @@unique([ticketId, workLogId])
@@ -245,6 +252,7 @@ User ─┬─ WorkLog ─┬─ Meeting
 | `User` | `email` unique, `passwordHash`, `role` (`User` default / `Admin`), `authVersion` (incremented on password change/reset to revoke old JWTs), profile: `sprintStartDate` (`@db.Date`, null = default), `sprintLengthDays` (14), `ticketsEnabled` (true), `openRouterKeyEnc` (sealed, never sent to client) + `openRouterKeyHint` + `openRouterModel`, `groqKeyEnc` (sealed) + `groqKeyHint` |
 | `WorkLog` | `date` `@db.Date` stored as UTC midnight, **`@@unique([userId, date])`**; `title`, `dayType` (Work/Holiday/Leave), `learningNotes` (Markdown), `summary` (generated Markdown, nullable) + `summaryGeneratedAt` + `summaryModel` (null = built from entries); `aiInputHash` (SHA-256 of the text the AI last read) and `titleGenerated` (title written by the AI; a user edit sets it false) |
 | `Meeting` | `name`, `notes` (Markdown), `order`, `isDefault` |
+| `MeetingMinutesLink` | `meetingId` → `Meeting`, `followUpId` → `FollowUp` (a Note holding the full minutes), **`@@unique([meetingId, followUpId])`**; cascades from both sides, so deleting the meeting or the note drops only the link. No `userId` column: both ends are user-owned and verified before insert (`lib/meeting-minutes.ts`). Added 2026-11-11 |
 | `WorkLogAttachment` | `kind` File/Link, `name`, `url?`, `mimeType?`, `size?`, `data Bytes?` (≤10 MB). **`data` is never selected in lists** — only the download route reads it. |
 | `Ticket` | `ticketId` = human key, **`@@unique([userId, ticketId])`**; `title`, `projectName?`, `status` |
 | `TicketWorkUpdate` | one per (ticket, work log): `description`, `status` snapshot. **Append-only history.** |
@@ -336,6 +344,7 @@ App (`/app/package.json`):
 | `db:seed:bulk`, `db:seed:fill`, `db:seed:notes` | older bulk/fill/notes seeds (`fill [-- email days]` also tops up *empty* auto-created logs in the window) |
 | `db:seed:sprint [-- email]` | reset one account's content; fill current sprint with work logs + tickets |
 | `db:seed:tracker [-- email] [--append]` | replace one account's Tracker entries with a realistic mix; `--append` keeps existing entries and adds a second, different set |
+| `npx tsx prisma/seed-fresh-demo.ts` (from `app/`) | DESTRUCTIVE for the demo account only: wipes its content and rebuilds one coherent fictional workspace ("Lumen Health") — work logs 2 Sep → yesterday, tickets, Tracker incl. I told / They told me follow-ups and `#mom` minutes linked to Sprint planning, notebooks, resources, achievements, three 5-15 reports. Keeps name and password; refuses any other account |
 | `db:seed:workspace [-- email]` | fill one account's Notes + Resources with study content (re-runnable) |
 | `db:seed:achievements [-- email]` | fill one account's Achievements (7 items; replaces only its own titles) |
 | `db:hosted [-- --seed]` | `prisma migrate deploy` (+ seed, which wipes users) against `HOSTED_DATABASE_URL` |

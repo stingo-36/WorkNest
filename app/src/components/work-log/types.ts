@@ -23,12 +23,16 @@ export type HistoryEntry = {
   workLog: { id: string; title: string; date: Date } | null;
 };
 
+/** A linked minutes-of-meeting (MoM): a Tracker Note. */
+export type MeetingMinutesRef = { id: string; subject: string; archived: boolean };
+
 export type EditorMeeting = {
   id: string;
   name: string;
   notes: string;
   order: number;
   isDefault: boolean;
+  minutes: MeetingMinutesRef[];
 };
 
 export type EditorTicket = {

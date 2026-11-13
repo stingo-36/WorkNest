@@ -17,7 +17,7 @@
     "db:up": "docker compose up -d --wait",
     "db:down": "docker compose down",
     "db:seed": "npm --prefix app run db:seed",
-    "db:studio": "npm --prefix app exec prisma studio",
-    "db:migrate": "npm --prefix app exec prisma migrate dev"
+    "db:studio": "npm --prefix app run db:studio",
+    "db:migrate": "npm --prefix app run db:migrate --"
   }
 }

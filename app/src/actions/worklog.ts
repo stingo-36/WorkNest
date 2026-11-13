@@ -24,8 +24,16 @@ import {
   updateMeeting as updateMeetingRow,
 } from "@/lib/worklogs";
 import {
+  createMeetingMinutes as createMeetingMinutesRow,
+  linkMeetingMinutes as linkMeetingMinutesRow,
+  listMinutesCandidates,
+  unlinkMeetingMinutes as unlinkMeetingMinutesRow,
+} from "@/lib/meeting-minutes";
+import {
   createMeetingSchema,
   deleteMeetingSchema,
+  createMeetingMinutesSchema,
+  meetingMinutesLinkSchema,
   deleteWorkLogSchema,
   updateMeetingSchema,
   updateWorkLogSchema,
@@ -143,6 +151,56 @@ export async function deleteWorkLog(input: unknown) {
 
   revalidateWorkLog();
   return ok({ deleted: true });
+}
+
+// --- minutes of meeting (MoM) ------------------------------------------------
+// The minutes are Tracker Notes; a meeting card only links to them.
+
+/** Notes the meeting's "Link minutes" picker offers (MoM-tagged first). */
+export async function listMeetingMinutesOptions() {
+  const userId = await requireUserId();
+  return ok(await listMinutesCandidates(userId));
+}
+
+/** Input: { meetingId, followUpId } */
+export async function linkMeetingMinutes(input: unknown) {
+  const userId = await requireUserId();
+  const parsed = parseOrFail(meetingMinutesLinkSchema, input);
+  if (!parsed.ok) return parsed;
+
+  const note = await linkMeetingMinutesRow(userId, parsed.data.meetingId, parsed.data.followUpId);
+  if (!note) return notFound("Meeting or note not found");
+
+  revalidateWorkLog();
+  return ok(note);
+}
+
+/** Write a new MoM (Tracker Note tagged `mom`) and link it. Input: { meetingId, subject, doc?, tags? } */
+export async function createMeetingMinutes(input: unknown) {
+  const userId = await requireUserId();
+  const parsed = parseOrFail(createMeetingMinutesSchema, input);
+  if (!parsed.ok) return parsed;
+
+  const { meetingId, ...rest } = parsed.data;
+  const note = await createMeetingMinutesRow(userId, meetingId, rest);
+  if (!note) return notFound("Meeting not found");
+
+  revalidateWorkLog();
+  revalidatePath("/tracker");
+  return ok(note);
+}
+
+/** Drops the link only; the minutes stay in Tracker → Notes. Input: { meetingId, followUpId } */
+export async function unlinkMeetingMinutes(input: unknown) {
+  const userId = await requireUserId();
+  const parsed = parseOrFail(meetingMinutesLinkSchema, input);
+  if (!parsed.ok) return parsed;
+
+  const removed = await unlinkMeetingMinutesRow(userId, parsed.data.meetingId, parsed.data.followUpId);
+  if (!removed) return notFound("Link not found");
+
+  revalidateWorkLog();
+  return ok({ unlinked: true });
 }
 
 // --- meetings ---------------------------------------------------------------

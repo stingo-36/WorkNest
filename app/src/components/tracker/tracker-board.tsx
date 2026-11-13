@@ -7,11 +7,13 @@ import {
   ArchiveRestore,
   ArrowRight,
   CalendarDays,
+  Clock,
   Pencil,
   Check,
   ChevronDown,
   Hash,
   MessageSquareReply,
+  MessagesSquare,
   Plus,
   RotateCcw,
   Send,
@@ -42,6 +44,7 @@ import { Field, FormError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
+import { Menu, menuItemClass } from "@/components/shell/menu";
 import { TagInput } from "@/components/ui/tag-input";
 import { toast } from "@/components/ui/toast";
 import { FormattedNote } from "@/components/tracker/note-text";
@@ -131,7 +134,25 @@ function ChannelSelect({ id, value, onChange, className }: { id: string; value: 
 }
 
 /** Search saved people as the user types, while still allowing a new name. */
+/**
+ * Who field. Filters saved names as you type and also completes inline: typing
+ * "Fa" fills in "Fatima" with "tima" selected, so Tab / Enter keeps it and
+ * typing on or Backspace drops it. Any new name is still accepted.
+ */
 function PersonAutocomplete({ id, value, options, onChange }: { id: string; value: string; options: string[]; onChange: (value: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  // What the user actually typed; `value` may also hold the selected completion.
+  const [typed, setTyped] = useState(value);
+  const pendingSelection = useRef<[number, number] | null>(null);
+  const query = value.toLowerCase().startsWith(typed.toLowerCase()) ? typed : value;
+
+  // Select the completed part after React writes the new value into the input.
+  useLayoutEffect(() => {
+    const range = pendingSelection.current;
+    pendingSelection.current = null;
+    if (range && inputRef.current && document.activeElement === inputRef.current) inputRef.current.setSelectionRange(range[0], range[1]);
+  }, [value]);
+
   return (
     <Autocomplete<string, false, false, true>
       id={id}
@@ -140,17 +161,35 @@ function PersonAutocomplete({ id, value, options, onChange }: { id: string; valu
       openOnFocus
       value={null}
       inputValue={value}
-      options={options.filter((option) => option.toLowerCase() !== value.trim().toLowerCase())}
-      onInputChange={(_event, next, reason) => {
-        if (reason !== "reset") onChange(next);
+      options={options}
+      filterOptions={(all) => {
+        const needle = query.trim().toLowerCase();
+        return all
+          .filter((option) => option.toLowerCase() !== value.trim().toLowerCase() || query !== value)
+          .filter((option) => option.toLowerCase().includes(needle))
+          // Names that start with what you typed first, so Enter picks the completion.
+          .sort((a, b) => Number(b.toLowerCase().startsWith(needle)) - Number(a.toLowerCase().startsWith(needle)));
+      }}
+      onInputChange={(event, next, reason) => {
+        if (reason === "reset") return;
+        setTyped(next);
+        const inserting = reason === "input" && ((event?.nativeEvent as InputEvent | undefined)?.inputType ?? "").startsWith("insert");
+        const match = inserting && next.trim() ? options.find((option) => option.length > next.length && option.toLowerCase().startsWith(next.toLowerCase())) : undefined;
+        if (match) {
+          pendingSelection.current = [next.length, match.length];
+          onChange(next + match.slice(next.length));
+        } else {
+          onChange(next);
+        }
       }}
       onChange={(_event, next) => {
-        if (typeof next === "string") onChange(next);
+        if (typeof next === "string") { setTyped(next); onChange(next); }
       }}
       noOptionsText={value.trim() ? "No saved name matches — keep typing to add it" : "No saved names yet — type a new one"}
       renderInput={(params) => (
         <TextField
           {...params}
+          inputRef={inputRef}
           placeholder="Type a name"
           slotProps={{
             ...params.slotProps,
@@ -476,7 +515,7 @@ export function TrackerBoard({
           <div className="min-w-0 flex-[1_1_18rem]">
             {view === "todo" ? <AddTodo key={scope} today={today} personal={scope === "personal"} /> : null}
             {view === "followups" ? <p className="px-2 py-3 text-md text-text-muted">Start a follow-up below — the newest update shows on each card.</p> : null}
-            {view === "notes" ? <p className="px-2 py-3 text-md text-text-muted">Write a note below — the newest update shows on each card.</p> : null}
+            {view === "notes" ? <p className="px-2 py-3 text-md text-text-muted">Your notes, newest first. Press New note to write one; open a note to add to it.</p> : null}
             {view === "archived" ? <p className="px-2 py-3 text-md text-text-muted">Put away from your lists, kept with their history. Restore puts one back.</p> : null}
           </div>
         </div>
@@ -506,7 +545,7 @@ export function TrackerBoard({
         {view === "todo" && scope === "personal" ? <StickyBoard entries={personalTodos} today={today} needle={needle} onOpen={openEntry} /> : null}
         {view === "followups" ? <FollowUpQueue entries={byKind.FollowUp} people={people} today={today} needle={needle} onOpen={openEntry} /> : null}
         {view === "archived" ? <ArchiveList entries={archived} today={today} needle={needle} onOpen={openEntry} /> : null}
-        {view === "notes" ? <NoteQueue entries={byKind.Note} suggestions={tagSuggestions} today={today} needle={needle} onOpen={openEntry} onTag={(tag) => setQuery(`#${tag}`)} /> : null}
+        {view === "notes" ? <NoteQueue entries={byKind.Note} suggestions={tagSuggestions} today={today} needle={needle} onOpen={openEntry} /> : null}
         </div>
       </section>
 
@@ -817,10 +856,6 @@ function ActionPill({ ink = false, soft = false, label, action, success }: { ink
   );
 }
 
-function OpenPill({ ink = false, onOpen }: { ink?: boolean; onOpen: () => void }) {
-  return <button type="button" onClick={onOpen} className={cn(PILL, ink ? PILL_INK : PILL_LINE)}>Open</button>;
-}
-
 /**
  * Delete from the row (owner, 2026-10-15) — the dialog also has it. Asks first;
  * removes the entry and everything recorded on it. Shows on hover/focus from md.
@@ -1012,7 +1047,9 @@ function PillPanel({ label, onClose, children }: { label: string; onClose: () =>
   useEffect(() => { onCloseRef.current = onClose; });
 
   useEffect(() => {
-    ref.current?.querySelector<HTMLElement>("input, select, button")?.focus();
+    // preventScroll: the panel opens mid-animation below the card; letting the browser
+    // scroll it into view yanks the page every time a pill is clicked.
+    ref.current?.querySelector<HTMLElement>("input, select, button")?.focus({ preventScroll: true });
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") onCloseRef.current();
     }
@@ -1047,11 +1084,12 @@ function DatePanel({ id, label, hint, value, onChange, onClose }: { id: string; 
   );
 }
 
-function DateTool({ label, value, today, expanded, onClick }: { label: string; value: string; today: string; expanded: boolean; onClick: () => void }) {
+/** `prefix` says what the date means when it isn't a reminder ("Said: Today"). */
+function DateTool({ label, prefix, value, today, expanded, onClick }: { label: string; prefix?: string; value: string; today: string; expanded: boolean; onClick: () => void }) {
   return (
     <ToolButton label={value ? `${label}: ${dayLabel(value)}` : label} expanded={expanded} onClick={onClick} className={value ? "text-text" : undefined}>
       <CalendarDays className="size-5" strokeWidth={1.8} aria-hidden="true" />
-      {value ? <span className="hidden md:inline">{value === today ? "Today" : format(parseISO(value), "d MMM")}</span> : null}
+      {value ? <span className="hidden md:inline">{prefix ? <span className="font-normal text-text-muted">{prefix}: </span> : null}{value === today ? "Today" : format(parseISO(value), "d MMM")}</span> : null}
     </ToolButton>
   );
 }
@@ -1070,7 +1108,7 @@ function useCreate(onSaved: () => void) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string>();
   function create(
-    input: { kind: EntryKind; subject: string; person?: string; note?: string; doc?: unknown; channel?: string; dueDate?: string | null; occurredAt?: string | null; tags?: string[]; personal?: boolean },
+    input: { kind: EntryKind; subject: string; person?: string; note?: string; doc?: unknown; channel?: string; dueDate?: string | null; occurredAt?: string | null; fromThem?: boolean; tags?: string[]; personal?: boolean },
     pinned: boolean,
   ) {
     startTransition(async () => {
@@ -1606,7 +1644,7 @@ function FollowUpQueue({ entries, people, today, needle, onOpen }: { entries: Tr
 
   return (
     <Columns>
-      <Column title="New follow-up">
+      <Column title="New update">
         <div className="relative z-10 pt-5"><AddFollowUp people={people} today={today} /></div>
         <FinishedGroup verb="closed" entries={groups.closed} today={today} needle={needle} render={row} />
       </Column>
@@ -1620,7 +1658,21 @@ function FollowUpQueue({ entries, people, today, needle, onOpen }: { entries: Tr
   );
 }
 
-/** The same card as New note: what you're waiting on, the first message, then who / when / star. */
+/**
+ * What a new follow-up records. Not stored as its own field: "they told me" is a
+ * first message with `fromThem`, and only "waiting" carries a reminder date — the
+ * others use the date as when it was said. "General" is the catch-all for any
+ * conversation that isn't clearly one direction: saved like "I told", neutral copy.
+ */
+const FOLLOW_MODES = {
+  general: { label: "General", Icon: MessagesSquare, subject: "What was it about?", body: "Notes (optional)…", who: "Who was it with?", whoTool: (p: string) => `With ${p}`, submit: "Save", datePrefix: "On", date: "Talked on", dateHint: "When the conversation happened. Past dates are fine." },
+  waiting: { label: "Waiting on", Icon: Clock, subject: "What are you waiting on?", body: "What you sent them (optional)…", who: "Who are you waiting on?", whoTool: (p: string) => `Waiting on ${p}`, submit: "Add follow-up", datePrefix: "", date: "Remind me on", dateHint: "Choose when you want to follow up again if they have not replied." },
+  told: { label: "I told", Icon: Send, subject: "What did you tell them?", body: "Details (optional)…", who: "Who did you tell?", whoTool: (p: string) => `Told ${p}`, submit: "Save", datePrefix: "Said", date: "Told them on", dateHint: "When you told them. Past dates are fine." },
+  theyTold: { label: "They told me", Icon: MessageSquareReply, subject: "What did they tell you?", body: "What they said (optional)…", who: "Who told you?", whoTool: (p: string) => `From ${p}`, submit: "Save", datePrefix: "Said", date: "They told me on", dateHint: "When they told you. Past dates are fine." },
+} as const;
+type FollowMode = keyof typeof FOLLOW_MODES;
+
+/** The same card as New note: the subject, the first message, then type (dropdown) / the first message, then who / when / star. */
 function AddFollowUp({ people, today }: { people: string[]; today: string }) {
   const { channels } = useContext(ListsContext);
   const [subject, setSubject] = useState("");
@@ -1631,6 +1683,8 @@ function AddFollowUp({ people, today }: { people: string[]; today: string }) {
   const [channel, setChannel] = useState(defaultChannel(channels));
   const [date, setDate] = useState(today);
   const [pinned, setPinned] = useState(false);
+  const [mode, setMode] = useState<FollowMode>("general");
+  const copy = FOLLOW_MODES[mode];
   const [panel, setPanel] = useState<"who" | "date" | null>(null);
   const { create, pending, error, setError } = useCreate(() => {
     setSubject(""); setBody({ doc: null, text: "", hasContent: false }); setEditorKey((key) => key + 1);
@@ -1639,8 +1693,9 @@ function AddFollowUp({ people, today }: { people: string[]; today: string }) {
 
   function save() {
     if (pending) return;
-    if (!subject.trim()) { setError("Write what you're waiting on first"); document.getElementById("add-follow-up")?.focus(); return; }
-    if (!person.trim()) { setError("Who are you waiting on?"); setPanel("who"); return; }
+    if (!subject.trim()) { setError("Write what it is about first"); document.getElementById("add-follow-up")?.focus(); return; }
+    if (!person.trim()) { setError(copy.who); setPanel("who"); return; }
+    const waiting = mode === "waiting";
     create(
       {
         kind: "FollowUp",
@@ -1650,7 +1705,10 @@ function AddFollowUp({ people, today }: { people: string[]; today: string }) {
         // comes from the same place as every later nudge. No message → the subject.
         ...(body.hasContent ? { doc: body.doc, note: body.text } : { note: subject.trim() }),
         channel,
-        dueDate: date || null,
+        // Waiting: the date is the reminder. Told / they told: it is when it was said.
+        dueDate: waiting ? date || null : null,
+        occurredAt: waiting ? null : date || null,
+        fromThem: mode === "theyTold",
       },
       pinned,
     );
@@ -1659,27 +1717,28 @@ function AddFollowUp({ people, today }: { people: string[]; today: string }) {
   return (
     <form aria-label="Add a follow-up" onSubmit={(event) => { event.preventDefault(); save(); }} className="relative">
       <div className="tk-field flex flex-col rounded-2xl border border-border-strong bg-surface">
-        <label htmlFor="add-follow-up" className="sr-only">What are you waiting on?</label>
+        <label htmlFor="add-follow-up" className="sr-only">{copy.subject}</label>
         <input
           id="add-follow-up"
           value={subject}
           maxLength={300}
-          placeholder="What are you waiting on?"
+          placeholder={copy.subject}
           aria-invalid={error ? true : undefined}
           onChange={(event) => { setSubject(event.target.value); setError(undefined); }}
           className="min-w-0 border-b border-border bg-transparent px-5 pt-4 pb-3 text-lg font-semibold text-text outline-none placeholder:font-medium placeholder:text-text-muted"
         />
-        <UpdateEditor key={editorKey} id="add-follow-up-body" label="What you sent" placeholder="What you sent them (optional)… paste formatted text, images or files" minHeight="min-h-32" onChange={setBody} onSubmit={save} />
+        <UpdateEditor key={editorKey} id="add-follow-up-body" label="First message" placeholder={`${copy.body} paste formatted text, images or files`} minHeight="min-h-32" onChange={setBody} onSubmit={save} />
         <div className="flex flex-wrap items-center gap-1 border-t border-border py-1.5 pr-1.5 pl-2">
-          <ToolButton label={person ? `Waiting on ${person}` : "Choose who you are waiting on"} expanded={panel === "who"} onClick={() => setPanel(panel === "who" ? null : "who")} className={person ? "text-text" : undefined}>
+          <FollowModeMenu value={mode} onChange={(next) => { setMode(next); setError(undefined); }} />
+          <ToolButton label={person ? copy.whoTool(person) : copy.who} expanded={panel === "who"} onClick={() => setPanel(panel === "who" ? null : "who")} className={person ? "text-text" : undefined}>
             {person ? <Avatar name={person} /> : <UserRound className="size-5" strokeWidth={1.8} aria-hidden="true" />}
             {person ? <span className="max-w-32 truncate">{person}</span> : null}
           </ToolButton>
-          <DateTool label="Set follow-up reminder" value={date} today={today} expanded={panel === "date"} onClick={() => setPanel(panel === "date" ? null : "date")} />
+          <DateTool label={copy.date} prefix={copy.datePrefix} value={date} today={today} expanded={panel === "date"} onClick={() => setPanel(panel === "date" ? null : "date")} />
           <StarTool value={pinned} onChange={setPinned} />
           <span className="ml-auto text-sm text-text-subtle max-md:hidden">⌘/Ctrl + Enter</span>
           <button type="submit" disabled={pending} className="ml-2 h-11 shrink-0 cursor-pointer rounded-full bg-sidebar px-5 text-md font-semibold text-sidebar-fg transition-colors duration-150 hover:bg-sidebar-3 disabled:cursor-wait disabled:opacity-60 max-md:ml-auto">
-            Add follow-up
+            {copy.submit}
           </button>
         </div>
       </div>
@@ -1695,8 +1754,8 @@ function AddFollowUp({ people, today }: { people: string[]; today: string }) {
       ) : panel === "date" ? (
         <DatePanel
           id="add-fu-date"
-          label="Remind me on"
-          hint="Choose when you want to follow up again if they have not replied."
+          label={copy.date}
+          hint={copy.dateHint}
           value={date}
           onChange={setDate}
           onClose={() => setPanel(null)}
@@ -1704,6 +1763,48 @@ function AddFollowUp({ people, today }: { people: string[]; today: string }) {
       ) : null}
       {error ? <p className="mt-2 px-1 text-base font-medium text-danger" role="alert">{error}</p> : null}
     </form>
+  );
+}
+
+/** The follow-up type as a compact dropdown in the composer's toolbar — one card for every kind of conversation. */
+function FollowModeMenu({ value, onChange }: { value: FollowMode; onChange: (mode: FollowMode) => void }) {
+  const current = FOLLOW_MODES[value];
+  return (
+    <Menu
+      label="Follow-up type"
+      align="start"
+      side="top"
+      trigger={(props) => (
+        <button
+          {...props}
+          type="button"
+          aria-label={`Type: ${current.label}`}
+          className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full bg-primary-subtle px-3 text-sm font-semibold text-primary-strong transition-colors duration-150 hover:bg-surface-3"
+        >
+          <current.Icon className="size-4" aria-hidden="true" />
+          {current.label}
+          <ChevronDown className="size-3.5" aria-hidden="true" />
+        </button>
+      )}
+    >
+      {(Object.keys(FOLLOW_MODES) as FollowMode[]).map((key) => {
+        const option = FOLLOW_MODES[key];
+        return (
+          <button
+            key={key}
+            type="button"
+            role="menuitemradio"
+            aria-checked={value === key}
+            onClick={() => onChange(key)}
+            className={cn(menuItemClass, value === key && "text-primary-strong")}
+          >
+            <option.Icon aria-hidden="true" />
+            <span className="flex-1 text-left">{option.label}</span>
+            {value === key ? <Check aria-hidden="true" /> : null}
+          </button>
+        );
+      })}
+    </Menu>
   );
 }
 
@@ -1787,35 +1888,103 @@ function noteTags(entries: TrackerEntry[]) {
   return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 }
 
-/** Left: the composer and the collapsed archive. Right: every open note with its latest update. */
-function NoteQueue({ entries, suggestions, today, needle, onOpen, onTag }: { entries: TrackerEntry[]; suggestions: string[]; today: string; needle: string; onOpen: (entry: TrackerEntry) => void; onTag: (tag: string) => void }) {
-  const { live, archived } = useMemo(() => {
-    const next = { live: [] as TrackerEntry[], archived: [] as TrackerEntry[] };
-    for (const entry of entries) {
-      if (!matches(entry, needle)) continue;
-      (isOpen(entry) ? next.live : next.archived).push(entry);
-    }
-    next.live.sort(byRecent);
-    next.archived.sort(byCompleted);
-    return next;
-  }, [entries, needle]);
+/** "today", "yesterday", "3 days ago", then the date — the note list's one time column. */
+function noteWhen(iso: string, today: string) {
+  const days = differenceInCalendarDays(parseISO(today), parseISO(localDay(iso)));
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days} days ago`;
+  return format(parseISO(iso), "d MMM");
+}
 
-  const row = (entry: TrackerEntry) => <NoteRow key={entry.id} entry={entry} today={today} onOpen={() => onOpen(entry)} onTag={onTag} />;
+/**
+ * One card (owner mockup, 2026-11-11): title + count + New note, a search, tag
+ * filters, then Pinned · This week · Earlier. The composer opens in a popup so
+ * the list is the page. Archived notes stay collapsed at the bottom.
+ */
+function NoteQueue({ entries, suggestions, today, needle, onOpen }: { entries: TrackerEntry[]; suggestions: string[]; today: string; needle: string; onOpen: (entry: TrackerEntry) => void }) {
+  const [search, setSearch] = useState("");
+  const [tag, setTag] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const tags = useMemo(() => noteTags(entries.filter(isOpen)).map(([name]) => name), [entries]);
+  const activeTag = tag && tags.includes(tag) ? tag : null;
+
+  const { groups, archived, count } = useMemo(() => {
+    const local = search.trim().toLowerCase();
+    const next = { pinned: [] as TrackerEntry[], week: [] as TrackerEntry[], earlier: [] as TrackerEntry[] };
+    const done: TrackerEntry[] = [];
+    let total = 0;
+    for (const entry of entries) {
+      if (!matches(entry, needle) || (local && !matches(entry, local))) continue;
+      if (!isOpen(entry)) { done.push(entry); continue; }
+      if (activeTag && !entry.tags.includes(activeTag)) continue;
+      total += 1;
+      if (entry.pinned) next.pinned.push(entry);
+      else if (differenceInCalendarDays(parseISO(today), parseISO(localDay(entry.updatedAt))) < 7) next.week.push(entry);
+      else next.earlier.push(entry);
+    }
+    for (const list of Object.values(next)) list.sort(byRecent);
+    done.sort(byCompleted);
+    return { groups: next, archived: done, count: total };
+  }, [entries, needle, search, activeTag, today]);
+
+  const row = (entry: TrackerEntry) => <NoteRow key={entry.id} entry={entry} today={today} onOpen={() => onOpen(entry)} onTag={setTag} />;
+  const group = (label: string, items: TrackerEntry[]) => items.length ? (
+    <div>
+      <h3 className="tk-label px-1 pt-5 pb-2 text-text-muted">{label}</h3>
+      {/* Rows flow into columns as the card widens, so the width holds notes, not gaps. */}
+      <ol className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">{items.map(row)}</ol>
+    </div>
+  ) : null;
+  const chip = (on: boolean) => cn(
+    "inline-flex h-10 shrink-0 cursor-pointer items-center rounded-full border px-4 text-md font-semibold whitespace-nowrap transition-colors duration-150",
+    on ? "border-sidebar bg-sidebar text-sidebar-fg" : "border-border bg-surface text-text hover:border-text",
+  );
 
   return (
-    <Columns>
-      <Column title="New note">
-        <div className="relative z-10 pt-5"><AddNote suggestions={suggestions} today={today} /></div>
-        <FinishedGroup verb="archived" entries={archived} today={today} needle={needle} render={row} />
-      </Column>
-      <Column title="Notes" count={live.length}>
-        {live.length ? <ol>{live.map(row)}</ol> : <Empty>{needle ? "Nothing matches." : "No notes yet. Write one on the left."}</Empty>}
-      </Column>
-    </Columns>
+    <section aria-labelledby="tk-notes-title" className="tk-notes flex w-full min-w-0 flex-col rounded-2xl border border-border bg-surface p-4 shadow-xs md:p-6">
+      {/* Wide screens: title · search · New note on one line; below lg the search drops under. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+        <h2 id="tk-notes-title" className="flex items-baseline gap-2.5 text-2xl font-bold text-text">
+          Notes <span className="text-md font-semibold text-text-muted tabular-nums">{count}</span>
+        </h2>
+        <SearchPill id="tk-notes-search" label="Search notes" value={search} placeholder="Search notes" onChange={setSearch} className="order-last w-full lg:order-none lg:ml-auto lg:w-96" />
+        <button type="button" onClick={() => setAdding(true)} className={cn(PILL, PILL_INK, "gap-2 px-4 max-lg:ml-auto")}>
+          <Plus className="size-4.5" strokeWidth={2.4} aria-hidden="true" />
+          New note
+        </button>
+      </div>
+      {tags.length ? (
+        <div role="group" aria-label="Filter by tag" className="mt-3 flex gap-2 overflow-x-auto pb-1">
+          <button type="button" aria-pressed={!activeTag} onClick={() => setTag(null)} className={chip(!activeTag)}>All</button>
+          {tags.map((name) => (
+            <button key={name} type="button" aria-pressed={activeTag === name} onClick={() => setTag(activeTag === name ? null : name)} className={chip(activeTag === name)}>
+              #{name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {count ? (
+        <div className="mt-1">
+          {group("Pinned", groups.pinned)}
+          {group("This week", groups.week)}
+          {group("Earlier", groups.earlier)}
+        </div>
+      ) : (
+        <div className="mt-4"><Empty>{needle || search || activeTag ? "Nothing matches." : "No notes yet. Press New note to write one."}</Empty></div>
+      )}
+      <FinishedGroup verb="archived" entries={archived} today={today} needle={needle || search} render={row} />
+      {adding ? (
+        <Modal open size="lg" onClose={() => setAdding(false)} title="New note">
+          <AddNote suggestions={suggestions} today={today} onSaved={() => setAdding(false)} />
+        </Modal>
+      ) : null}
+    </section>
   );
 }
 
-function AddNote({ suggestions, today }: { suggestions: string[]; today: string }) {
+/** `onSaved` set = it lives in the New note popup: panels open in the flow (the popup body would clip a floating one). */
+function AddNote({ suggestions, today, onSaved }: { suggestions: string[]; today: string; onSaved?: () => void }) {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState<EditorValue>({ doc: null, text: "", hasContent: false });
   // Remounting the editor (new key) is how it clears after a save.
@@ -1827,6 +1996,7 @@ function AddNote({ suggestions, today }: { suggestions: string[]; today: string 
   const { create, pending, error, setError } = useCreate(() => {
     setSubject(""); setBody({ doc: null, text: "", hasContent: false }); setEditorKey((key) => key + 1);
     setDate(today); setTags([]); setPinned(false); setPanel(null);
+    onSaved?.();
   });
 
   function save() {
@@ -1847,11 +2017,12 @@ function AddNote({ suggestions, today }: { suggestions: string[]; today: string 
   }
 
   return (
-    <form aria-label="Add a note" onSubmit={(event) => { event.preventDefault(); save(); }} className="relative">
+    <form aria-label="Add a note" onSubmit={(event) => { event.preventDefault(); save(); }} className={cn("relative", onSaved && "tk-inline-panels")}>
       <div className="tk-field flex flex-col rounded-2xl border border-border-strong bg-surface">
         <label htmlFor="add-note" className="sr-only">Note title</label>
         <input
           id="add-note"
+          autoFocus
           value={subject}
           maxLength={300}
           placeholder="Note title"
@@ -1887,35 +2058,26 @@ function AddNote({ suggestions, today }: { suggestions: string[]; today: string 
   );
 }
 
-/** A note row is just its title, tags and when it changed — the text stays inside (owner, 2026-10-14). */
+/** A note row is just its title, tags and when it changed — the text stays inside (owner, 2026-10-14). A bordered card, the same height as its neighbours (title clamps at two lines). */
 function NoteRow({ entry, today, onOpen, onTag }: { entry: TrackerEntry; today: string; onOpen: () => void; onTag: (tag: string) => void }) {
   const archived = !isOpen(entry);
   return (
-    <Row
-      title={entry.subject}
-      onOpen={onOpen}
-      meta={
-        <>
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 pt-1 text-base font-medium text-text-muted">
-            {entry.tags.map((tag) => (
-              <button key={tag} type="button" onClick={() => onTag(tag)} title={`Show notes tagged #${tag}`} style={tagChipStyle(tag)} className={cn(tagChipClass, "cursor-pointer decoration-2 underline-offset-4 hover:underline")}>
-                #{tag}
-              </button>
-            ))}
-            <span suppressHydrationWarning>
-              {entry.updates.length > 1 ? `${entry.updates.length} updates · ` : ""}{archived ? "Archived" : "Updated"} {ago(entry.updatedAt, today)}
-            </span>
-          </div>
-        </>
-      }
-      actions={
-        <>
-          <DeleteEntry entry={entry} />
-          {archived ? <ActionPill label="Restore" action={markOpen(entry)} success="Restored" /> : <OpenPill onOpen={onOpen} />}
-          <FavouriteToggle entry={entry} />
-        </>
-      }
-    />
+    <li className="group flex min-h-24 items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 transition-[border-color,box-shadow] duration-150 hover:border-border-strong hover:shadow-xs">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <button type="button" onClick={onOpen} className={cn("line-clamp-2 w-fit max-w-full cursor-pointer text-left text-lg font-semibold text-text [overflow-wrap:anywhere] decoration-2 underline-offset-4 hover:underline max-md:text-md", archived && "text-text-muted")}>
+          {entry.subject}
+        </button>
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-md text-text-muted">
+          {entry.tags.map((tag) => (
+            <button key={tag} type="button" onClick={() => onTag(tag)} title={`Show notes tagged #${tag}`} style={tagChipStyle(tag)} className={cn(tagChipClass, "cursor-pointer rounded-md bg-[color-mix(in_srgb,var(--tag)_14%,transparent)] px-1.5 py-0.5 hover:bg-[color-mix(in_srgb,var(--tag)_24%,transparent)]")}>
+              #{tag}
+            </button>
+          ))}
+          <span suppressHydrationWarning>{archived ? `Archived ${noteWhen(entry.completedAt ?? entry.updatedAt, today)}` : noteWhen(entry.updatedAt, today)}</span>
+        </div>
+      </div>
+      {archived ? <ActionPill label="Restore" action={markOpen(entry)} success="Restored" /> : <FavouriteToggle entry={entry} />}
+    </li>
   );
 }
 
