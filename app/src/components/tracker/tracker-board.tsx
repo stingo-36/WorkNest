@@ -11,6 +11,7 @@ import {
   Pencil,
   Check,
   ChevronDown,
+  ChevronRight,
   Hash,
   MessageSquareReply,
   MessagesSquare,
@@ -21,6 +22,7 @@ import {
   Trash2,
   UserRound,
 } from "lucide-react";
+import { createPortal } from "react-dom";
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { addDays, differenceInCalendarDays, endOfWeek, format, parseISO, startOfWeek } from "date-fns";
@@ -111,8 +113,8 @@ const VIEWS: Array<{ id: TrackerView; label: string }> = [
 
 const KIND_LABEL: Record<EntryKind, string> = { Task: "To-do", FollowUp: "Follow-up", Note: "Note" };
 
-/** The To-do tab's two lists. Work is the default every time the page opens (owner, 2026-10-21). */
-type TodoScope = "work" | "personal";
+/** The To-do tab's lists: All, Work or Personal. Work is the default every time the page opens (owner, 2026-10-21). */
+type TodoScope = "all" | "work" | "personal";
 
 const entryLabel = (entry: TrackerEntry) => (entry.personal ? "Personal to-do" : KIND_LABEL[entry.kind]);
 
@@ -238,33 +240,6 @@ const plural = (count: number, one: string, many = `${one}s`) => (count === 1 ? 
 
 /** "Thu 8 Oct" */
 const dayLabel = (iso: string) => format(parseISO(iso), "EEE d MMM");
-
-/**
- * A highlight that slides to the picked option (Ocean, 2026-11-01): the box's
- * ::before is moved and sized to the `[data-on]` child. Until measured (first
- * paint, no JS) the picked option draws its own fill, so nothing flashes.
- */
-function useSlidingPill<T extends HTMLElement>(picked: string) {
-  const ref = useRef<T>(null);
-  useLayoutEffect(() => {
-    const box = ref.current;
-    if (!box) return;
-    const place = () => {
-      const on = box.querySelector<HTMLElement>("[data-on]");
-      if (!on) return;
-      box.style.setProperty("--sx", `${on.offsetLeft}px`);
-      box.style.setProperty("--sy", `${on.offsetTop}px`);
-      box.style.setProperty("--sw", `${on.offsetWidth}px`);
-      box.style.setProperty("--sh", `${on.offsetHeight}px`);
-      box.dataset.slide = "on";
-    };
-    place();
-    const observer = new ResizeObserver(place);
-    observer.observe(box);
-    return () => observer.disconnect();
-  }, [picked]);
-  return ref;
-}
 
 /** Run a server action, toast the outcome, refresh the board. */
 function useRun() {
@@ -398,14 +373,16 @@ export function TrackerBoard({
   }, [live]);
   const workEntries = useMemo(() => live.filter((entry) => !entry.personal), [live]);
   const personalTodos = useMemo(() => byKind.Task.filter((entry) => entry.personal), [byKind]);
+  const workOpen = byKind.Task.filter((entry) => !entry.personal && isOpen(entry)).length;
   const scopeCounts: Record<TodoScope, number> = {
-    work: byKind.Task.filter((entry) => !entry.personal && isOpen(entry)).length,
+    all: workOpen + personalTodos.filter(isOpen).length,
+    work: workOpen,
     personal: personalTodos.filter(isOpen).length,
   };
 
   // Tab badges: what's still open, not the grand total.
   const badge: Record<TrackerView, number> = {
-    todo: scopeCounts.work + scopeCounts.personal,
+    todo: scopeCounts.all,
     followups: byKind.FollowUp.filter(isOpen).length,
     notes: byKind.Note.filter(isOpen).length,
     archived: archived.length,
@@ -450,75 +427,101 @@ export function TrackerBoard({
     choose(next.id);
   }
 
-  const tabsRef = useSlidingPill<HTMLElement>(view);
-
   // Follow-ups badge turns amber when one needs you.
   const followNeeds = byKind.FollowUp.some((entry) => needsYou(entry, today));
 
   // The greeting's numbers: overdue work to-dos, everything that needs you, and
   // to-dos finished since the sprint (else the week) began.
   const summaryFrom = sprint?.start ?? format(startOfWeek(parseISO(today), { weekStartsOn: 1 }), "yyyy-MM-dd");
+  const overdueTodos = workEntries.filter((entry) => entry.kind === "Task" && isOpen(entry) && entry.dueDate !== null && entry.dueDate < today);
+  const oldestDue = overdueTodos.reduce<string | null>((oldest, entry) => (oldest === null || entry.dueDate! < oldest ? entry.dueDate : oldest), null);
   const summary = {
-    overdue: workEntries.filter((entry) => entry.kind === "Task" && isOpen(entry) && entry.dueDate !== null && entry.dueDate < today).length,
+    overdue: overdueTodos.length,
+    oldestLate: oldestDue ? differenceInCalendarDays(parseISO(today), parseISO(oldestDue)) : 0,
     needs: workEntries.filter((entry) => entry.kind !== "Note" && isOpen(entry) && needsYou(entry, today)).length,
+    // People who replied and are waiting on you (one per person, however many threads).
+    yourTurn: new Set(byKind.FollowUp.filter((entry) => isOpen(entry) && followStateOf(entry) === "replied").map((entry) => entry.person ?? "Someone")).size,
     done: byKind.Task.filter((entry) => !isOpen(entry) && entry.completedAt && localDay(entry.completedAt) >= summaryFrom).length,
   };
+  const week = weekStats(workEntries, today);
+
+  // From 1024px search lives in the desktop top bar (mockup, 2026-11-14); the bar
+  // renders an empty slot for it. Below that it stays on the page.
+  const deskSlot = useSyncExternalStore(subscribeNever, () => document.getElementById("app-deskbar-slot"), () => null);
 
   return (
     <ListsContext.Provider value={lists}>
-    <div className="tk-focus flex w-full min-w-0 flex-col gap-12">
-      {/* Ocean redesign v3 (2026-11-01): date + sprint eyebrow, a greeting with today's
-          numbers, the lists as pill tabs beside search; then one command bar to add. */}
+    <div className="tk-focus tk-plain flex w-full min-w-0 flex-col gap-6">
+      {/* Plain redesign (owner's mockup, 2026-11-14): date + greeting with the sprint meter,
+          four stat cards, underline tabs with All / Work / Personal, then the add row. */}
       {/* relative z-20: the page's entrance animation leaves each block in its own stacking
           layer, so without this the content below paints over (and swallows clicks on) the
           add field's date / who panels. */}
-      <header className="relative z-20 flex flex-col gap-5">
+      <header className="relative z-20 flex flex-col gap-6">
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <p className="tk-eyebrow text-text-muted" suppressHydrationWarning>
-              {format(parseISO(today), "EEEE, d MMMM")}{sprint ? ` · Sprint day ${sprint.day} of ${sprint.total}` : ""}
-            </p>
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className="text-sm text-text-muted" suppressHydrationWarning>{format(parseISO(today), "EEEE, d MMMM")}</p>
             <h1 className="tk-greeting">
               <span className="sr-only">Tracker — </span>
               <span suppressHydrationWarning>{greeting()}</span>{greetingName ? `, ${greetingName}` : ""}
             </h1>
-            <p className="text-md text-text-muted" suppressHydrationWarning>
-              {summary.overdue ? <><b className="font-semibold text-danger">{summary.overdue} overdue</b> · </> : null}
-              {summary.needs ? <><b className="font-semibold text-warning">{summary.needs} {summary.needs === 1 ? "needs" : "need"} you</b> · </> : null}
-              {summary.done} done {sprint ? "this sprint" : "this week"}
-            </p>
           </div>
-          <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <nav ref={tabsRef} aria-label="Tracker lists" onKeyDown={onTabKey} className="tk-tabs tk-slide">
-              {VIEWS.map((item) => {
-                const on = item.id === view;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    aria-current={on ? "page" : undefined}
-                    data-on={on || undefined}
-                    onClick={() => choose(item.id)}
-                    className="tk-tab"
-                  >
-                    {item.label}
-                    <span className={cn("text-sm font-semibold tabular-nums", item.id === "followups" && followNeeds ? "text-warning" : "text-text-muted")}>{badge[item.id]}</span>
-                  </button>
-                );
-              })}
-            </nav>
-            <SearchPill id="tracker-search" label="Search the Tracker" value={query} placeholder="Search, or #tag" onChange={setQuery} shortcut className="h-11 w-full md:w-60" />
-          </div>
+          {sprint ? <SprintMeter day={sprint.day} total={sprint.total} done={summary.done} /> : <p className="text-sm text-text-muted">{summary.done} done this week</p>}
         </div>
-        <div className="tk-command">
+
+        <ul aria-label="Today at a glance" className="tk-stats">
+          <li className="tk-glance" data-tone={summary.overdue ? "overdue" : undefined}>
+            <p className="tk-stat-label">Overdue</p>
+            <p className="tk-stat-value">{summary.overdue}</p>
+            <p className="tk-stat-note" suppressHydrationWarning>{summary.overdue ? `Oldest is ${summary.oldestLate} ${plural(summary.oldestLate, "day")} late` : "Nothing late"}</p>
+          </li>
+          <li className="tk-glance" data-tone="needs">
+            <p className="tk-stat-label">Need you</p>
+            <p className="tk-stat-value">{summary.needs}</p>
+            <p className="tk-stat-note">Across to-dos and follow-ups</p>
+          </li>
+          <li className="tk-glance" data-tone="turn">
+            <p className="tk-stat-label">Your turn</p>
+            <p className="tk-stat-value">{summary.yourTurn}</p>
+            <p className="tk-stat-note">{plural(summary.yourTurn, "Person", "People")} waiting on a reply</p>
+          </li>
+          <li className="tk-glance" data-tone="done">
+            <p className="tk-stat-label">Done this week</p>
+            <p className="tk-stat-value">{week.done}</p>
+            <p className="tk-stat-note">{week.pct}% of this week&apos;s plan</p>
+          </li>
+        </ul>
+
+        <SearchPill id="tracker-search" label="Search the Tracker" value={query} placeholder="Search tasks, people or #tags" onChange={setQuery} className="h-11 w-full lg:hidden" />
+        {deskSlot ? createPortal(
+          <SearchPill id="tracker-search-desk" label="Search the Tracker" value={query} placeholder="Search tasks, people or #tags" onChange={setQuery} shortcut className="h-10 w-full max-w-md" />,
+          deskSlot,
+        ) : null}
+
+        <div className="tk-tabrow">
+          <nav aria-label="Tracker lists" onKeyDown={onTabKey} className="tk-tabs">
+            {VIEWS.map((item) => {
+              const on = item.id === view;
+              return (
+                <button key={item.id} type="button" aria-current={on ? "page" : undefined} onClick={() => choose(item.id)} className="tk-tab">
+                  {item.label}
+                  <span className={cn("tk-tab-count", item.id === "followups" && followNeeds && "text-warning")}>{badge[item.id]}</span>
+                </button>
+              );
+            })}
+          </nav>
           {view === "todo" ? <ScopeToggle value={scope} counts={scopeCounts} onChange={(next) => { setScope(next); setQuery(""); }} /> : null}
-          <div className="min-w-0 flex-[1_1_18rem]">
-            {view === "todo" ? <AddTodo key={scope} today={today} personal={scope === "personal"} /> : null}
-            {view === "followups" ? <p className="px-2 py-3 text-md text-text-muted">Start a follow-up below — the newest update shows on each card.</p> : null}
-            {view === "notes" ? <p className="px-2 py-3 text-md text-text-muted">Your notes, newest first. Press New note to write one; open a note to add to it.</p> : null}
-            {view === "archived" ? <p className="px-2 py-3 text-md text-text-muted">Put away from your lists, kept with their history. Restore puts one back.</p> : null}
-          </div>
         </div>
+
+        {view === "todo" ? (
+          <div className="tk-command"><AddTodo key={scope} today={today} personal={scope === "personal"} /></div>
+        ) : (
+          <p className="tk-hint">
+            {view === "followups" ? "Start a follow-up below — the newest update shows on each card." : null}
+            {view === "notes" ? "Your notes, newest first. Press New note to write one; open a note to add to it." : null}
+            {view === "archived" ? "Put away from your lists, kept with their history. Restore puts one back." : null}
+          </p>
+        )}
       </header>
 
       <section id="tracker-panel" aria-label={`${VIEWS.find((item) => item.id === view)?.label ?? "Tracker"} list`} className="flex min-w-0 flex-col">
@@ -531,15 +534,13 @@ export function TrackerBoard({
         ) : null}
         {/* Re-keyed per list so switching tab or Work/Personal fades the new list in. */}
         <div key={`${view}-${scope}`} className="tk-swap">
-        {view === "todo" && scope === "work" ? (
+        {view === "todo" && scope !== "personal" ? (
           <TodoQueue
-            entries={workEntries}
-            personal={personalTodos}
+            entries={scope === "all" ? live : workEntries}
             today={today}
             needle={needle}
             onOpen={openEntry}
             onShowFollowUps={() => choose("followups")}
-            onShowPersonal={() => { setScope("personal"); setQuery(""); }}
           />
         ) : null}
         {view === "todo" && scope === "personal" ? <StickyBoard entries={personalTodos} today={today} needle={needle} onOpen={openEntry} /> : null}
@@ -841,10 +842,11 @@ function LatestLine({ entry }: { entry: TrackerEntry }) {
   );
 }
 
-const PILL = "inline-flex h-11 shrink-0 cursor-pointer items-center rounded-full border px-5 text-md font-semibold whitespace-nowrap transition-colors duration-150 disabled:cursor-wait disabled:opacity-60";
-const PILL_INK = "border-sidebar bg-sidebar text-sidebar-fg hover:bg-sidebar-3";
-const PILL_LINE = "border-[var(--c-tk-rule)] bg-surface text-text hover:border-text";
-const PILL_SOFT = "border-transparent bg-primary-subtle text-accent-text hover:bg-surface-3";
+// Plain look (mockup, 2026-11-14): small square-cornered buttons in the Tracker's navy ink.
+const PILL = "inline-flex h-10 shrink-0 cursor-pointer items-center rounded-lg border px-4 text-sm font-semibold whitespace-nowrap transition-colors duration-150 disabled:cursor-wait disabled:opacity-60";
+const PILL_INK = "border-[var(--tk-ink)] bg-[var(--tk-ink)] text-white hover:bg-[var(--tk-ink-2)]";
+const PILL_LINE = "border-[var(--c-tk-rule)] bg-surface text-text hover:bg-surface-2";
+const PILL_SOFT = "border-[var(--c-tk-rule)] bg-surface text-text hover:bg-surface-2";
 
 /** A row's text button that runs one server action. */
 function ActionPill({ ink = false, soft = false, label, action, success }: { ink?: boolean; soft?: boolean; label: string; action: () => Promise<{ ok: boolean; error?: { message: string } }>; success: string }) {
@@ -1054,7 +1056,12 @@ function PillPanel({ label, onClose, children }: { label: string; onClose: () =>
       if (event.key === "Escape") onCloseRef.current();
     }
     function onPointerDown(event: MouseEvent) {
-      if (!ref.current?.closest("form")?.contains(event.target as Node)) onCloseRef.current();
+      const target = event.target as Element;
+      // MUI portals an Autocomplete's list outside the form (mui-provider.tsx), so a
+      // click on a suggested name is not "outside": closing here unmounted the field
+      // before the pick landed.
+      if (target.closest?.(".MuiPopper-root")) return;
+      if (!ref.current?.closest("form")?.contains(target)) onCloseRef.current();
     }
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("mousedown", onPointerDown);
@@ -1064,8 +1071,30 @@ function PillPanel({ label, onClose, children }: { label: string; onClose: () =>
     };
   }, []);
 
+  // A composer near the bottom of the screen opened its panel below the fold.
+  // Open upward instead when there's more room above (measured before paint).
+  // Upward, it sits just above the pill that opened it (over the editor), not
+  // above the whole card, which would push it under the sticky header.
+  const [upBottom, setUpBottom] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const box = ref.current;
+    const form = box?.parentElement;
+    const pill = form?.querySelector<HTMLElement>("[aria-expanded='true']");
+    if (!box || !form || !pill) return;
+    const formRect = form.getBoundingClientRect();
+    const pillTop = pill.getBoundingClientRect().top;
+    const below = window.innerHeight - formRect.bottom;
+    if (box.offsetHeight + 16 > below && pillTop - 72 > below) setUpBottom(formRect.bottom - pillTop + 8);
+  }, []);
+
   return (
-    <div ref={ref} role="group" aria-label={label} className="t-dropdown absolute top-full right-0 z-30 mt-2 flex w-80 max-w-full flex-col gap-4 rounded-xl border border-border bg-surface p-4 shadow-md">
+    <div
+      ref={ref}
+      role="group"
+      aria-label={label}
+      style={upBottom === null ? undefined : { bottom: upBottom }}
+      className={cn("t-dropdown absolute right-0 z-30 flex w-80 max-w-full flex-col gap-4 rounded-xl border border-border bg-surface p-4 shadow-md", upBottom === null ? "top-full mt-2" : "origin-bottom-right")}
+    >
       {children}
       <Button size="sm" variant="secondary" className="self-end" onClick={onClose}>Done</Button>
     </div>
@@ -1166,6 +1195,36 @@ function greeting() {
 const localDay = (iso: string) => format(parseISO(iso), "yyyy-MM-dd");
 
 /**
+ * This week's to-dos: done per day (Mon–Sun), what is still due by Sunday, what
+ * is late, and done as a share of done + still due ("% of this week's plan").
+ */
+function weekStats(entries: TrackerEntry[], today: string) {
+  const monday = startOfWeek(parseISO(today), { weekStartsOn: 1 });
+  const days = Array.from({ length: 7 }, (_, index) => format(addDays(monday, index), "yyyy-MM-dd"));
+  const tasks = entries.filter((entry) => entry.kind === "Task");
+  const donePerDay = days.map((day) => tasks.filter((entry) => !isOpen(entry) && entry.completedAt && localDay(entry.completedAt) === day).length);
+  const done = donePerDay.reduce((sum, count) => sum + count, 0);
+  const left = tasks.filter((entry) => isOpen(entry) && entry.dueDate !== null && entry.dueDate <= days[6]).length;
+  const late = tasks.filter((entry) => isOpen(entry) && entry.dueDate !== null && entry.dueDate < today).length;
+  return { days, donePerDay, done, left, late, pct: done + left ? Math.round((done / (done + left)) * 100) : 0 };
+}
+
+/** "Sprint · day 3 of 10", one segment per sprint day, and what's done this sprint. */
+function SprintMeter({ day, total, done }: { day: number; total: number; done: number }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-2 md:items-end">
+      <p className="flex flex-wrap items-baseline gap-x-6 text-sm" suppressHydrationWarning>
+        <b className="font-semibold text-text">Sprint · day {day} of {total}</b>
+        <span className="text-text-muted">{done} done this sprint</span>
+      </p>
+      <div className="tk-sprint" role="img" aria-label={`Sprint day ${day} of ${total}`}>
+        {Array.from({ length: total }, (_, index) => <span key={index} data-on={index < day || undefined} />)}
+      </div>
+    </div>
+  );
+}
+
+/**
  * The Work to-do view (Ocean redesign v3, 2026-11-01): a "Next up" card for the
  * most urgent to-do, then one compact list in groups — Overdue, Due today,
  * Needs you (follow-ups), Upcoming by day, Someday — and the collapsed
@@ -1173,14 +1232,12 @@ const localDay = (iso: string) => format(parseISO(iso), "yyyy-MM-dd");
  * week's progress, who you're waiting on and personal to-dos. Same rows and
  * actions as before.
  */
-function TodoQueue({ entries, personal, today, needle, onOpen, onShowFollowUps, onShowPersonal }: {
+function TodoQueue({ entries, today, needle, onOpen, onShowFollowUps }: {
   entries: TrackerEntry[];
-  personal: TrackerEntry[];
   today: string;
   needle: string;
   onOpen: (entry: TrackerEntry) => void;
   onShowFollowUps: () => void;
-  onShowPersonal: () => void;
 }) {
   const groups = useMemo(() => {
     const next = { overdue: [] as TrackerEntry[], dueToday: [] as TrackerEntry[], needs: [] as TrackerEntry[], coming: [] as TrackerEntry[], someday: [] as TrackerEntry[], done: [] as TrackerEntry[] };
@@ -1209,43 +1266,62 @@ function TodoQueue({ entries, personal, today, needle, onOpen, onShowFollowUps, 
   const nextUp = groups.overdue[0] ?? groups.dueToday[0] ?? null;
   const nothingOpen = !groups.overdue.length && !groups.dueToday.length && !groups.needs.length && !groups.coming.length && !groups.someday.length;
 
+  const [allOverdue, setAllOverdue] = useState(false);
+  const overdueShown = allOverdue || needle ? groups.overdue : groups.overdue.slice(0, 4);
+  const hiddenOverdue = groups.overdue.length - overdueShown.length;
+
   return (
     <div className="tk-v3">
-      <div className="flex min-w-0 flex-col">
+      <div className="flex min-w-0 flex-col gap-4">
         {nextUp && !needle ? <NextUpCard entry={nextUp} today={today} onOpen={() => onOpen(nextUp)} /> : null}
         <div className="tk-list">
-          {groups.overdue.length ? <ListGroup title="Overdue" tone="overdue" count={groups.overdue.length}><ol>{groups.overdue.map((entry) => row(entry, "today"))}</ol></ListGroup> : null}
+          {groups.overdue.length ? (
+            <ListGroup title="Overdue" tone="overdue" count={groups.overdue.length}>
+              <ol>{overdueShown.map((entry) => row(entry, "today"))}</ol>
+              {hiddenOverdue > 0 ? <button type="button" onClick={() => setAllOverdue(true)} className="tk-more">Show {hiddenOverdue} more overdue</button> : null}
+            </ListGroup>
+          ) : null}
           {groups.dueToday.length ? <ListGroup title="Due today" tone="today" count={groups.dueToday.length}><ol>{groups.dueToday.map((entry) => row(entry, "today"))}</ol></ListGroup> : null}
           {groups.needs.length ? <ListGroup title="Needs you" tone="needs" count={groups.needs.length}><ol>{groups.needs.map((entry) => row(entry, "today"))}</ol></ListGroup> : null}
-          <ListGroup title="Upcoming" tone="upcoming" count={groups.coming.length}>
-            {groups.coming.length ? (
-              upcomingBuckets(groups.coming, today).map((bucket) => (
+          {groups.coming.length ? (
+            <ListGroup title="Later" tone="upcoming" count={groups.coming.length} collapsible open={Boolean(needle)}>
+              {upcomingBuckets(groups.coming, today).map((bucket) => (
                 <Bucket key={bucket.key} label={bucket.label}>{bucket.items.map((entry) => row(entry, "upcoming"))}</Bucket>
-              ))
-            ) : (
-              <Empty>{needle ? "Nothing matches." : "Nothing scheduled — give a to-do a date and it lands here."}</Empty>
-            )}
-          </ListGroup>
-          {groups.someday.length ? <ListGroup title="Someday" tone="someday" count={groups.someday.length}><ol>{groups.someday.map((entry) => row(entry, "upcoming"))}</ol></ListGroup> : null}
-          {nothingOpen && !needle ? <p className="px-1 pt-4 text-md text-text-muted">All clear — add a to-do above.</p> : null}
-          <FinishedGroup verb="completed" entries={groups.done} today={today} needle={needle} render={(entry) => row(entry, "done")} />
+              ))}
+            </ListGroup>
+          ) : null}
+          {groups.someday.length ? <ListGroup title="Someday" tone="someday" count={groups.someday.length} collapsible open={Boolean(needle)}><ol>{groups.someday.map((entry) => row(entry, "upcoming"))}</ol></ListGroup> : null}
+          {nothingOpen ? <p className="tk-list-empty">{needle ? "Nothing matches." : "All clear — add a to-do above."}</p> : null}
+          {groups.done.length ? <div className="tk-grp px-4 pb-3"><FinishedGroup verb="completed" entries={groups.done} today={today} needle={needle} render={(entry) => row(entry, "done")} /></div> : null}
         </div>
       </div>
       <aside aria-label="Overview" className="tk-rail">
         <WeekCard entries={entries} today={today} />
-        <WaitingCard entries={entries} today={today} onShowAll={onShowFollowUps} />
-        <PersonalCard entries={personal} onShowAll={onShowPersonal} />
+        <WaitingCard entries={entries} today={today} onShowAll={onShowFollowUps} onOpen={onOpen} />
       </aside>
     </div>
   );
 }
 
 /** A group in the to-do list: a coloured label with its count, then its rows. */
-function ListGroup({ title, tone, count, children }: { title: string; tone: "overdue" | "today" | "needs" | "upcoming" | "someday"; count: number; children: React.ReactNode }) {
+function ListGroup({ title, tone, count, collapsible = false, open: forceOpen = false, children }: { title: string; tone: "overdue" | "today" | "needs" | "upcoming" | "someday"; count: number; collapsible?: boolean; open?: boolean; children: React.ReactNode }) {
+  // Later / Someday start folded (mockup, 2026-11-14); a search opens them.
+  const [expanded, setExpanded] = useState(false);
+  const open = !collapsible || expanded || forceOpen;
+  const id = `tk-grp-${tone}`;
   return (
     <section aria-label={title} className="tk-grp" data-tone={tone}>
-      <h2 className="tk-grp-head"><span className="tk-grp-dot" aria-hidden="true" />{title}<span className="tk-grp-count">{count}</span></h2>
-      <div className="tk-grp-body">{children}</div>
+      <h2 className="tk-grp-head">
+        {collapsible ? (
+          <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setExpanded(!expanded)} className="tk-grp-toggle">
+            <ChevronRight className={cn("size-4 transition-transform duration-150 motion-reduce:transition-none", open && "rotate-90")} aria-hidden="true" />
+            <span className="tk-grp-dot" aria-hidden="true" />{title}<span className="tk-grp-count">{count}</span>
+          </button>
+        ) : (
+          <><span className="tk-grp-dot" aria-hidden="true" />{title}<span className="tk-grp-count">{count}</span></>
+        )}
+      </h2>
+      {open ? <div id={id} className="tk-grp-body">{children}</div> : null}
     </section>
   );
 }
@@ -1274,50 +1350,59 @@ function NextUpCard({ entry, today, onOpen }: { entry: TrackerEntry; today: stri
   );
 }
 
-/** This week: done vs still due (ring) and to-dos finished per day (bars). */
+/** A steady pastel per name, so the same person always gets the same avatar. */
+function avatarTint(name: string) {
+  let hash = 0;
+  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return hash % 5;
+}
+
+/** This week (back by the owner's mockup, 2026-11-14): done vs plan ring, three numbers, done per day. */
 function WeekCard({ entries, today }: { entries: TrackerEntry[]; today: string }) {
-  const monday = startOfWeek(parseISO(today), { weekStartsOn: 1 });
-  const days = Array.from({ length: 7 }, (_, index) => format(addDays(monday, index), "yyyy-MM-dd"));
-  const tasks = entries.filter((entry) => entry.kind === "Task");
-  const donePerDay = days.map((day) => tasks.filter((entry) => !isOpen(entry) && entry.completedAt && localDay(entry.completedAt) === day).length);
-  const done = donePerDay.reduce((sum, count) => sum + count, 0);
-  const left = tasks.filter((entry) => isOpen(entry) && entry.dueDate !== null && entry.dueDate <= days[6]).length;
-  const late = tasks.filter((entry) => isOpen(entry) && entry.dueDate !== null && entry.dueDate < today).length;
-  const pct = done + left ? Math.round((done / (done + left)) * 100) : 0;
-  const most = Math.max(1, ...donePerDay);
+  const week = weekStats(entries, today);
+  const most = Math.max(1, ...week.donePerDay);
+  const first = parseISO(week.days[0]);
+  const last = parseISO(week.days[6]);
+  const range = first.getMonth() === last.getMonth() ? `${format(first, "d")}–${format(last, "d MMM")}` : `${format(first, "d MMM")} – ${format(last, "d MMM")}`;
   return (
     <section aria-labelledby="tk-week-title" className="tk-card">
-      <div className="flex items-center gap-4">
-        <div className="tk-ring" style={{ "--p": `${pct}%` } as React.CSSProperties} aria-hidden="true"><span>{pct}%</span></div>
-        <div>
-          <h2 id="tk-week-title" className="tk-card-title">This week</h2>
-          <p className="text-sm text-text-muted" suppressHydrationWarning>{done} done · {left} still due{late ? ` · ${late} late` : ""}</p>
-        </div>
+      <div className="flex items-center justify-between gap-3">
+        <h2 id="tk-week-title" className="tk-card-title">This week</h2>
+        <span className="text-sm text-text-muted" suppressHydrationWarning>{range}</span>
+      </div>
+      <div className="mt-4 flex items-center gap-5">
+        <div className="tk-ring" style={{ "--p": `${week.pct}%` } as React.CSSProperties} aria-hidden="true"><span>{week.pct}%</span></div>
+        <dl className="tk-week-nums" suppressHydrationWarning>
+          <div><dt>Done</dt><dd>{week.done}</dd></div>
+          <div><dt>Still due</dt><dd>{week.left}</dd></div>
+          <div data-tone={week.late ? "late" : undefined}><dt>Late</dt><dd>{week.late}</dd></div>
+        </dl>
       </div>
       <div className="tk-bars" aria-hidden="true">
-        {donePerDay.map((count, index) => (
-          <span key={days[index]} data-today={days[index] === today || undefined} style={{ height: `${Math.max(8, (count / most) * 100)}%` }} />
+        {week.donePerDay.map((count, index) => (
+          <span key={week.days[index]} data-today={week.days[index] === today || undefined} data-empty={count === 0 || undefined} style={{ height: count ? `${Math.max(12, (count / most) * 100)}%` : undefined }} />
         ))}
       </div>
       <div className="tk-bars-days" aria-hidden="true">
-        {days.map((day) => <span key={day} data-today={day === today || undefined}>{format(parseISO(day), "EEEEE")}</span>)}
+        {week.days.map((day) => <span key={day} data-today={day === today || undefined}>{format(parseISO(day), "EEEEE")}</span>)}
       </div>
-      <p className="sr-only">To-dos finished each day this week: {days.map((day, index) => `${format(parseISO(day), "EEEE")} ${donePerDay[index]}`).join(", ")}.</p>
+      <p className="sr-only">{week.pct}% of this week&apos;s plan done. To-dos finished each day: {week.days.map((day, index) => `${format(parseISO(day), "EEEE")} ${week.donePerDay[index]}`).join(", ")}.</p>
     </section>
   );
 }
 
 /** Who you're waiting on: open follow-ups by person; "Your turn" when they replied. */
-function WaitingCard({ entries, today, onShowAll }: { entries: TrackerEntry[]; today: string; onShowAll: () => void }) {
+function WaitingCard({ entries, today, onShowAll, onOpen }: { entries: TrackerEntry[]; today: string; onShowAll: () => void; onOpen: (entry: TrackerEntry) => void }) {
   const people = useMemo(() => {
-    const byPerson = new Map<string, { threads: number; replied: number; due: number }>();
+    // `first` is the thread Reply / Nudge opens: their newest reply, else the due nudge.
+    const byPerson = new Map<string, { threads: number; replied: number; due: number; first: TrackerEntry | null }>();
     for (const entry of entries) {
       if (entry.kind !== "FollowUp" || !isOpen(entry)) continue;
       const name = entry.person ?? "Someone";
-      const row = byPerson.get(name) ?? { threads: 0, replied: 0, due: 0 };
+      const row = byPerson.get(name) ?? { threads: 0, replied: 0, due: 0, first: null };
       row.threads += 1;
-      if (followStateOf(entry) === "replied") row.replied += 1;
-      else if (needsYou(entry, today)) row.due += 1;
+      if (followStateOf(entry) === "replied") { row.replied += 1; row.first = entry; }
+      else if (needsYou(entry, today)) { row.due += 1; if (!row.replied) row.first = entry; }
       byPerson.set(name, row);
     }
     return [...byPerson.entries()].sort((a, b) => b[1].replied - a[1].replied || b[1].due - a[1].due || b[1].threads - a[1].threads).slice(0, 4);
@@ -1326,45 +1411,29 @@ function WaitingCard({ entries, today, onShowAll }: { entries: TrackerEntry[]; t
     <section aria-labelledby="tk-wait-title" className="tk-card">
       <div className="flex items-center justify-between gap-3">
         <h2 id="tk-wait-title" className="tk-card-title">Waiting on</h2>
-        <button type="button" onClick={onShowAll} className="tap-area cursor-pointer text-sm font-semibold text-accent-text hover:underline">All follow-ups →</button>
+        <button type="button" onClick={onShowAll} className="tap-area cursor-pointer text-sm font-semibold text-accent-text hover:underline">All follow-ups</button>
       </div>
       {people.length ? (
         <ul className="mt-3 flex flex-col gap-3">
           {people.map(([name, row]) => (
             <li key={name} className="flex items-center gap-3">
-              <span className="tk-avatar" aria-hidden="true">{name.trim().charAt(0).toUpperCase()}</span>
+              <span className="tk-avatar" data-tint={avatarTint(name)} aria-hidden="true">{name.trim().charAt(0).toUpperCase()}</span>
               <span className="min-w-0 flex-1">
-                <b className="block truncate font-semibold text-text">{name}</b>
-                <span className="text-sm text-text-muted">{row.threads} {row.threads === 1 ? "thread" : "threads"}{row.replied ? ` · ${row.replied} replied` : ""}</span>
+                <b className="block truncate text-base font-semibold text-text">{name}</b>
+                <span className="text-sm text-text-muted">
+                  {row.threads} {row.threads === 1 ? "thread" : "threads"}{row.replied ? ` · ${row.replied} replied` : row.due ? " · nudge due" : ""}
+                </span>
               </span>
-              {row.replied ? <span className="tk-chip" data-tone="replied">Your turn</span> : row.due ? <span className="tk-chip" data-tone="due">Nudge due</span> : <span className="tk-chip">Waiting</span>}
+              {row.first ? (
+                <button type="button" onClick={() => onOpen(row.first!)} aria-label={`${row.replied ? "Reply to" : "Nudge"} ${name}`} className={cn("tk-mini-btn", row.replied && "tk-mini-btn-ink")}>
+                  {row.replied ? "Reply" : "Nudge"}
+                </button>
+              ) : <span className="text-sm text-text-muted">Waiting</span>}
             </li>
           ))}
         </ul>
       ) : (
         <p className="mt-2 text-sm text-text-muted">Nobody — no open follow-ups.</p>
-      )}
-    </section>
-  );
-}
-
-/** A peek at personal to-dos (sticky notes); the button switches to the Personal list. */
-function PersonalCard({ entries, onShowAll }: { entries: TrackerEntry[]; onShowAll: () => void }) {
-  const open = entries.filter(isOpen);
-  return (
-    <section aria-labelledby="tk-personal-title" className="tk-card">
-      <div className="flex items-center justify-between gap-3">
-        <h2 id="tk-personal-title" className="tk-card-title">Personal</h2>
-        <button type="button" onClick={onShowAll} className="tap-area cursor-pointer text-sm font-semibold text-accent-text hover:underline">Open · {open.length}</button>
-      </div>
-      {open.length ? (
-        <ul className="mt-3 grid grid-cols-2 gap-2.5">
-          {open.slice(0, 4).map((entry, index) => (
-            <li key={entry.id} className="tk-mini-sticky" data-tint={index % 4}>{entry.subject}</li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-2 text-sm text-text-muted">Nothing personal on the list.</p>
       )}
     </section>
   );
@@ -1417,18 +1486,42 @@ function todoMeta(entry: TrackerEntry, today: string) {
   return `Due ${dayLabel(entry.dueDate)} · ${fromToday(entry.dueDate, today, "late")}`;
 }
 
-/** Today rows carry a status eyebrow; upcoming rows are just tick + title (the bucket has the date). */
+/**
+ * A to-do row (mockup, 2026-11-14): tick, title, then a line with a red
+ * "3 days late" / "Due today" badge, the due date and the ticket. The calendar
+ * button opens the to-do to move its date; delete shows on hover.
+ */
 function TodoRow({ entry, today, mode, onOpen }: { entry: TrackerEntry; today: string; mode: "today" | "upcoming" | "done"; onOpen: () => void }) {
+  const late = isOpen(entry) && entry.dueDate && entry.dueDate < today ? differenceInCalendarDays(parseISO(today), parseISO(entry.dueDate)) : 0;
+  const due = !isOpen(entry)
+    ? todoMeta(entry, today)
+    : entry.dueDate ? (entry.dueDate === today ? null : `Due ${dayLabel(entry.dueDate)}`) : "No date";
   return (
     <Row
       muted={mode === "done"}
-      needs={mode === "today"}
-      eyebrow={mode === "today" ? todoMeta(entry, today) : undefined}
       leading={<DoneCircle entry={entry} />}
       title={entry.subject}
       onOpen={onOpen}
-      meta={<LatestLine entry={entry} />}
-      actions={<><DeleteEntry entry={entry} /><FavouriteToggle entry={entry} /></>}
+      meta={
+        <p className="tk-row-meta" suppressHydrationWarning>
+          {late ? <span className="tk-badge" data-tone="late">{late} {plural(late, "day")} late</span> : null}
+          {isOpen(entry) && entry.dueDate === today ? <span className="tk-badge" data-tone="today">Due today</span> : null}
+          {due ? <span>{due}</span> : null}
+          {entry.ticketKey ? <span>{entry.ticketKey}</span> : null}
+          {entry.personal ? <span>Personal</span> : null}
+        </p>
+      }
+      actions={
+        <>
+          <DeleteEntry entry={entry} />
+          {isOpen(entry) ? (
+            <button type="button" onClick={onOpen} aria-label={`Change date: ${entry.subject}`} title="Change date" className="grid size-11 shrink-0 cursor-pointer place-items-center rounded-full text-text-subtle transition-colors duration-150 hover:bg-surface-2 hover:text-text">
+              <CalendarDays className="size-4.5" strokeWidth={1.8} aria-hidden="true" />
+            </button>
+          ) : null}
+          <FavouriteToggle entry={entry} />
+        </>
+      }
     />
   );
 }
@@ -1438,19 +1531,20 @@ function TodoRow({ entry, today, mode, onOpen }: { entry: TrackerEntry; today: s
 /** Work | Personal, shown on the To-do tab. Arrow keys move between the two. */
 function ScopeToggle({ value, counts, onChange }: { value: TodoScope; counts: Record<TodoScope, number>; onChange: (next: TodoScope) => void }) {
   const options: Array<{ id: TodoScope; label: string }> = [
+    { id: "all", label: "All" },
     { id: "work", label: "Work" },
     { id: "personal", label: "Personal" },
   ];
   function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
     event.preventDefault();
-    const next = value === "work" ? "personal" : "work";
+    const step = event.key === "ArrowLeft" || event.key === "ArrowUp" ? options.length - 1 : 1;
+    const next = options[(options.findIndex((option) => option.id === value) + step) % options.length].id;
     onChange(next);
     event.currentTarget.querySelector<HTMLElement>(`[data-scope="${next}"]`)?.focus();
   }
-  const ref = useSlidingPill<HTMLDivElement>(value);
   return (
-    <div ref={ref} role="radiogroup" aria-label="To-do list" onKeyDown={onKeyDown} className="tk-scope tk-slide inline-flex shrink-0 rounded-full border border-[var(--c-tk-rule)] bg-surface p-0.5">
+    <div role="radiogroup" aria-label="To-do list" onKeyDown={onKeyDown} className="tk-scope">
       {options.map((option) => {
         const on = option.id === value;
         return (
@@ -1463,13 +1557,10 @@ function ScopeToggle({ value, counts, onChange }: { value: TodoScope; counts: Re
             data-scope={option.id}
             data-on={on || undefined}
             onClick={() => onChange(option.id)}
-            className={cn(
-              "flex h-10 cursor-pointer items-center gap-2 rounded-full px-4.5 text-md font-semibold whitespace-nowrap transition-colors duration-150",
-              on ? "bg-sidebar text-sidebar-fg" : "text-text-muted hover:text-text",
-            )}
+            className="tk-scope-btn"
           >
             {option.label}
-            <span className={cn("text-sm tabular-nums", on ? "text-sidebar-muted" : "text-text-subtle")}>{counts[option.id]}</span>
+            <span className="tabular-nums">{counts[option.id]}</span>
           </button>
         );
       })}

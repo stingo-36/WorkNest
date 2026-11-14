@@ -120,23 +120,75 @@ export async function listProjectSuggestions(userId: string) {
   return (await listProjectOptions(userId)).map((option) => option.name);
 }
 
-export async function addProject(userId: string, name: string) {
-  const row = await getRow(userId, UserListKind.Project);
+/** Save a name as a suggestion (and stop hiding it). Used by projects and people. */
+async function addNamed(userId: string, kind: typeof UserListKind.Project | typeof UserListKind.FollowUpPerson, name: string) {
+  const row = await getRow(userId, kind);
   const key = name.toLowerCase();
-  await saveRow(userId, UserListKind.Project, {
+  await saveRow(userId, kind, {
     values: cleanValues([...(row?.values ?? []), name], 500),
     hidden: (row?.hidden ?? []).filter((item) => item.toLowerCase() !== key),
   });
 }
 
-/** Stop suggesting a project. Tickets keep their project name. */
-export async function removeProject(userId: string, name: string) {
-  const row = await getRow(userId, UserListKind.Project);
+/** Stop suggesting a name. Records that use it keep it. */
+async function hideNamed(userId: string, kind: typeof UserListKind.Project | typeof UserListKind.FollowUpPerson, name: string) {
+  const row = await getRow(userId, kind);
   const key = name.toLowerCase();
-  await saveRow(userId, UserListKind.Project, {
+  await saveRow(userId, kind, {
     values: (row?.values ?? []).filter((item) => item.toLowerCase() !== key),
     hidden: cleanValues([...(row?.hidden ?? []), name], 500),
   });
+}
+
+export async function addProject(userId: string, name: string) {
+  await addNamed(userId, UserListKind.Project, name);
+}
+
+/** Stop suggesting a project. Tickets keep their project name. */
+export async function removeProject(userId: string, name: string) {
+  await hideNamed(userId, UserListKind.Project, name);
+}
+
+// --- people (follow-up "Who") ----------------------------------------------------
+
+export type PersonOption = { name: string; followUps: number; saved: boolean };
+
+/** Profile → People: names on follow-ups (with counts) plus saved ones, minus hidden. */
+export async function listPersonOptions(userId: string): Promise<PersonOption[]> {
+  const [row, counts] = await Promise.all([
+    getRow(userId, UserListKind.FollowUpPerson),
+    prisma.followUp.groupBy({ by: ["person"], where: { userId, person: { not: null } }, _count: true }),
+  ]);
+  const hidden = new Set((row?.hidden ?? []).map((name) => name.toLowerCase()));
+  const byName = new Map<string, PersonOption>();
+  for (const { person, _count } of counts) {
+    const name = person?.trim();
+    if (!name || hidden.has(name.toLowerCase())) continue;
+    const key = name.toLowerCase();
+    const current = byName.get(key);
+    byName.set(key, { name: current?.name ?? name, followUps: (current?.followUps ?? 0) + _count, saved: false });
+  }
+  for (const name of row?.values ?? []) {
+    const key = name.toLowerCase();
+    const current = byName.get(key);
+    byName.set(key, { name: current?.name ?? name, followUps: current?.followUps ?? 0, saved: true });
+  }
+  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** The saved and hidden people, for the "Who" suggestions. */
+export async function getPeopleList(userId: string) {
+  const row = await getRow(userId, UserListKind.FollowUpPerson);
+  return { saved: row?.values ?? [], hidden: row?.hidden ?? [] };
+}
+
+export async function addPerson(userId: string, name: string) {
+  await addNamed(userId, UserListKind.FollowUpPerson, name);
+}
+
+/** Stop suggesting a person. Follow-ups keep their name. */
+export async function removePerson(userId: string, name: string) {
+  await hideNamed(userId, UserListKind.FollowUpPerson, name);
 }
 
 // --- tags --------------------------------------------------------------------------

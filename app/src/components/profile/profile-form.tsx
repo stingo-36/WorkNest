@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, CalendarRange, LibraryBig, Mail, MessageSquare, Tag, Tags, Ticket, UserRound, Users, type LucideIcon } from "lucide-react";
+import { Building2, CalendarRange, Contact, LibraryBig, Mail, MessageSquare, Tag, Tags, Ticket, UserRound, Users, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { addDays, format } from "date-fns";
@@ -12,8 +12,10 @@ import { PasswordSettings } from "@/components/profile/password-settings";
 import {
   ListCard,
   OrderedListEditor,
+  PeopleListEditor,
   ProjectListEditor,
   TagListEditor,
+  type PersonOption,
   type ProjectOption,
   type TagUsage,
 } from "@/components/profile/list-editors";
@@ -38,6 +40,7 @@ export type ProfileLists = {
   resourceTypeIcons: Record<string, string>;
   meetings: OrderedState;
   projects: ProjectOption[];
+  people: PersonOption[];
   noteTags: TagUsage[];
   resourceTags: TagUsage[];
 };
@@ -61,6 +64,7 @@ const MENU = [
   {
     label: "Lists",
     items: [
+      { id: "people", label: "People", Icon: Contact },
       { id: "channels", label: "Follow-up channels", Icon: MessageSquare },
       { id: "resource-types", label: "Resource types", Icon: LibraryBig },
       { id: "meetings", label: "Default meetings", Icon: Users },
@@ -266,6 +270,7 @@ export function ProfileForm({ email, initial, lists, ai, initialSection }: { ema
           {section === "resource-types" ? <OrderedListEditor kind="ResourceType" title="Resource types" description="Resources → “Resource type”, and the order of sections on that page. Click an icon to change it." initial={lists.resourceTypes.values} icons={lists.resourceTypeIcons} customized={lists.resourceTypes.customized} addPlaceholder="e.g. Video" /> : null}
           {section === "meetings" ? <OrderedListEditor kind="DefaultMeeting" title="Default meetings" description="The meeting cards every new work log starts with. Existing logs are not changed." initial={lists.meetings.values} customized={lists.meetings.customized} addPlaceholder="e.g. Daily stand-up" /> : null}
           {section === "projects" ? <ProjectListEditor initial={lists.projects} /> : null}
+          {section === "people" ? <PeopleListEditor initial={lists.people} /> : null}
           {section === "note-tags" ? (
             <ListCard title="Note tags" icon={<Tags className="size-5" />} description="Add tags ahead of time, rename them on every note, or delete them.">
               <TagListEditor kind="NoteTag" noun={{ one: "note", many: "notes" }} initial={lists.noteTags} />

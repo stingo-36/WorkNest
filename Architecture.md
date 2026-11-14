@@ -4,7 +4,7 @@
 > delete a module, route, model or script, update the relevant section in the same
 > change.
 >
-> Last synced with the codebase: **2026-11-12**
+> Last synced with the codebase: **2026-11-14**
 
 ---
 
@@ -266,7 +266,7 @@ User ─┬─ WorkLog ─┬─ Meeting ── MeetingMinutesLink ──► Fol
 | `Achievement` | `title`, `type` (free text), `status` (`AchievementStatus` InProgress/Completed), `assignedBy?`, `startDate?`/`endDate?` `@db.Date`, `description` |
 | `AchievementFile` | `name`, `mimeType`, `size`, `data Bytes` (≤10 MB); `userId` denormalised for owner-only download. **`data` never selected in lists.** |
 | `Task`, `Link` | exist with actions; no UI yet |
-| `UserList` | PK `(userId, kind)`; `values[]` (ordered options, or saved-ahead names for Project/NoteTag/ResourceTag), `hidden[]` (Project: in-use names no longer suggested), `icons Json` (ResourceType: value → `"library:Name"`). No row = built-in defaults; a row whose values equal the defaults isn't "customised" (it may exist only for icons). |
+| `UserList` | PK `(userId, kind)`; `values[]` (ordered options, or saved-ahead names for Project/FollowUpPerson/NoteTag/ResourceTag), `hidden[]` (Project/FollowUpPerson: in-use names no longer suggested), `icons Json` (ResourceType: value → `"library:Name"`). No row = built-in defaults; a row whose values equal the defaults isn't "customised" (it may exist only for icons). |
 
 **Enums:** `UserRole`, `DayType`, `AttachmentKind`, `TicketStatus` (11 values, 6 used for new
 writes), `TaskPriority`, `TaskStatus`, `FollowUpStatus`, `EntryKind`,

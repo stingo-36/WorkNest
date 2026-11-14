@@ -27,6 +27,7 @@ const PAGES_FOR = {
   Project: ["/tickets", "/work-logs"],
   NoteTag: ["/tracker"],
   ResourceTag: ["/resources"],
+  FollowUpPerson: ["/tracker"],
 } as const;
 
 function revalidate(kind: keyof typeof PAGES_FOR) {
@@ -69,6 +70,25 @@ export async function removeProject(input: unknown) {
   await lists.removeProject(userId, parsed.data.name);
   revalidate("Project");
   return ok(await lists.listProjectOptions(userId));
+}
+
+export async function addPerson(input: unknown) {
+  const userId = await requireUserId();
+  const parsed = parseOrFail(projectNameSchema, input);
+  if (!parsed.ok) return parsed;
+  await lists.addPerson(userId, parsed.data.name);
+  revalidate("FollowUpPerson");
+  return ok(await lists.listPersonOptions(userId));
+}
+
+/** Stops suggesting a person; follow-ups keep their name. */
+export async function removePerson(input: unknown) {
+  const userId = await requireUserId();
+  const parsed = parseOrFail(projectNameSchema, input);
+  if (!parsed.ok) return parsed;
+  await lists.removePerson(userId, parsed.data.name);
+  revalidate("FollowUpPerson");
+  return ok(await lists.listPersonOptions(userId));
 }
 
 export async function addTag(input: unknown) {

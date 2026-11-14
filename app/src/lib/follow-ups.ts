@@ -4,6 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { EntryKind, FollowUpStatus } from "@/generated/prisma/enums";
 import { docFileIds, docToText, TODO_STATUS_NOTES } from "@/lib/rich-text";
+import { getPeopleList } from "@/lib/user-lists";
 
 /**
  * Follow-ups — "what did I tell whom, and when".
@@ -385,16 +386,27 @@ export async function listFollowUps(userId: string) {
   });
 }
 
-/** Every distinct person you have logged, for the create form's datalist. */
+/** Who-field suggestions: people you have logged plus those saved in Profile → People. */
 export async function listFollowUpPeople(userId: string) {
-  const rows = await prisma.followUp.findMany({
-    where: { userId, person: { not: null } },
-    distinct: ["person"],
-    orderBy: { updatedAt: "desc" },
-    select: { person: true },
-    take: 50,
-  });
-  return rows
-    .map((row) => row.person)
-    .filter((person): person is string => Boolean(person));
+  const [rows, list] = await Promise.all([
+    prisma.followUp.findMany({
+      where: { userId, person: { not: null } },
+      distinct: ["person"],
+      orderBy: { updatedAt: "desc" },
+      select: { person: true },
+      take: 50,
+    }),
+    getPeopleList(userId),
+  ]);
+  // Most recent first, then names saved in Profile; names removed there are not suggested.
+  const hidden = new Set(list.hidden.map((name) => name.toLowerCase()));
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const name of [...rows.map((row) => row.person), ...list.saved]) {
+    const key = name?.trim().toLowerCase();
+    if (!name || !key || hidden.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name.trim());
+  }
+  return out;
 }

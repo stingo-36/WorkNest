@@ -4,7 +4,7 @@
 > (with the *why*), gotchas that cost time before, and a changelog. Newest first in
 > every section. Update rules are in `AGENTS.md` §2.
 >
-> Last synced with the codebase: **2026-11-12**
+> Last synced with the codebase: **2026-11-14**
 
 ---
 
@@ -24,6 +24,8 @@
   take ~4.5 MB — lower the limit or move files to Vercel Blob (free, hard-capped).
 
 ## Decisions
+
+- **2026-11-14 — Tracker follows the owner's plain mockup.** White cards on grey, navy ink, stat cards, underline tabs, All/Work/Personal, This week back in the rail (the owner had removed it the same day, then chose to keep it with the mockup). Later/Someday start folded; overdue shows 4 then "Show N more". "Reschedule all" from the mockup was not built — no bulk reschedule exists. The Personal mini-stickies card left the rail.
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
 
@@ -872,6 +874,7 @@ is done on the real rendered app.
 
 ## Gotchas
 
+- **Portaled MUI lists count as "outside" (2026-11-14).** MUI portals Autocomplete lists into `.app-shell`, outside any form, so an outside-click close handler must ignore `.MuiPopper-root` or a picked option never lands (`PillPanel`).
 - **Frosted lanes trap popups (2026-11-11).** `.tk-lane` uses `backdrop-filter`, which makes
   each lane its own stacking context — a popup's z-index only counts inside its lane, so a
   later lane paints over it when columns stack. Lift the lane instead (`.tk-lane:has(.t-dropdown)`).
@@ -1071,6 +1074,9 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-11-14 — Tracker redesign to the owner's mockup (`.tk-plain`): stat cards, sprint meter, underline tabs, All scope, list card, This week restored, Waiting on Reply/Nudge, search portalled into the desk bar — `components/tracker/tracker-board.tsx`, `components/shell/app-nav.tsx`, `globals.css`, PRD §4/§5.3, Design-System
+- 2026-11-14 — Profile → People list (`UserListKind.FollowUpPerson`, migration `follow_up_person_list`) feeds the follow-up "Who" suggestions; Tracker pill panels open upward above the pill when there is no room below; To-do rail "This week" card removed; sidebar gets a sky→aqua tint — `lib/user-lists.ts`, `lib/follow-ups.ts`, `actions/user-lists.ts`, `components/profile/*`, `components/tracker/tracker-board.tsx`, `globals.css`
+- 2026-11-14 — Fix: picking a saved name in the Tracker follow-up "Who" panel closed the panel instead of selecting it — `components/tracker/tracker-board.tsx` (`PillPanel`)
 - 2026-11-12 — `seed-fresh-demo.ts` reads the account to reset from `DEMO_EMAIL` (app/.env, gitignored; blank in `.env.example`) instead of a hardcoded address — `app/prisma/seed-fresh-demo.ts`, `app/.env.example`
 - 2026-11-12 — Page entrance moved from GSAP to CSS (`.app-page-motion`): GSAP's inline styles on streamed, not-yet-hydrated HTML caused React hydration mismatches after `loading.tsx` landed. `gsap` uninstalled the same day — `components/shell/page-motion.tsx`, `app/package.json`, `app/globals.css`, Design-System §7
 - 2026-11-12 — Sidebar / tab-bar links preload their page + data (`<Link prefetch>`), `staleTimes.static` 60s: production clicks 18–56ms — `components/shell/app-nav.tsx`, `next.config.ts`, Architecture

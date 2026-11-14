@@ -147,6 +147,8 @@ export function AppDeskBar({ user }: { user: ShellUser }) {
           </>
         ) : null}
       </nav>
+      {/* Pages portal a search here (Tracker, 2026-11-14). Empty elsewhere. */}
+      <div id="app-deskbar-slot" className="flex min-w-0 flex-[0_1_28rem] justify-end empty:hidden" />
       <button type="button" onClick={openAsk} className="app-desk-ask">
         <Sparkles aria-hidden="true" />
         Ask

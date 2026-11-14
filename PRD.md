@@ -4,7 +4,7 @@
 > changes scope, or is retired, update the matching section here (see
 > `AGENTS.md → Keeping the docs current`).
 >
-> Last synced with the codebase: **2026-11-11**
+> Last synced with the codebase: **2026-11-14**
 
 ---
 
@@ -56,7 +56,7 @@ placeholder page) · **Retired** (redirects).
 | Auth | `/login`, `/register` | Live (public) | Email + password; Ocean look (2026-11-01): sign-in centred over waves, register in two steps (name + email, then passwords) on one form. Direct admin sign-ins land on `/admin`; regular users land on `/tracker`. |
 | Work Logs | `/work-logs`, `/work-logs/[id]`, `/work-logs/[id]/edit` | Live | The core workflow — see §5.1. |
 | Tickets | `/tickets` | Live · hidden when *Tickets* is off in Profile | Master-detail ticket manager — see §5.2. |
-| Tracker | `/tracker` | Live — **post-login landing page** | To-do · Follow-ups · Notes tabs (`?view=`), Work to-dos (v3) as a greeting header, a Next up card and one compact list (Overdue · Due today · Needs you · Upcoming · Someday) beside a rail (this week's progress, waiting on, personal), Follow-ups laid out like Notes — a **New update** composer card (type dropdown — General / Waiting on / I told / They told me — title, optional rich first message, who/where, reminder or "said on" date, star) beside the follow-up list (Your turn · Nudge due · Waiting), rows open the entry dialog (2026-11-01); To-do has a **Work / Personal** toggle (Work by default), Personal shows sticky notes — see §5.3. |
+| Tracker | `/tracker` | Live — **post-login landing page** | To-do · Follow-ups · Notes tabs (`?view=`), a plain header (2026-11-14: date + greeting, sprint meter, four stat cards — Overdue · Need you · Your turn · Done this week — underline tabs; search in the desktop top bar), Work to-dos as a Next up card and one white list card (Overdue (first 4 + "Show N more") · Due today · Needs you · Later and Someday folded) beside a rail (This week ring + Done / Still due / Late + bars, Waiting on with Reply / Nudge that open the thread), Follow-ups laid out like Notes — a **New update** composer card (type dropdown — General / Waiting on / I told / They told me — title, optional rich first message, who/where, reminder or "said on" date, star) beside the follow-up list (Your turn · Nudge due · Waiting), rows open the entry dialog (2026-11-01); To-do has an **All / Work / Personal** switch (Work by default; All lists both), Personal shows sticky notes — see §5.3. |
 | Notes | `/notes`, `/notes/new`, `/notes/[id]`, `/notes/[id]/edit` | Live | Notebooks: note → sections → pages — see §5.4. |
 | Resources | `/resources` | Live | Typed personal library — see §5.5. |
 | Favourites | `/favourites` | Live | Everything starred in one place — see §5.6. |
@@ -229,7 +229,7 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
 | **Follow-ups** (`FollowUp`) | replies + nudges due | title · who + where (channel) · nudge date | left **Needs you** (*Your turn* · *Nudge due*) + collapsed closed line; right **Waiting** | Mark nudged · Got it (= close); replied: Got it · Open |
 | **Notes** (`Note`) | open notes | **New note** button in the card header opens the composer in a popup: title · body · formatting · tags · ★ | one full-width **Notes** card (2026-11-11): count, search (beside New note from 1024px), tag filter chips (All + each tag), then **Pinned · This week · Earlier** (title, tag chips and "2 days ago" / "28 Oct" only — the text stays inside), collapsed archive at the bottom | ★ (Restore on archived) |
 
-- **Work / Personal** (2026-10-21): the To-do tab has a two-option toggle beside the title,
+- **Work / Personal** (2026-10-21; **All** added 2026-11-14 — work and personal to-dos in one list): the To-do tab has a toggle beside the tabs,
   **Work** selected every time the page opens. *Work* is the Today | Upcoming queue above.
   *Personal* is a wall of **sticky notes** (yellow/pink/green/blue/lilac paper, slight tilt;
   1 → 2 → 3 → 4 columns at 375/768/1024/1440): tick, title (opens the dialog), last note,
@@ -410,7 +410,7 @@ two columns.
   AI is off and no summaries or reports are generated (§5.1, §5.9). Shows a privacy note about what is sent.
 - Layout (Ocean v2, 2026-11-02): a **deep-ocean identity card** (initials, name, email,
   sprint length, tickets on/off) above a **grouped menu** (*You*: Account (with Password
-  and the AI summaries card), Sprint calendar, Work logs · *Lists*: Follow-up channels,
+  and the AI summaries card), Sprint calendar, Work logs · *Lists*: People, Follow-up channels,
   Resource types, Default meetings, Projects / sites · *Tags*: Note tags, Resource tags) —
   a sticky left column from lg, scrolling chips on phones/tablets. The open section shows
   on the right under "Settings · <group>" as cards with an icon-tile header (Account's
@@ -427,6 +427,8 @@ two columns.
     Lucide, Font Awesome); Reset keeps picked icons. Rows show no position numbers.
   - *Projects / sites* — ticket project suggestions = names on tickets + names added
     here; removing one stops suggesting it (tickets keep their project).
+  - *People* (2026-11-14) — follow-up "Who" suggestions = names on follow-ups + names
+    added here; removing one stops suggesting it (follow-ups keep the name).
 - **Tags** — separate *Notes* and *Resources* lists: every tag with its usage count;
   **add** (saved as a suggestion before use), **rename** (applies to every item;
   merges if the new name exists), **delete** (removed from every item, with a
