@@ -289,7 +289,9 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   with a confirmation; the dialog keeps its own Delete too. *Today* lists to-dos before
   the follow-ups that need you.
 - Clicking a title (or *Open*) opens the entry in a wide **dialog** at every width — two
-  columns from md: on the left status, date (editable), Done / Close / Archive, star,
+  columns from md: on the left status, the **Added** date (editable since 2026-11-14 — e.g. a
+  note written up days after the meeting; keeps the time of day, no future dates), due date
+  (editable), Done / Close / Archive, star,
   delete and the add-update form (formatting bar; follow-ups pick "I followed up" or
   "<person> replied" + channel); on the right the timeline.
 - **Follow-up state is derived, never stored:** if the newest record is *their* reply

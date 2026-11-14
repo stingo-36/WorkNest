@@ -362,6 +362,16 @@ export async function rescheduleFollowUp(
   return getFollowUp(userId, followUpId);
 }
 
+/** Change when an entry counts as added (its `createdAt`). Its history rows are untouched. */
+export async function setFollowUpAdded(userId: string, followUpId: string, createdAt: Date) {
+  const result = await prisma.followUp.updateMany({
+    where: { id: followUpId, userId },
+    data: { createdAt },
+  });
+  if (result.count === 0) return null;
+  return getFollowUp(userId, followUpId);
+}
+
 export async function deleteFollowUp(userId: string, followUpId: string) {
   const result = await prisma.followUp.deleteMany({
     where: { id: followUpId, userId },
