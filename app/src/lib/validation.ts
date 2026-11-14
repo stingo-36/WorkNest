@@ -527,6 +527,19 @@ export const rescheduleFollowUpSchema = z.object({
   dueDate: followUpDueDateSchema,
 });
 
+/**
+ * Back- or re-date when an entry was added (a note written up days after the
+ * meeting). The client sends the new instant — the picked day at the entry's
+ * old local time — so "d MMM" reads the same in the user's timezone.
+ */
+export const setFollowUpAddedSchema = z.object({
+  followUpId: idSchema,
+  createdAt: z.coerce
+    .date()
+    .refine((value) => value.getUTCFullYear() >= 2000, "Pick a date from 2000 on")
+    .refine((value) => value.getTime() <= Date.now() + 36 * 60 * 60 * 1000, "The added date can't be in the future"),
+});
+
 export const deleteFollowUpSchema = z.object({ followUpId: idSchema });
 
 export const setFollowUpTagsSchema = z.object({

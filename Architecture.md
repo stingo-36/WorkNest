@@ -213,7 +213,7 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `actions/admin.ts` | Admin-only password reset, whole-workspace record erasure and account deletion; Zod → `lib/admin.ts` → `/admin` revalidation |
 | `actions/worklog.ts` | open today/by date, get, adjacent, list, update, delete, meetings CRUD, meeting minutes (`listMeetingMinutesOptions`, `linkMeetingMinutes`, `createMeetingMinutes`, `unlinkMeetingMinutes`), learning notes, link attachments, delete attachment |
 | `actions/tickets.ts` | create standalone, find, upsert-for-work-log, save work update, detach, get, list, projects, active, update, append/delete history entry, delete ticket |
-| `actions/follow-ups.ts` | create, add update, pin, status, reschedule, `setFollowUpTags`, `editPersonalTodo`, `listTodosForDay`, delete, list, people |
+| `actions/follow-ups.ts` | create, add update, pin, status, reschedule, `setFollowUpAdded` (re-date `createdAt`), `setFollowUpTags`, `editPersonalTodo`, `listTodosForDay`, delete, list, people |
 | `actions/notes.ts` | create, update, delete (trash), restore, toggle favourite |
 | `actions/content.ts` | tasks, links, resources CRUD + `toggleResourceFavorite` |
 | `actions/profile.ts` | `updateProfile`, self-service `changePassword`, `saveAiKey`, `removeAiKey`, `saveAiModel` |

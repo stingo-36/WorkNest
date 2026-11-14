@@ -1074,6 +1074,7 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-11-14 — Entry dialog: the Added date is editable (`setFollowUpAdded` changes `createdAt`, keeping the time of day; history rows untouched) — `actions/follow-ups.ts`, `lib/follow-ups.ts`, `lib/validation.ts`, `components/tracker/tracker-board.tsx`
 - 2026-11-14 — Tracker redesign to the owner's mockup (`.tk-plain`): stat cards, sprint meter, underline tabs, All scope, list card, This week restored, Waiting on Reply/Nudge, search portalled into the desk bar — `components/tracker/tracker-board.tsx`, `components/shell/app-nav.tsx`, `globals.css`, PRD §4/§5.3, Design-System
 - 2026-11-14 — Profile → People list (`UserListKind.FollowUpPerson`, migration `follow_up_person_list`) feeds the follow-up "Who" suggestions; Tracker pill panels open upward above the pill when there is no room below; To-do rail "This week" card removed; sidebar gets a sky→aqua tint — `lib/user-lists.ts`, `lib/follow-ups.ts`, `actions/user-lists.ts`, `components/profile/*`, `components/tracker/tracker-board.tsx`, `globals.css`
 - 2026-11-14 — Fix: picking a saved name in the Tracker follow-up "Who" panel closed the panel instead of selecting it — `components/tracker/tracker-board.tsx` (`PillPanel`)

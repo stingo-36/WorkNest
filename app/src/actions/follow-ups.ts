@@ -11,6 +11,7 @@ import {
   deleteFollowUpSchema,
   editPersonalTodoSchema,
   rescheduleFollowUpSchema,
+  setFollowUpAddedSchema,
   setFollowUpArchivedSchema,
   setFollowUpPinnedSchema,
   setFollowUpStatusSchema,
@@ -141,6 +142,21 @@ export async function rescheduleFollowUp(input: unknown) {
   if (!followUp) return notFound("Follow-up not found");
 
   revalidatePath("/tracker");
+  return ok(followUp);
+}
+
+export async function setFollowUpAdded(input: unknown) {
+  const userId = await requireUserId();
+  const parsed = parseOrFail(setFollowUpAddedSchema, input);
+  if (!parsed.ok) return parsed;
+
+  const followUp = await followUps.setFollowUpAdded(userId, parsed.data.followUpId, parsed.data.createdAt);
+  if (!followUp) return notFound("Entry not found");
+
+  // The added day feeds Work Logs, reports and Favourites as well as the Tracker.
+  revalidatePath("/tracker");
+  revalidatePath("/work-logs");
+  revalidatePath("/favourites");
   return ok(followUp);
 }
 

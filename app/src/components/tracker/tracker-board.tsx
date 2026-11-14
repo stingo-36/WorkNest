@@ -33,6 +33,7 @@ import {
   deleteFollowUp,
   editPersonalTodo,
   rescheduleFollowUp,
+  setFollowUpAdded,
   setFollowUpArchived,
   setFollowUpPinned,
   setFollowUpStatus,
@@ -2250,7 +2251,6 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
     ...(state ? [{ label: "Status", value: <span style={tone(FOLLOW_STATE[state].tone)} className="font-semibold text-[color-mix(in_srgb,var(--tone)_80%,var(--c-text))]">{FOLLOW_STATE[state].label}</span> }] : []),
     ...(kind === "Task" ? [{ label: "Status", value: isDone ? `Done${entry.completedAt ? ` · ${format(parseISO(entry.completedAt), "d MMM")}` : ""}` : "Open" }] : []),
     ...(entry.ticketKey ? [{ label: "Ticket", value: <span className="font-mono">{entry.ticketKey}</span> }] : []),
-    { label: "Added", value: format(parseISO(entry.createdAt), "d MMM yyyy") },
     ...(entry.archivedAt ? [{ label: "Archived", value: format(parseISO(entry.archivedAt), "d MMM yyyy") }] : []),
   ];
 
@@ -2260,14 +2260,33 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
       <div className="flex min-w-0 flex-col gap-6">
       {/* Labels on one line, values centred in one 44px row (the date field's height). */}
       <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
-        <dl className="flex flex-wrap gap-x-8 gap-y-4">
+        {facts.length ? <dl className="flex flex-wrap gap-x-8 gap-y-4">
           {facts.map((fact) => (
             <div key={fact.label} className="min-w-0">
               <dt className="text-xs text-text-subtle">{fact.label}</dt>
               <dd className="mt-1 flex h-11 items-center text-sm font-medium text-text">{fact.value}</dd>
             </div>
           ))}
-        </dl>
+        </dl> : null}
+        <div className="min-w-0">
+          <label htmlFor={`added-${entry.id}`} className="block text-xs text-text-subtle">Added</label>
+          <Input
+            id={`added-${entry.id}`}
+            type="date"
+            value={localDay(entry.createdAt)}
+            max={todayIso()}
+            required
+            className="mt-1 h-11 w-44"
+            onChange={(event) => {
+              const day = event.target.value;
+              if (!day || day === localDay(entry.createdAt)) return;
+              // Keep the old time of day; only the calendar day moves.
+              const old = parseISO(entry.createdAt);
+              const next = parseISO(`${day}T${format(old, "HH:mm:ss")}`);
+              run(() => setFollowUpAdded({ followUpId: entry.id, createdAt: next.toISOString() }), "Date changed");
+            }}
+          />
+        </div>
         {kind !== "Note" && !isDone ? (
           <div className="min-w-0">
             <label htmlFor={`due-${entry.id}`} className="block text-xs text-text-subtle">{kind === "Task" ? "Due" : "Remind me on"}</label>
