@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { resourceTypeKey } from "@/lib/resource-types";
-import { addProject, addTag, deleteAllTags, deleteTag, setResourceTypeIcon, removeProject, renameTag, resetOrderedList, setOrderedList } from "@/actions/user-lists";
+import { addPerson, addProject, addTag, deleteAllTags, deleteTag, setResourceTypeIcon, removePerson, removeProject, renameTag, resetOrderedList, setOrderedList } from "@/actions/user-lists";
 import { cn } from "@/components/cn";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
@@ -331,6 +331,37 @@ export function ProjectListEditor({ initial }: { initial: ProjectOption[] }) {
         </ul>
       )}
       <AddRow id="add-project" label="Add a project" placeholder="e.g. ASU Online" pending={pending} onAdd={(name) => run(() => addProject({ name }), setProjects, `Added “${name}”`)} />
+    </ListCard>
+  );
+}
+
+export type PersonOption = { name: string; followUps: number; saved: boolean };
+
+/** Tracker → Follow-ups → "Who" suggestions. Same shape as projects. */
+export function PeopleListEditor({ initial }: { initial: PersonOption[] }) {
+  const [people, setPeople] = useState(initial);
+  const { run, pending } = useListAction();
+
+  return (
+    <ListCard title="People" description="Suggested in a follow-up's “Who”. Removing someone keeps their name on existing follow-ups.">
+      {people.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border-strong px-3 py-3 text-sm text-text-muted">No people yet — add one below.</p>
+      ) : (
+        <ul className={cn("flex max-h-72 flex-col divide-y divide-border overflow-y-auto rounded-lg border border-border", pending && "opacity-70")}>
+          {people.map((person) => (
+            <li key={person.name} className="group/row flex items-center gap-2 py-1.5 pr-1.5 pl-3">
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-text" title={person.name}>{person.name}</span>
+              <span className="shrink-0 text-xs text-text-subtle tabular-nums">
+                {person.followUps ? `${person.followUps} ${person.followUps === 1 ? "follow-up" : "follow-ups"}` : "not used yet"}
+              </span>
+              <Button size="xs" variant="ghost" iconOnly className={cn(ROW_CONTROL, "hover:text-danger")} disabled={pending} aria-label={`Remove ${person.name}`} onClick={() => run(() => removePerson({ name: person.name }), setPeople, `Removed “${person.name}”`)}>
+                <X aria-hidden="true" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <AddRow id="add-person" label="Add a person" placeholder="e.g. Ashwini" pending={pending} onAdd={(name) => run(() => addPerson({ name }), setPeople, `Added “${name}”`)} />
     </ListCard>
   );
 }

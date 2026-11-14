@@ -73,6 +73,8 @@ enum UserListKind {
   NoteTag
   /// Resource tags kept as suggestions before they are used.
   ResourceTag
+  /// Follow-up "Who" names: saved ahead of use, or hidden from suggestions.
+  FollowUpPerson
 }
 
 enum FollowUpStatus {

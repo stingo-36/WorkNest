@@ -5,7 +5,7 @@
 > and `app/src/app/(auth)/auth-motion.css` (login / register). This file explains the system and the rules. If you change a token,
 > update the table here in the same change.
 >
-> Last synced with the codebase: **2026-11-12**
+> Last synced with the codebase: **2026-11-14**
 
 ---
 
@@ -117,8 +117,13 @@ needs you, else subtle) over a 2px rule (solid amber `--c-wl-dash` / ink). Rows:
 separators, an uppercase `.tk-label` status eyebrow above the title, a 22px round tick on
 to-dos and upcoming rows. Finished entries collapse under "✓ N completed today · Show". The note composer is
 a `.tk-field` card (title · hairline · body · toolbar). Entry dialogs use `Modal size="xl"`.
-To-do's **Work / Personal** toggle (2026-10-21) is a white pill group (`--c-tk-rule` edge) of
-two 40px segments, the active one ink `bg-sidebar`. Personal to-dos are `.tk-sticky` cards:
+**Plain Tracker (owner's mockup, 2026-11-14):** the page is scoped `.tk-plain` — cool grey page
+(`--tk-page`), white cards with a `--tk-line` hairline and 0.75rem radius, navy ink `--tk-ink`
+(buttons, active tab underline, sprint segments `.tk-sprint`, ring), a dark `--tk-hero` Next up
+card. Stat cards are `.tk-glance` (`.tk-stat` is taken by the old summary). Rows show a
+`.tk-badge` (late = `--tk-late` on `--tk-late-bg`) in `.tk-row-meta`; row buttons are 40px
+`rounded-lg`. Search is portalled into the desk bar's `#app-deskbar-slot` from 1024px. The
+**All / Work / Personal** switch is `.tk-scope` (grey track, white active segment). Personal to-dos are `.tk-sticky` cards:
 `--c-sticky-1…5` paper tints (`#fff1b8` yellow, `#ffdbe4` pink, `#d8f2e0` green, `#d9ecfa`
 blue, `#ebe2fb` lilac; ink text), `--radius-md`, `--sh-md`, a ±1.2° tilt picked from the id
 that straightens (and lifts to `--sh-lg`) on hover/focus — no motion under reduced motion.
@@ -430,7 +435,7 @@ What the eye should hit, in order — one step per level, never two the same siz
 - **Shell (Ocean, 2026-11-01):** `components/shell/app-nav.tsx` + the `Ocean` block at the
   end of `globals.css`.
   - **≥ 1024 (`lg`)**: a sticky, full-height **left sidebar** (`.app-side`, 15.5rem, frosted
-    white): brand (`.app-brand` + gradient `.app-mark`), the **Quick log** button
+    sky→aqua tint since 2026-11-14): brand (`.app-brand` + gradient `.app-mark`), the **Quick log** button
     (`.app-quicklog`), groups **Workspace** (sections from `navFor`) and **You** (Reports,
     Achievements, Profile & settings, Admin for admins) as `.app-side-link`s — the current
     one is white with a sky→aqua bar on its left — and the account card at the bottom
@@ -469,8 +474,8 @@ What the eye should hit, in order — one step per level, never two the same siz
   due today: Mark done · Move date (opens the entry) · star), one compact list in
   `.tk-grp[data-tone]` groups (Overdue · Due today · Needs you · Upcoming · Someday, then
   completed) with one-line `.tk-list .tk-item` rows, and a `.tk-rail` (sticky from xl, three
-  across at md–xl): `This week` ring + done-per-day bars, `Waiting on` by person,
-  `Personal` mini stickies.
+  across at md–xl): `This week` (ring, Done / Still due / Late, bars) and `Waiting on` with
+  Reply / Nudge (the Personal mini-stickies card was dropped 2026-11-14).
   Rows are an **open list** (2026-11-01, owner's pick "B"): no box, border or shadow; each
   group's rows hang off a 3px colour rail (`.tk-grp-body`, `--tone` per `data-tone`); hover
   tints the row white. Follow-ups show the person's initial (`.tk-avatar-sm`); a due
