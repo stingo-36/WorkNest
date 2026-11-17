@@ -5,7 +5,7 @@
 > and `app/src/app/(auth)/auth-motion.css` (login / register). This file explains the system and the rules. If you change a token,
 > update the table here in the same change.
 >
-> Last synced with the codebase: **2026-11-14**
+> Last synced with the codebase: **2026-11-17**
 
 ---
 
@@ -119,11 +119,18 @@ to-dos and upcoming rows. Finished entries collapse under "✓ N completed today
 a `.tk-field` card (title · hairline · body · toolbar). Entry dialogs use `Modal size="xl"`.
 **Plain Tracker (owner's mockup, 2026-11-14):** the page is scoped `.tk-plain` — cool grey page
 (`--tk-page`), white cards with a `--tk-line` hairline and 0.75rem radius, navy ink `--tk-ink`
-(buttons, active tab underline, sprint segments `.tk-sprint`, ring), a dark `--tk-hero` Next up
-card. Stat cards are `.tk-glance` (`.tk-stat` is taken by the old summary). Rows show a
+(buttons, active tab underline). **Simpler To-do (2026-11-17)** replaced the sprint meter, the four
+stat cards (`.tk-glance`), the Next up card and the This week card (ring, bars) — all removed with
+their CSS: the header is date · sprint day, the greeting and three `.tk-pills` / `.tk-pill[data-tone=
+late|needs|turn]` buttons (white, `--tk-line` edge, coloured number); tab counts show only what needs
+you, as an amber `.tk-tab-count[data-needs]` chip on `--tk-amber-bg`. The list has two groups,
+Needs you (`.tk-grp-hint` beside the title, hidden on phones; the just-added row is
+`.tk-item[data-new]` on `--c-card-tint`; `.tk-pline` for due personal to-dos) and Coming up. The
+rail holds one **People** card (`.tk-people-head` over "Waiting on you" / "You're waiting on" lists,
+`.tk-mini-btn` Reply / Nudge) and no longer turns into two columns at md–xl. Rows show a
 `.tk-badge` (late = `--tk-late` on `--tk-late-bg`) in `.tk-row-meta`; row buttons are 40px
 `rounded-lg`. Search is portalled into the desk bar's `#app-deskbar-slot` from 1024px. The
-**All / Work / Personal** switch is `.tk-scope` (grey track, white active segment). Personal to-dos are `.tk-sticky` cards:
+All / Work / Personal switch (`.tk-scope`) was removed 2026-11-17 — Personal is an ordinary tab. Personal to-dos are `.tk-sticky` cards:
 `--c-sticky-1…5` paper tints (`#fff1b8` yellow, `#ffdbe4` pink, `#d8f2e0` green, `#d9ecfa`
 blue, `#ebe2fb` lilac; ink text), `--radius-md`, `--sh-md`, a ±1.2° tilt picked from the id
 that straightens (and lifts to `--sh-lg`) on hover/focus — no motion under reduced motion.
@@ -467,7 +474,7 @@ What the eye should hit, in order — one step per level, never two the same siz
   (Quick log) · Notes · Ask; Ask opens via `openAsk()` (`ASK_OPEN_EVENT`), no floating
   bubble; Ask is a full-height right drawer from md; `Modal size="full"` (`.modal-full`)
   for Quick log; 404 = "Lost at sea." with numbered ways out.
-- **Tracker v3 (2026-11-01, replaces the lanes / week strip on Work to-dos):** greeting
+- **Tracker v3 (2026-11-01, replaces the lanes / week strip on Work to-dos; header, Next up and rail superseded 2026-11-17 — see Plain Tracker above):** greeting
   header (`.tk-greeting`: "Good evening, {first name}", date · sprint day, overdue / need
   you / done this sprint), pill tabs (`.tk-tabs` / `.tk-tab`), one add bar (`.tk-command`:
   Work/Personal + add field + date + star), a `.tk-next` "Next up" card (most overdue, else
@@ -479,7 +486,17 @@ What the eye should hit, in order — one step per level, never two the same siz
   Rows are an **open list** (2026-11-01, owner's pick "B"): no box, border or shadow; each
   group's rows hang off a 3px colour rail (`.tk-grp-body`, `--tone` per `data-tone`); hover
   tints the row white. Follow-ups show the person's initial (`.tk-avatar-sm`); a due
-  "Mark nudged" is a soft pill (`PILL_SOFT`), "Got it" stays solid.
+  "Mark nudged" is a soft pill (`PILL_SOFT`), "Got it" stays solid (renamed "I pinged them" / "Done" 2026-11-17).
+- **Follow-ups (2026-11-17):** the same white `.tk-list` card as To-do — `ListGroup`s Your turn (`today`
+  tone) · Time to ping (`needs`) · Waiting on them (`upcoming`), each with a `.tk-grp-hint`, then the
+  closed line; rows' eyebrow is just the person (`FollowUpRow inGroup`) — under a right-aligned ink `PILL` **New follow-up**, which opens `Modal size="lg"`
+  with the form in `.tk-inline-panels` (Who / date panels open in the flow). The type is a two-option
+  pill radiogroup above the card (`bg-sidebar` when on), replacing the toolbar dropdown; Log a chat
+  adds a "They spoke last" checkbox to the toolbar. No `.tk-hint` box on any tab (removed with its CSS);
+  the People card shows four per list, the heading keeps the real total, then "+N more" → Follow-ups. Phones (< 48rem): the
+  add row's field takes the first line and its tools + Add wrap under it.
+  The entry dialog's Archive / Restore is a labelled `Button variant="secondary"` beside the main
+  done button (2026-11-17), no longer an icon-only ghost button.
   The pill tabs and Work/Personal use a **sliding highlight** (`.tk-slide` + `useSlidingPill`:
   the box's ::before is moved/sized to the `[data-on]` child, 380ms smooth-out); switching
   lists fades the new one in (`.tk-swap`); both off under reduced motion. The add bar keeps

@@ -4,7 +4,7 @@
 > changes scope, or is retired, update the matching section here (see
 > `AGENTS.md → Keeping the docs current`).
 >
-> Last synced with the codebase: **2026-11-14**
+> Last synced with the codebase: **2026-11-17**
 
 ---
 
@@ -56,7 +56,7 @@ placeholder page) · **Retired** (redirects).
 | Auth | `/login`, `/register` | Live (public) | Email + password; Ocean look (2026-11-01): sign-in centred over waves, register in two steps (name + email, then passwords) on one form. Direct admin sign-ins land on `/admin`; regular users land on `/tracker`. |
 | Work Logs | `/work-logs`, `/work-logs/[id]`, `/work-logs/[id]/edit` | Live | The core workflow — see §5.1. |
 | Tickets | `/tickets` | Live · hidden when *Tickets* is off in Profile | Master-detail ticket manager — see §5.2. |
-| Tracker | `/tracker` | Live — **post-login landing page** | To-do · Follow-ups · Notes tabs (`?view=`), a plain header (2026-11-14: date + greeting, sprint meter, four stat cards — Overdue · Need you · Your turn · Done this week — underline tabs; search in the desktop top bar), Work to-dos as a Next up card and one white list card (Overdue (first 4 + "Show N more") · Due today · Needs you · Later and Someday folded) beside a rail (This week ring + Done / Still due / Late + bars, Waiting on with Reply / Nudge that open the thread), Follow-ups laid out like Notes — a **New update** composer card (type dropdown — General / Waiting on / I told / They told me — title, optional rich first message, who/where, reminder or "said on" date, star) beside the follow-up list (Your turn · Nudge due · Waiting), rows open the entry dialog (2026-11-01); To-do has an **All / Work / Personal** switch (Work by default; All lists both), Personal shows sticky notes — see §5.3. |
+| Tracker | `/tracker` | Live — **post-login landing page** | To-do · Follow-ups · Personal · Notes · Archived tabs (`?view=`), a plain header (2026-11-17: date · sprint day, greeting, three summary pills — overdue · follow-ups need you · people waiting on your reply — and underline tabs whose counts are only what needs you; search in the desktop top bar), Work to-dos as one white list card in two groups (**Needs you**: late, due today, then follow-ups that need you — first 6 + "Show N more", the just-added to-do always shown and highlighted, and a line when personal to-dos are due or late · **Coming up** by day, No date last) beside a **People** card (Waiting on you with Reply · You're waiting on with Nudge; both open the thread), Follow-ups laid out like Notes — a **New update** composer card (type dropdown — General / Waiting on / I told / They told me — title, optional rich first message, who/where, reminder or "said on" date, star) beside the follow-up list (Your turn · Nudge due · Waiting), rows open the entry dialog (2026-11-01); **Personal** is its own tab (2026-11-17; was an All / Work / Personal switch on To-do) showing sticky notes — see §5.3. |
 | Notes | `/notes`, `/notes/new`, `/notes/[id]`, `/notes/[id]/edit` | Live | Notebooks: note → sections → pages — see §5.4. |
 | Resources | `/resources` | Live | Typed personal library — see §5.5. |
 | Favourites | `/favourites` | Live | Everything starred in one place — see §5.6. |
@@ -208,7 +208,7 @@ update.*
 
 ### 5.3 Tracker
 
-Three tabs (`?view=todo|followups|notes`) in the Work Logs teal-and-ink palette. Layout
+Tabs (`?view=todo|followups|personal|notes|archived`; Personal and Archived added later) in the Work Logs teal-and-ink palette. Layout
 from the owner's mockup (2026-10-14, second pass): a top line with the date on the left and
 the tabs (open counts; Follow-ups amber when one needs you) plus a compact search pill (⌘K;
 text and `#tag`) on the right; then **Tracker** with the tab's underline **add field** beside
@@ -226,10 +226,23 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
 | Tab (`EntryKind`) | Tab badge | Add | Columns | Row actions |
 |---|---|---|---|---|
 | **To-do** (`Task`) | overdue/due-today to-dos + follow-ups that need you | title · due date · ★ | left **Today** (incl. follow-ups: nudge due / replied) + "✓ N completed today · Show"; right **Upcoming** by *tomorrow's date · Later this week · Next week · Later · No date* (to-dos + future nudges) | round tick (done / close / reopen) · ★; follow-ups: Mark nudged / Got it |
-| **Follow-ups** (`FollowUp`) | replies + nudges due | title · who + where (channel) · nudge date | left **Needs you** (*Your turn* · *Nudge due*) + collapsed closed line; right **Waiting** | Mark nudged · Got it (= close); replied: Got it · Open |
-| **Notes** (`Note`) | open notes | **New note** button in the card header opens the composer in a popup: title · body · formatting · tags · ★ | one full-width **Notes** card (2026-11-11): count, search (beside New note from 1024px), tag filter chips (All + each tag), then **Pinned · This week · Earlier** (title, tag chips and "2 days ago" / "28 Oct" only — the text stays inside), collapsed archive at the bottom | ★ (Restore on archived) |
+| **Follow-ups** (`FollowUp`) | replies + pings due | **New follow-up** popup (2026-11-17): type · title · who + where (channel) · date | one list (2026-11-17): *Your turn* · *Time to ping* · *Waiting on them* + collapsed closed line | I pinged them · Done (= close); replied: Done |
+| **Notes** (`Note`) | none (2026-11-17; was open notes) | **New note** button in the card header opens the composer in a popup: title · body · formatting · tags · ★ | one full-width **Notes** card (2026-11-11): count, search (beside New note from 1024px), tag filter chips (All + each tag), then **Pinned · This week · Earlier** (title, tag chips and "2 days ago" / "28 Oct" only — the text stays inside), collapsed archive at the bottom | ★ (Restore on archived) |
 
-- **Work / Personal** (2026-10-21; **All** added 2026-11-14 — work and personal to-dos in one list): the To-do tab has a toggle beside the tabs,
+- **Simpler To-do** (2026-11-17, phase 1 of the Tracker simplification, from the owner-approved
+  clickable prototype): the four stat cards, sprint meter, Next up card and This week card are gone.
+  The header shows the sprint day in the date line and three pills (overdue → To-do; follow-ups
+  need you and people waiting on your reply → Follow-ups). Tab counts mean one thing — how many
+  need you (To-do = its Needs you group; Follow-ups = replies + nudges due; Notes and Archived show
+  none). Work to-dos are two groups: **Needs you** (overdue oldest first, then due today, then
+  follow-ups that need you; six shown, "Show N more" / "Show fewer"; the to-do you just added always
+  shows, highlighted, until you change tab) and **Coming up** (open to-dos and future nudges by
+  tomorrow · later this week · next week · later · no date). A line under Needs you says when
+  personal to-dos are due or late and opens Personal. The rail's **People** card lists who is
+  waiting on your reply (Reply) and who you're waiting on (Nudge when due, else "Waiting"); a
+  person with threads both ways is in both.
+- **Personal tab** (2026-11-17, phase 2 of the Tracker simplification): personal to-dos have their own tab, `?view=personal`, between Follow-ups and Notes; the All / Work / Personal switch and the mixed All list are gone, and To-do always shows work. Its count is personal to-dos due or late; `?open=<id>` of a personal to-do opens it on this tab; the Needs you line "N personal to-dos are due or late · Open Personal" opens it. The sticky-note behaviour below is unchanged.
+- **Work / Personal** (2026-10-21; **All** added 2026-11-14 — work and personal to-dos in one list; both replaced by the Personal tab 2026-11-17): the To-do tab had a toggle beside the tabs,
   **Work** selected every time the page opens. *Work* is the Today | Upcoming queue above.
   *Personal* is a wall of **sticky notes** (yellow/pink/green/blue/lilac paper, slight tilt;
   1 → 2 → 3 → 4 columns at 375/768/1024/1440): tick, title (opens the dialog), last note,
@@ -241,14 +254,30 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   Done ones fold into "✓ N done · Show".
   Personal to-dos count in the To-do badge, but are **kept out of Work Logs** (day cards,
   log to-dos, AI summary input) and the sprint report; Ask still sees them, marked personal.
-- **Mark nudged** appends an "I followed up" update ("Nudged", last channel) and clears
-  the nudge date, so the row moves to *Waiting*.
+- **Archive, labelled (2026-11-17, phase 4):** the entry dialog's Archive / Restore is a labelled
+  button beside Mark done / Done (was an unlabelled box icon among star and delete); its toast says
+  where the item went. The **Archived** tab stays (owner's choice over moving it to a link under
+  To-do). **Phase 5 (Notes tab) is deferred** to the Notes review: Tracker notes stay a Tracker tab.
+- **Follow-ups, simpler (2026-11-17, phase 3 of the Tracker simplification):** the tab opens on
+  the list (no composer beside or above it); **New follow-up** opens the form in a popup like New
+  note. Two types replace four: **Waiting on** (date = *Remind me on*) and **Log a chat** (date =
+  *Talked on*; a **They spoke last** tick records the first message as theirs, so it opens in
+  *Your turn*). General / I told became Log a chat, They told me became Log a chat + the tick; saved
+  fields are unchanged. Plainer words on Tracker screens: *Mark nudged* → **I pinged them**, *Got it*
+  / *Close* → **Done**, *Nudge due* → **Time to ping**, *Waiting* → **Waiting on them**, the People
+  card's *Nudge* → **Ping**. "Nudge" still appears in Ask, Work Logs and the Kaizen app. Polish (same
+  day): Follow-ups uses To-do's white list card, rows name only the person (the group already says the
+  state), the People card's counts are real totals with "+N more", and Notes / Archived lost their hint
+  boxes.
+- **I pinged them** (was *Mark nudged*) appends an "I followed up" update ("Pinged them again";
+  "Nudged" before 2026-11-17 — old rows keep it, the record is append-only), last channel, and
+  clears the reminder date, so the row moves to *Waiting on them*.
 - Ticking a to-do done (or reopening it) appends a dated **"Marked done" / "Reopened"**
   entry to its timeline, shown as a small status line; the done date also shows as
   *Status: Done · 17 Oct*. Row previews ("Last note:") skip these entries.
 - A follow-up needs a person: *Add* without one opens the Who panel with an error. The
   title is recorded as the first message (with the channel).
-- The **New update** card (titled *New follow-up* until 2026-11-11) has a **type dropdown** in
+- *History, superseded 2026-11-17 by the two types above:* the **New update** card (titled *New follow-up* until 2026-11-11) had a **type dropdown** in
   its bottom toolbar — **General** (default) · **Waiting on** · **I told** · **They told me** — which
   replaced the pill switch above the card (2026-11-11). *General* is the catch-all for any
   conversation: saved like *I told*, with neutral copy (*What was it about?*, *Talked on*, *With …*).
@@ -285,7 +314,7 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
 - Notes also hold **minutes of meeting**: ones written from a work-log meeting card are
   tagged `#mom` (search `#mom` to list them) and linked back from that meeting (§5.1).
 - Any entry can be **starred as a favourite** (sorts first; open ones show in Favourites).
-- Every row has a **delete** button (trash, shown on hover/focus from md, always on phones)
+- Every to-do, sticky and follow-up row has a **delete** button (trash, shown on hover/focus from md, always on phones; note rows don't — a note is deleted from its dialog)
   with a confirmation; the dialog keeps its own Delete too. *Today* lists to-dos before
   the follow-ups that need you.
 - Clicking a title (or *Open*) opens the entry in a wide **dialog** at every width — two

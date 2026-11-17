@@ -7,14 +7,12 @@ import {
   ArchiveRestore,
   ArrowRight,
   CalendarDays,
-  Clock,
   Pencil,
   Check,
   ChevronDown,
   ChevronRight,
   Hash,
   MessageSquareReply,
-  MessagesSquare,
   Plus,
   RotateCcw,
   Send,
@@ -25,7 +23,7 @@ import {
 import { createPortal } from "react-dom";
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { addDays, differenceInCalendarDays, endOfWeek, format, parseISO, startOfWeek } from "date-fns";
+import { addDays, differenceInCalendarDays, endOfWeek, format, parseISO } from "date-fns";
 
 import {
   addFollowUpUpdate,
@@ -47,7 +45,6 @@ import { Field, FormError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
-import { Menu, menuItemClass } from "@/components/shell/menu";
 import { TagInput } from "@/components/ui/tag-input";
 import { toast } from "@/components/ui/toast";
 import { FormattedNote } from "@/components/tracker/note-text";
@@ -103,19 +100,18 @@ export type TrackerEntry = {
  *   follow-up  something you told someone — waiting on them, or they replied
  *   note       something to keep — add updates to it over time
  */
-export type TrackerView = "todo" | "followups" | "notes" | "archived";
+export type TrackerView = "todo" | "followups" | "personal" | "notes" | "archived";
 
 const VIEWS: Array<{ id: TrackerView; label: string }> = [
   { id: "todo", label: "To-do" },
   { id: "followups", label: "Follow-ups" },
+  // Its own tab since 2026-11-17 (was a Work | Personal switch on To-do).
+  { id: "personal", label: "Personal" },
   { id: "notes", label: "Notes" },
   { id: "archived", label: "Archived" },
 ];
 
 const KIND_LABEL: Record<EntryKind, string> = { Task: "To-do", FollowUp: "Follow-up", Note: "Note" };
-
-/** The To-do tab's lists: All, Work or Personal. Work is the default every time the page opens (owner, 2026-10-21). */
-type TodoScope = "all" | "work" | "personal";
 
 const entryLabel = (entry: TrackerEntry) => (entry.personal ? "Personal to-do" : KIND_LABEL[entry.kind]);
 
@@ -358,9 +354,10 @@ export function TrackerBoard({
   sprint?: { start: string; day: number; total: number } | null;
 }) {
   const [view, setView] = useState<TrackerView>(initialView);
-  const [scope, setScope] = useState<TodoScope>("work");
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  // The to-do just added from the add row: kept in view and highlighted (2026-11-17).
+  const [justAdded, setJustAdded] = useState<string | null>(null);
   const today = useSyncExternalStore(subscribeNever, todayIso, () => serverToday);
   const needle = query.trim().toLowerCase();
 
@@ -374,19 +371,17 @@ export function TrackerBoard({
   }, [live]);
   const workEntries = useMemo(() => live.filter((entry) => !entry.personal), [live]);
   const personalTodos = useMemo(() => byKind.Task.filter((entry) => entry.personal), [byKind]);
-  const workOpen = byKind.Task.filter((entry) => !entry.personal && isOpen(entry)).length;
-  const scopeCounts: Record<TodoScope, number> = {
-    all: workOpen + personalTodos.filter(isOpen).length,
-    work: workOpen,
-    personal: personalTodos.filter(isOpen).length,
-  };
 
-  // Tab badges: what's still open, not the grand total.
+  // Tab badges mean one thing everywhere (2026-11-17): how many need you. To-do
+  // matches its Needs you group (work to-dos + follow-ups); Notes and Archived never need you.
+  const followNeeds = byKind.FollowUp.filter((entry) => needsYou(entry, today)).length;
+  const personalDue = personalTodos.filter((entry) => needsYou(entry, today)).length;
   const badge: Record<TrackerView, number> = {
-    todo: scopeCounts.all,
-    followups: byKind.FollowUp.filter(isOpen).length,
-    notes: byKind.Note.filter(isOpen).length,
-    archived: archived.length,
+    todo: workEntries.filter((entry) => entry.kind !== "Note" && needsYou(entry, today)).length,
+    followups: followNeeds,
+    personal: personalDue,
+    notes: 0,
+    archived: 0,
   };
   const opened = entries.find((entry) => entry.id === openId) ?? null;
   const lists = useMemo(() => ({ channels, noteTags: savedNoteTags }), [channels, savedNoteTags]);
@@ -397,13 +392,12 @@ export function TrackerBoard({
   // dropped, so following the same link again opens it again.
   const linkedId = useSearchParams().get("open");
   const linked = linkedId ? entries.find((entry) => entry.id === linkedId) : undefined;
-  const linkedTab: TrackerView = linked?.archivedAt ? "archived" : linked?.kind === "FollowUp" ? "followups" : linked?.kind === "Note" ? "notes" : "todo";
+  const linkedTab: TrackerView = linked?.archivedAt ? "archived" : linked?.kind === "FollowUp" ? "followups" : linked?.kind === "Note" ? "notes" : linked?.personal ? "personal" : "todo";
   const [handledLink, setHandledLink] = useState<string | null>(null);
   if ((linked?.id ?? null) !== handledLink) {
     setHandledLink(linked?.id ?? null);
     if (linked) {
       setView(linkedTab);
-      if (linked.kind === "Task") setScope(linked.personal ? "personal" : "work");
       setOpenId(linked.id);
     }
   }
@@ -415,6 +409,7 @@ export function TrackerBoard({
     setView(next);
     setQuery("");
     setOpenId(null);
+    setJustAdded(null);
     // Shallow URL update so a refresh or a link lands on the same tab, without
     // a server round-trip on every switch.
     window.history.replaceState(null, "", next === "todo" ? "/tracker" : `/tracker?view=${next}`);
@@ -428,23 +423,14 @@ export function TrackerBoard({
     choose(next.id);
   }
 
-  // Follow-ups badge turns amber when one needs you.
-  const followNeeds = byKind.FollowUp.some((entry) => needsYou(entry, today));
-
-  // The greeting's numbers: overdue work to-dos, everything that needs you, and
-  // to-dos finished since the sprint (else the week) began.
-  const summaryFrom = sprint?.start ?? format(startOfWeek(parseISO(today), { weekStartsOn: 1 }), "yyyy-MM-dd");
-  const overdueTodos = workEntries.filter((entry) => entry.kind === "Task" && isOpen(entry) && entry.dueDate !== null && entry.dueDate < today);
-  const oldestDue = overdueTodos.reduce<string | null>((oldest, entry) => (oldest === null || entry.dueDate! < oldest ? entry.dueDate : oldest), null);
+  // The header's three pills (2026-11-17, replaced four stat cards and the sprint meter):
+  // late work to-dos, follow-ups that need you, and people waiting on your reply.
   const summary = {
-    overdue: overdueTodos.length,
-    oldestLate: oldestDue ? differenceInCalendarDays(parseISO(today), parseISO(oldestDue)) : 0,
-    needs: workEntries.filter((entry) => entry.kind !== "Note" && isOpen(entry) && needsYou(entry, today)).length,
-    // People who replied and are waiting on you (one per person, however many threads).
+    overdue: workEntries.filter((entry) => entry.kind === "Task" && isOpen(entry) && entry.dueDate !== null && entry.dueDate < today).length,
+    followNeeds,
+    // One per person, however many threads.
     yourTurn: new Set(byKind.FollowUp.filter((entry) => isOpen(entry) && followStateOf(entry) === "replied").map((entry) => entry.person ?? "Someone")).size,
-    done: byKind.Task.filter((entry) => !isOpen(entry) && entry.completedAt && localDay(entry.completedAt) >= summaryFrom).length,
   };
-  const week = weekStats(workEntries, today);
 
   // From 1024px search lives in the desktop top bar (mockup, 2026-11-14); the bar
   // renders an empty slot for it. Below that it stays on the page.
@@ -453,45 +439,38 @@ export function TrackerBoard({
   return (
     <ListsContext.Provider value={lists}>
     <div className="tk-focus tk-plain flex w-full min-w-0 flex-col gap-6">
-      {/* Plain redesign (owner's mockup, 2026-11-14): date + greeting with the sprint meter,
-          four stat cards, underline tabs with All / Work / Personal, then the add row. */}
+      {/* Simpler Tracker (2026-11-17): date + sprint day, greeting, three summary pills,
+          underline tabs whose counts are what needs you, then the add row. */}
       {/* relative z-20: the page's entrance animation leaves each block in its own stacking
           layer, so without this the content below paints over (and swallows clicks on) the
           add field's date / who panels. */}
       <header className="relative z-20 flex flex-col gap-6">
-        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
-          <div className="flex min-w-0 flex-col gap-1">
-            <p className="text-sm text-text-muted" suppressHydrationWarning>{format(parseISO(today), "EEEE, d MMMM")}</p>
-            <h1 className="tk-greeting">
-              <span className="sr-only">Tracker — </span>
-              <span suppressHydrationWarning>{greeting()}</span>{greetingName ? `, ${greetingName}` : ""}
-            </h1>
-          </div>
-          {sprint ? <SprintMeter day={sprint.day} total={sprint.total} done={summary.done} /> : <p className="text-sm text-text-muted">{summary.done} done this week</p>}
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="text-sm text-text-muted" suppressHydrationWarning>
+            {format(parseISO(today), "EEEE, d MMMM")}{sprint ? ` · Sprint day ${sprint.day} of ${sprint.total}` : ""}
+          </p>
+          <h1 className="tk-greeting">
+            <span className="sr-only">Tracker — </span>
+            <span suppressHydrationWarning>{greeting()}</span>{greetingName ? `, ${greetingName}` : ""}
+          </h1>
+          <ul aria-label="Today at a glance" className="tk-pills">
+            <li>
+              <button type="button" className="tk-pill tap-area" data-tone="late" onClick={() => choose("todo")} suppressHydrationWarning>
+                {summary.overdue ? <><b>{summary.overdue}</b> overdue</> : "Nothing late"}
+              </button>
+            </li>
+            <li>
+              <button type="button" className="tk-pill tap-area" data-tone="needs" onClick={() => choose("followups")}>
+                <b>{summary.followNeeds}</b> {summary.followNeeds === 1 ? "follow-up needs you" : "follow-ups need you"}
+              </button>
+            </li>
+            <li>
+              <button type="button" className="tk-pill tap-area" data-tone="turn" onClick={() => choose("followups")}>
+                <b>{summary.yourTurn}</b> {plural(summary.yourTurn, "person", "people")} waiting on your reply
+              </button>
+            </li>
+          </ul>
         </div>
-
-        <ul aria-label="Today at a glance" className="tk-stats">
-          <li className="tk-glance" data-tone={summary.overdue ? "overdue" : undefined}>
-            <p className="tk-stat-label">Overdue</p>
-            <p className="tk-stat-value">{summary.overdue}</p>
-            <p className="tk-stat-note" suppressHydrationWarning>{summary.overdue ? `Oldest is ${summary.oldestLate} ${plural(summary.oldestLate, "day")} late` : "Nothing late"}</p>
-          </li>
-          <li className="tk-glance" data-tone="needs">
-            <p className="tk-stat-label">Need you</p>
-            <p className="tk-stat-value">{summary.needs}</p>
-            <p className="tk-stat-note">Across to-dos and follow-ups</p>
-          </li>
-          <li className="tk-glance" data-tone="turn">
-            <p className="tk-stat-label">Your turn</p>
-            <p className="tk-stat-value">{summary.yourTurn}</p>
-            <p className="tk-stat-note">{plural(summary.yourTurn, "Person", "People")} waiting on a reply</p>
-          </li>
-          <li className="tk-glance" data-tone="done">
-            <p className="tk-stat-label">Done this week</p>
-            <p className="tk-stat-value">{week.done}</p>
-            <p className="tk-stat-note">{week.pct}% of this week&apos;s plan</p>
-          </li>
-        </ul>
 
         <SearchPill id="tracker-search" label="Search the Tracker" value={query} placeholder="Search tasks, people or #tags" onChange={setQuery} className="h-11 w-full lg:hidden" />
         {deskSlot ? createPortal(
@@ -506,23 +485,17 @@ export function TrackerBoard({
               return (
                 <button key={item.id} type="button" aria-current={on ? "page" : undefined} onClick={() => choose(item.id)} className="tk-tab">
                   {item.label}
-                  <span className={cn("tk-tab-count", item.id === "followups" && followNeeds && "text-warning")}>{badge[item.id]}</span>
+                  {badge[item.id] ? <span className="tk-tab-count" data-needs="">{badge[item.id]}<span className="sr-only"> need you</span></span> : null}
                 </button>
               );
             })}
           </nav>
-          {view === "todo" ? <ScopeToggle value={scope} counts={scopeCounts} onChange={(next) => { setScope(next); setQuery(""); }} /> : null}
         </div>
 
-        {view === "todo" ? (
-          <div className="tk-command"><AddTodo key={scope} today={today} personal={scope === "personal"} /></div>
-        ) : (
-          <p className="tk-hint">
-            {view === "followups" ? "Start a follow-up below — the newest update shows on each card." : null}
-            {view === "notes" ? "Your notes, newest first. Press New note to write one; open a note to add to it." : null}
-            {view === "archived" ? "Put away from your lists, kept with their history. Restore puts one back." : null}
-          </p>
-        )}
+        {view === "todo" || view === "personal" ? (
+          <div className="tk-command"><AddTodo key={view} today={today} personal={view === "personal"} onAdded={setJustAdded} /></div>
+        ) : null}
+        {/* No hint boxes on the other tabs (2026-11-17): each list has its own button or empty state. */}
       </header>
 
       <section id="tracker-panel" aria-label={`${VIEWS.find((item) => item.id === view)?.label ?? "Tracker"} list`} className="flex min-w-0 flex-col">
@@ -534,17 +507,20 @@ export function TrackerBoard({
           </p>
         ) : null}
         {/* Re-keyed per list so switching tab or Work/Personal fades the new list in. */}
-        <div key={`${view}-${scope}`} className="tk-swap">
-        {view === "todo" && scope !== "personal" ? (
+        <div key={view} className="tk-swap">
+        {view === "todo" ? (
           <TodoQueue
-            entries={scope === "all" ? live : workEntries}
+            entries={workEntries}
             today={today}
             needle={needle}
+            justAdded={justAdded}
+            personalDue={personalDue}
             onOpen={openEntry}
             onShowFollowUps={() => choose("followups")}
+            onShowPersonal={() => choose("personal")}
           />
         ) : null}
-        {view === "todo" && scope === "personal" ? <StickyBoard entries={personalTodos} today={today} needle={needle} onOpen={openEntry} /> : null}
+        {view === "personal" ? <StickyBoard entries={personalTodos} today={today} needle={needle} onOpen={openEntry} /> : null}
         {view === "followups" ? <FollowUpQueue entries={byKind.FollowUp} people={people} today={today} needle={needle} onOpen={openEntry} /> : null}
         {view === "archived" ? <ArchiveList entries={archived} today={today} needle={needle} onOpen={openEntry} /> : null}
         {view === "notes" ? <NoteQueue entries={byKind.Note} suggestions={tagSuggestions} today={today} needle={needle} onOpen={openEntry} /> : null}
@@ -713,11 +689,6 @@ function finishedByDay(entries: TrackerEntry[]) {
     .map(([key, items]) => ({ key, label: format(parseISO(key), "EEEE d MMM"), items }));
 }
 
-/** Two lanes from lg (Today | Upcoming, …); stacked on smaller screens. */
-function Columns({ children }: { children: React.ReactNode }) {
-  return <div className="grid min-w-0 gap-4 md:gap-5 lg:grid-cols-2 lg:items-start">{children}</div>;
-}
-
 /** A lane (Ocean, 2026-11-01): frosted panel, dot + title + count; warm when something needs you. */
 function Column({ title, count, needs = false, tone, aside, children }: { title: string; count?: number; needs?: boolean; tone?: "overdue" | "upcoming" | "someday"; aside?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -789,9 +760,9 @@ function FinishedGroup({ verb, entries, today, needle, render }: { verb: string;
 }
 
 /** One row: optional leading tick, a status eyebrow, the title (opens the entry), extra lines, actions. */
-function Row({ muted = false, needs = false, wide = false, eyebrow, leading, title, meta, actions, onOpen }: { muted?: boolean; needs?: boolean; wide?: boolean; eyebrow?: React.ReactNode; leading?: React.ReactNode; title: string; meta?: React.ReactNode; actions?: React.ReactNode; onOpen: () => void }) {
+function Row({ muted = false, needs = false, wide = false, highlight = false, eyebrow, leading, title, meta, actions, onOpen }: { muted?: boolean; needs?: boolean; wide?: boolean; highlight?: boolean; eyebrow?: React.ReactNode; leading?: React.ReactNode; title: string; meta?: React.ReactNode; actions?: React.ReactNode; onOpen: () => void }) {
   return (
-    <li className="tk-item group mb-2 flex flex-wrap items-center gap-x-5 gap-y-2 px-3 py-3 md:px-4">
+    <li data-new={highlight || undefined} className="tk-item group mb-2 flex flex-wrap items-center gap-x-5 gap-y-2 px-3 py-3 md:px-4">
       <div className={cn("flex min-w-0 items-start gap-3", wide ? "flex-[1_1_18rem]" : "flex-[1_1_10rem]")}>
         {leading}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -926,11 +897,11 @@ function initials(name: string) {
 const markDone = (entry: TrackerEntry) => () => setFollowUpStatus({ followUpId: entry.id, status: "Done" });
 const markOpen = (entry: TrackerEntry) => () => setFollowUpStatus({ followUpId: entry.id, status: "Open" });
 
-/** "Mark nudged": record that you chased them (append-only), then clear the nudge date. */
+/** "I pinged them" (was "Mark nudged" until 2026-11-17): record that you chased them (append-only), then clear the reminder date. */
 function useNudge(entry: TrackerEntry) {
   const { channels } = useContext(ListsContext);
   return async () => {
-    const recorded = await addFollowUpUpdate({ followUpId: entry.id, note: "Nudged", channel: defaultChannel(channels), fromThem: false });
+    const recorded = await addFollowUpUpdate({ followUpId: entry.id, note: "Pinged them again", channel: defaultChannel(channels), fromThem: false });
     if (!recorded.ok) return recorded;
     return rescheduleFollowUp({ followUpId: entry.id, dueDate: null });
   };
@@ -938,8 +909,8 @@ function useNudge(entry: TrackerEntry) {
 
 function NudgePill({ entry, ink }: { entry: TrackerEntry; ink: boolean }) {
   const nudge = useNudge(entry);
-  // When due it's the row's main action, but softer than "Got it" (Ocean, 2026-11-01).
-  return <ActionPill soft={ink} label="Mark nudged" action={nudge} success="Nudge recorded" />;
+  // When due it's the row's main action, but softer than "Done" (Ocean, 2026-11-01).
+  return <ActionPill soft={ink} label="I pinged them" action={nudge} success="Noted. It moved to Waiting on them." />;
 }
 
 // --- add pill ------------------------------------------------------------------
@@ -1133,7 +1104,7 @@ function StarTool({ value, onChange }: { value: boolean; onChange: (value: boole
 }
 
 /** Create an entry, then star it if asked. Shared by the three add pills. */
-function useCreate(onSaved: () => void) {
+function useCreate(onSaved: (id: string) => void) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string>();
@@ -1151,7 +1122,7 @@ function useCreate(onSaved: () => void) {
       if (pinned) await setFollowUpPinned({ followUpId: result.data.id, pinned: true });
       toast.success(input.personal ? "Sticky note added" : `${KIND_LABEL[input.kind]} added`);
       setError(undefined);
-      onSaved();
+      onSaved(result.data.id);
       router.refresh();
     });
   }
@@ -1181,11 +1152,6 @@ function upcomingBuckets(items: TrackerEntry[], today: string) {
   return buckets.filter((bucket) => bucket.items.length);
 }
 
-/** "Both need you", "Needs you", "3 need you". */
-function needLine(count: number) {
-  return count === 0 ? undefined : count === 1 ? "Needs you" : count === 2 ? "Both need you" : `${count} need you`;
-}
-
 /** "Good morning" / "Good afternoon" / "Good evening" by the browser's clock. */
 function greeting() {
   const hour = new Date().getHours();
@@ -1196,117 +1162,87 @@ function greeting() {
 const localDay = (iso: string) => format(parseISO(iso), "yyyy-MM-dd");
 
 /**
- * This week's to-dos: done per day (Mon–Sun), what is still due by Sunday, what
- * is late, and done as a share of done + still due ("% of this week's plan").
+ * The Work to-do view (simpler Tracker, 2026-11-17): one list in two groups —
+ * Needs you (late first, then due today, then follow-ups that need you; six
+ * shown, plus the one you just added) and Coming up (by day, "No date" last) —
+ * then the collapsed done line. Beside it (below on small screens) the People
+ * card. Replaced the Next up card, five groups and the This week card.
  */
-function weekStats(entries: TrackerEntry[], today: string) {
-  const monday = startOfWeek(parseISO(today), { weekStartsOn: 1 });
-  const days = Array.from({ length: 7 }, (_, index) => format(addDays(monday, index), "yyyy-MM-dd"));
-  const tasks = entries.filter((entry) => entry.kind === "Task");
-  const donePerDay = days.map((day) => tasks.filter((entry) => !isOpen(entry) && entry.completedAt && localDay(entry.completedAt) === day).length);
-  const done = donePerDay.reduce((sum, count) => sum + count, 0);
-  const left = tasks.filter((entry) => isOpen(entry) && entry.dueDate !== null && entry.dueDate <= days[6]).length;
-  const late = tasks.filter((entry) => isOpen(entry) && entry.dueDate !== null && entry.dueDate < today).length;
-  return { days, donePerDay, done, left, late, pct: done + left ? Math.round((done / (done + left)) * 100) : 0 };
-}
+const NEEDS_SHOWN = 6;
 
-/** "Sprint · day 3 of 10", one segment per sprint day, and what's done this sprint. */
-function SprintMeter({ day, total, done }: { day: number; total: number; done: number }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-2 md:items-end">
-      <p className="flex flex-wrap items-baseline gap-x-6 text-sm" suppressHydrationWarning>
-        <b className="font-semibold text-text">Sprint · day {day} of {total}</b>
-        <span className="text-text-muted">{done} done this sprint</span>
-      </p>
-      <div className="tk-sprint" role="img" aria-label={`Sprint day ${day} of ${total}`}>
-        {Array.from({ length: total }, (_, index) => <span key={index} data-on={index < day || undefined} />)}
-      </div>
-    </div>
-  );
-}
-
-/**
- * The Work to-do view (Ocean redesign v3, 2026-11-01): a "Next up" card for the
- * most urgent to-do, then one compact list in groups — Overdue, Due today,
- * Needs you (follow-ups), Upcoming by day, Someday — and the collapsed
- * completed line; beside it (below it on small screens) a rail with this
- * week's progress, who you're waiting on and personal to-dos. Same rows and
- * actions as before.
- */
-function TodoQueue({ entries, today, needle, onOpen, onShowFollowUps }: {
+function TodoQueue({ entries, today, needle, justAdded, personalDue, onOpen, onShowFollowUps, onShowPersonal }: {
   entries: TrackerEntry[];
   today: string;
   needle: string;
+  justAdded: string | null;
+  /** Personal to-dos due or late; shown as one line so they aren't missed on Work. */
+  personalDue: number;
   onOpen: (entry: TrackerEntry) => void;
   onShowFollowUps: () => void;
+  onShowPersonal: () => void;
 }) {
   const groups = useMemo(() => {
-    const next = { overdue: [] as TrackerEntry[], dueToday: [] as TrackerEntry[], needs: [] as TrackerEntry[], coming: [] as TrackerEntry[], someday: [] as TrackerEntry[], done: [] as TrackerEntry[] };
+    const next = { overdue: [] as TrackerEntry[], dueToday: [] as TrackerEntry[], replies: [] as TrackerEntry[], coming: [] as TrackerEntry[], done: [] as TrackerEntry[] };
     for (const entry of entries) {
       if (entry.kind === "Note" || !matches(entry, needle)) continue;
       if (needsYou(entry, today)) {
-        if (entry.kind === "FollowUp") next.needs.push(entry);
+        if (entry.kind === "FollowUp") next.replies.push(entry);
         else if (entry.dueDate && entry.dueDate < today) next.overdue.push(entry);
         else next.dueToday.push(entry);
       } else if (!isOpen(entry)) { if (entry.kind === "Task") next.done.push(entry); }
-      else if (entry.dueDate) next.coming.push(entry);
-      else if (entry.kind === "Task") next.someday.push(entry);
+      // Dated follow-ups (a future nudge) and every open to-do, dated or not.
+      else if (entry.dueDate || entry.kind === "Task") next.coming.push(entry);
     }
     next.overdue.sort(byDue);
     next.dueToday.sort(byNeed);
-    next.needs.sort(byNeed);
+    next.replies.sort(byNeed);
     next.coming.sort(byDue);
-    next.someday.sort(byDue);
     next.done.sort(byCompleted);
     return next;
   }, [entries, today, needle]);
 
   const row = (entry: TrackerEntry, mode: "today" | "upcoming" | "done") => entry.kind === "Task"
-    ? <TodoRow key={entry.id} entry={entry} today={today} mode={mode} onOpen={() => onOpen(entry)} />
+    ? <TodoRow key={entry.id} entry={entry} today={today} mode={mode} highlight={entry.id === justAdded} onOpen={() => onOpen(entry)} />
     : <FollowUpRow key={entry.id} entry={entry} today={today} compact={mode !== "today"} onOpen={() => onOpen(entry)} />;
-  const nextUp = groups.overdue[0] ?? groups.dueToday[0] ?? null;
-  const nothingOpen = !groups.overdue.length && !groups.dueToday.length && !groups.needs.length && !groups.coming.length && !groups.someday.length;
 
-  const [allOverdue, setAllOverdue] = useState(false);
-  const overdueShown = allOverdue || needle ? groups.overdue : groups.overdue.slice(0, 4);
-  const hiddenOverdue = groups.overdue.length - overdueShown.length;
+  const needs = [...groups.overdue, ...groups.dueToday, ...groups.replies];
+  const [showAll, setShowAll] = useState(false);
+  // The first six, plus the to-do you just added wherever it sorts — a new entry never lands out of sight.
+  const shown = showAll || needle ? needs : needs.filter((entry, index) => index < NEEDS_SHOWN || entry.id === justAdded);
+  const hidden = needs.length - shown.length;
 
   return (
     <div className="tk-v3">
-      <div className="flex min-w-0 flex-col gap-4">
-        {nextUp && !needle ? <NextUpCard entry={nextUp} today={today} onOpen={() => onOpen(nextUp)} /> : null}
-        <div className="tk-list">
-          {groups.overdue.length ? (
-            <ListGroup title="Overdue" tone="overdue" count={groups.overdue.length}>
-              <ol>{overdueShown.map((entry) => row(entry, "today"))}</ol>
-              {hiddenOverdue > 0 ? <button type="button" onClick={() => setAllOverdue(true)} className="tk-more">Show {hiddenOverdue} more overdue</button> : null}
-            </ListGroup>
+      <div className="tk-list">
+        <ListGroup title="Needs you" tone="overdue" count={needs.length} hint="Late first, then today, then replies">
+          {needs.length ? <ol>{shown.map((entry) => row(entry, "today"))}</ol> : <p className="tk-list-empty">{needle ? "Nothing here matches." : "Nothing needs you right now."}</p>}
+          {hidden > 0 ? <button type="button" onClick={() => setShowAll(true)} className="tk-more">Show {hidden} more</button> : null}
+          {showAll && !needle && needs.length > NEEDS_SHOWN ? <button type="button" onClick={() => setShowAll(false)} className="tk-more">Show fewer</button> : null}
+          {personalDue > 0 && !needle ? (
+            <p className="tk-pline">
+              {personalDue} personal {plural(personalDue, "to-do")} {personalDue === 1 ? "is" : "are"} due or late ·{" "}
+              <button type="button" onClick={onShowPersonal} className="tap-area">Open Personal</button>
+            </p>
           ) : null}
-          {groups.dueToday.length ? <ListGroup title="Due today" tone="today" count={groups.dueToday.length}><ol>{groups.dueToday.map((entry) => row(entry, "today"))}</ol></ListGroup> : null}
-          {groups.needs.length ? <ListGroup title="Needs you" tone="needs" count={groups.needs.length}><ol>{groups.needs.map((entry) => row(entry, "today"))}</ol></ListGroup> : null}
-          {groups.coming.length ? (
-            <ListGroup title="Later" tone="upcoming" count={groups.coming.length} collapsible open={Boolean(needle)}>
-              {upcomingBuckets(groups.coming, today).map((bucket) => (
-                <Bucket key={bucket.key} label={bucket.label}>{bucket.items.map((entry) => row(entry, "upcoming"))}</Bucket>
-              ))}
-            </ListGroup>
-          ) : null}
-          {groups.someday.length ? <ListGroup title="Someday" tone="someday" count={groups.someday.length} collapsible open={Boolean(needle)}><ol>{groups.someday.map((entry) => row(entry, "upcoming"))}</ol></ListGroup> : null}
-          {nothingOpen ? <p className="tk-list-empty">{needle ? "Nothing matches." : "All clear — add a to-do above."}</p> : null}
-          {groups.done.length ? <div className="tk-grp px-4 pb-3"><FinishedGroup verb="completed" entries={groups.done} today={today} needle={needle} render={(entry) => row(entry, "done")} /></div> : null}
-        </div>
+        </ListGroup>
+        <ListGroup title="Coming up" tone="upcoming" count={groups.coming.length}>
+          {groups.coming.length
+            ? upcomingBuckets(groups.coming, today).map((bucket) => (
+              <Bucket key={bucket.key} label={bucket.label}>{bucket.items.map((entry) => row(entry, "upcoming"))}</Bucket>
+            ))
+            : <p className="tk-list-empty">{needle ? "Nothing here matches." : "Nothing scheduled. Add a to-do with a date above."}</p>}
+        </ListGroup>
+        {groups.done.length ? <div className="tk-grp px-4 pb-3"><FinishedGroup verb="completed" entries={groups.done} today={today} needle={needle} render={(entry) => row(entry, "done")} /></div> : null}
       </div>
-      <aside aria-label="Overview" className="tk-rail">
-        <WeekCard entries={entries} today={today} />
-        <WaitingCard entries={entries} today={today} onShowAll={onShowFollowUps} onOpen={onOpen} />
+      <aside aria-label="People" className="tk-rail">
+        <PeopleCard entries={entries} today={today} onShowAll={onShowFollowUps} onOpen={onOpen} />
       </aside>
     </div>
   );
 }
 
-/** A group in the to-do list: a coloured label with its count, then its rows. */
-function ListGroup({ title, tone, count, collapsible = false, open: forceOpen = false, children }: { title: string; tone: "overdue" | "today" | "needs" | "upcoming" | "someday"; count: number; collapsible?: boolean; open?: boolean; children: React.ReactNode }) {
-  // Later / Someday start folded (mockup, 2026-11-14); a search opens them.
+/** A group in the to-do list: a coloured dot, its title and count, an optional hint, then its rows. */
+function ListGroup({ title, tone, count, hint, collapsible = false, open: forceOpen = false, children }: { title: string; tone: "overdue" | "today" | "needs" | "upcoming" | "someday"; count: number; hint?: string; collapsible?: boolean; open?: boolean; children: React.ReactNode }) {
   const [expanded, setExpanded] = useState(false);
   const open = !collapsible || expanded || forceOpen;
   const id = `tk-grp-${tone}`;
@@ -1321,32 +1257,9 @@ function ListGroup({ title, tone, count, collapsible = false, open: forceOpen = 
         ) : (
           <><span className="tk-grp-dot" aria-hidden="true" />{title}<span className="tk-grp-count">{count}</span></>
         )}
+        {hint ? <span className="tk-grp-hint">{hint}</span> : null}
       </h2>
       {open ? <div id={id} className="tk-grp-body">{children}</div> : null}
-    </section>
-  );
-}
-
-/** The most urgent to-do, big, with Mark done, Move date (opens it) and its star. */
-function NextUpCard({ entry, today, onOpen }: { entry: TrackerEntry; today: string; onOpen: () => void }) {
-  const { run, pending } = useRun();
-  const late = entry.dueDate ? differenceInCalendarDays(parseISO(today), parseISO(entry.dueDate)) : 0;
-  return (
-    <section aria-labelledby="tk-next-title" className="tk-next">
-      <div className="min-w-0 flex-[1_1_20rem]">
-        <p className="tk-next-eyebrow">{late > 0 ? "Next up · most overdue" : "Next up · due today"}</p>
-        <h2 id="tk-next-title" className="tk-next-title">{entry.subject}</h2>
-        {entry.dueDate ? (
-          <p className="tk-next-meta" suppressHydrationWarning>Due {dayLabel(entry.dueDate)}{late > 0 ? <> · <b>{late} {late === 1 ? "day" : "days"} late</b></> : null}</p>
-        ) : null}
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <button type="button" disabled={pending} onClick={() => run(markDone(entry), "Done")} className="tk-next-btn tk-next-primary">
-          <Check className="size-4" aria-hidden="true" />Mark done
-        </button>
-        <button type="button" onClick={onOpen} className="tk-next-btn">Move date</button>
-        <span className="tk-next-star"><FavouriteToggle entry={entry} /></span>
-      </div>
     </section>
   );
 }
@@ -1358,96 +1271,95 @@ function avatarTint(name: string) {
   return hash % 5;
 }
 
-/** This week (back by the owner's mockup, 2026-11-14): done vs plan ring, three numbers, done per day. */
-function WeekCard({ entries, today }: { entries: TrackerEntry[]; today: string }) {
-  const week = weekStats(entries, today);
-  const most = Math.max(1, ...week.donePerDay);
-  const first = parseISO(week.days[0]);
-  const last = parseISO(week.days[6]);
-  const range = first.getMonth() === last.getMonth() ? `${format(first, "d")}–${format(last, "d MMM")}` : `${format(first, "d MMM")} – ${format(last, "d MMM")}`;
+type PersonLine = { name: string; line: string; action: { label: string; ink: boolean; entry: TrackerEntry } | null };
+
+/**
+ * People (2026-11-17, replaced "Waiting on", which listed people waiting on *you*
+ * under that title): who is waiting on your reply, with Reply; then who you are
+ * waiting on, with Ping once it's due. Someone with threads both ways is in both.
+ */
+function PeopleCard({ entries, today, onShowAll, onOpen }: { entries: TrackerEntry[]; today: string; onShowAll: () => void; onOpen: (entry: TrackerEntry) => void }) {
+  const { yours, theirs } = useMemo(() => {
+    const byPerson = new Map<string, { replied: number; waiting: number; due: number; reply: TrackerEntry | null; nudge: TrackerEntry | null }>();
+    for (const entry of entries) {
+      if (entry.kind !== "FollowUp" || !isOpen(entry)) continue;
+      const name = entry.person ?? "Someone";
+      const row = byPerson.get(name) ?? { replied: 0, waiting: 0, due: 0, reply: null, nudge: null };
+      if (followStateOf(entry) === "replied") {
+        row.replied += 1;
+        row.reply ??= entry;
+      } else {
+        row.waiting += 1;
+        if (needsYou(entry, today)) { row.due += 1; row.nudge ??= entry; }
+      }
+      byPerson.set(name, row);
+    }
+    const people = [...byPerson.entries()];
+    return {
+      yours: people
+        .filter(([, row]) => row.replied)
+        .sort((a, b) => b[1].replied - a[1].replied)
+        .map(([name, row]): PersonLine => ({ name, line: `${row.replied} ${plural(row.replied, "reply", "replies")} to answer`, action: { label: "Reply", ink: true, entry: row.reply! } })),
+      theirs: people
+        .filter(([, row]) => row.waiting)
+        .sort((a, b) => b[1].due - a[1].due || b[1].waiting - a[1].waiting)
+        .map(([name, row]): PersonLine => ({ name, line: `${row.waiting} ${plural(row.waiting, "thread")}${row.due ? " · time to ping" : ""}`, action: row.nudge ? { label: "Ping", ink: false, entry: row.nudge } : null })),
+    };
+  }, [entries, today]);
+
   return (
-    <section aria-labelledby="tk-week-title" className="tk-card">
+    <section aria-labelledby="tk-people-title" className="tk-card">
       <div className="flex items-center justify-between gap-3">
-        <h2 id="tk-week-title" className="tk-card-title">This week</h2>
-        <span className="text-sm text-text-muted" suppressHydrationWarning>{range}</span>
+        <h2 id="tk-people-title" className="tk-card-title">People</h2>
+        <button type="button" onClick={onShowAll} className="tap-area cursor-pointer text-sm font-semibold text-accent-text hover:underline">All follow-ups</button>
       </div>
-      <div className="mt-4 flex items-center gap-5">
-        <div className="tk-ring" style={{ "--p": `${week.pct}%` } as React.CSSProperties} aria-hidden="true"><span>{week.pct}%</span></div>
-        <dl className="tk-week-nums" suppressHydrationWarning>
-          <div><dt>Done</dt><dd>{week.done}</dd></div>
-          <div><dt>Still due</dt><dd>{week.left}</dd></div>
-          <div data-tone={week.late ? "late" : undefined}><dt>Late</dt><dd>{week.late}</dd></div>
-        </dl>
-      </div>
-      <div className="tk-bars" aria-hidden="true">
-        {week.donePerDay.map((count, index) => (
-          <span key={week.days[index]} data-today={week.days[index] === today || undefined} data-empty={count === 0 || undefined} style={{ height: count ? `${Math.max(12, (count / most) * 100)}%` : undefined }} />
-        ))}
-      </div>
-      <div className="tk-bars-days" aria-hidden="true">
-        {week.days.map((day) => <span key={day} data-today={day === today || undefined}>{format(parseISO(day), "EEEEE")}</span>)}
-      </div>
-      <p className="sr-only">{week.pct}% of this week&apos;s plan done. To-dos finished each day: {week.days.map((day, index) => `${format(parseISO(day), "EEEE")} ${week.donePerDay[index]}`).join(", ")}.</p>
+      <PeopleList title="Waiting on you" people={yours} empty="Nobody. You're all caught up." onOpen={onOpen} onMore={onShowAll} />
+      <PeopleList title="You're waiting on" people={theirs} empty="Nobody." onOpen={onOpen} onMore={onShowAll} />
     </section>
   );
 }
 
-/** Who you're waiting on: open follow-ups by person; "Your turn" when they replied. */
-function WaitingCard({ entries, today, onShowAll, onOpen }: { entries: TrackerEntry[]; today: string; onShowAll: () => void; onOpen: (entry: TrackerEntry) => void }) {
-  const people = useMemo(() => {
-    // `first` is the thread Reply / Nudge opens: their newest reply, else the due nudge.
-    const byPerson = new Map<string, { threads: number; replied: number; due: number; first: TrackerEntry | null }>();
-    for (const entry of entries) {
-      if (entry.kind !== "FollowUp" || !isOpen(entry)) continue;
-      const name = entry.person ?? "Someone";
-      const row = byPerson.get(name) ?? { threads: 0, replied: 0, due: 0, first: null };
-      row.threads += 1;
-      if (followStateOf(entry) === "replied") { row.replied += 1; row.first = entry; }
-      else if (needsYou(entry, today)) { row.due += 1; if (!row.replied) row.first = entry; }
-      byPerson.set(name, row);
-    }
-    return [...byPerson.entries()].sort((a, b) => b[1].replied - a[1].replied || b[1].due - a[1].due || b[1].threads - a[1].threads).slice(0, 4);
-  }, [entries, today]);
+/** Four people at most, then "+N more" (the heading keeps the real total — 2026-11-17, it showed the shown count). */
+const PEOPLE_SHOWN = 4;
+
+function PeopleList({ title, people, empty, onOpen, onMore }: { title: string; people: PersonLine[]; empty: string; onOpen: (entry: TrackerEntry) => void; onMore: () => void }) {
+  const hidden = people.length - PEOPLE_SHOWN;
   return (
-    <section aria-labelledby="tk-wait-title" className="tk-card">
-      <div className="flex items-center justify-between gap-3">
-        <h2 id="tk-wait-title" className="tk-card-title">Waiting on</h2>
-        <button type="button" onClick={onShowAll} className="tap-area cursor-pointer text-sm font-semibold text-accent-text hover:underline">All follow-ups</button>
-      </div>
+    <>
+      <h3 className="tk-people-head">{title} · {people.length}</h3>
       {people.length ? (
-        <ul className="mt-3 flex flex-col gap-3">
-          {people.map(([name, row]) => (
-            <li key={name} className="flex items-center gap-3">
-              <span className="tk-avatar" data-tint={avatarTint(name)} aria-hidden="true">{name.trim().charAt(0).toUpperCase()}</span>
+        <ul className="flex flex-col gap-3">
+          {people.slice(0, PEOPLE_SHOWN).map((person) => (
+            <li key={person.name} className="flex items-center gap-3">
+              <span className="tk-avatar" data-tint={avatarTint(person.name)} aria-hidden="true">{person.name.trim().charAt(0).toUpperCase()}</span>
               <span className="min-w-0 flex-1">
-                <b className="block truncate text-base font-semibold text-text">{name}</b>
-                <span className="text-sm text-text-muted">
-                  {row.threads} {row.threads === 1 ? "thread" : "threads"}{row.replied ? ` · ${row.replied} replied` : row.due ? " · nudge due" : ""}
-                </span>
+                <b className="block truncate text-base font-semibold text-text">{person.name}</b>
+                <span className="text-sm text-text-muted">{person.line}</span>
               </span>
-              {row.first ? (
-                <button type="button" onClick={() => onOpen(row.first!)} aria-label={`${row.replied ? "Reply to" : "Nudge"} ${name}`} className={cn("tk-mini-btn", row.replied && "tk-mini-btn-ink")}>
-                  {row.replied ? "Reply" : "Nudge"}
+              {person.action ? (
+                <button type="button" onClick={() => onOpen(person.action!.entry)} aria-label={`${person.action.label} ${person.name}${person.action.label === "Ping" ? " again" : ""}`} className={cn("tk-mini-btn", person.action.ink && "tk-mini-btn-ink")}>
+                  {person.action.label}
                 </button>
               ) : <span className="text-sm text-text-muted">Waiting</span>}
             </li>
           ))}
+          {hidden > 0 ? (
+            <li><button type="button" onClick={onMore} className="tap-area cursor-pointer text-sm font-semibold text-accent-text hover:underline">+{hidden} more</button></li>
+          ) : null}
         </ul>
-      ) : (
-        <p className="mt-2 text-sm text-text-muted">Nobody — no open follow-ups.</p>
-      )}
-    </section>
+      ) : <p className="text-sm text-text-muted">{empty}</p>}
+    </>
   );
 }
 
 /** Personal sticky notes start without a date — they're jotted, not scheduled. */
-function AddTodo({ today, personal = false }: { today: string; personal?: boolean }) {
+function AddTodo({ today, personal = false, onAdded }: { today: string; personal?: boolean; onAdded?: (id: string) => void }) {
   const startDate = personal ? "" : today;
   const [subject, setSubject] = useState("");
   const [date, setDate] = useState(startDate);
   const [pinned, setPinned] = useState(false);
   const [panel, setPanel] = useState(false);
-  const { create, pending, error, setError } = useCreate(() => { setSubject(""); setDate(startDate); setPinned(false); setPanel(false); });
+  const { create, pending, error, setError } = useCreate((id) => { setSubject(""); setDate(startDate); setPinned(false); setPanel(false); onAdded?.(id); });
 
   function save() {
     if (pending) return;
@@ -1492,7 +1404,7 @@ function todoMeta(entry: TrackerEntry, today: string) {
  * "3 days late" / "Due today" badge, the due date and the ticket. The calendar
  * button opens the to-do to move its date; delete shows on hover.
  */
-function TodoRow({ entry, today, mode, onOpen }: { entry: TrackerEntry; today: string; mode: "today" | "upcoming" | "done"; onOpen: () => void }) {
+function TodoRow({ entry, today, mode, highlight = false, onOpen }: { entry: TrackerEntry; today: string; mode: "today" | "upcoming" | "done"; highlight?: boolean; onOpen: () => void }) {
   const late = isOpen(entry) && entry.dueDate && entry.dueDate < today ? differenceInCalendarDays(parseISO(today), parseISO(entry.dueDate)) : 0;
   const due = !isOpen(entry)
     ? todoMeta(entry, today)
@@ -1500,6 +1412,7 @@ function TodoRow({ entry, today, mode, onOpen }: { entry: TrackerEntry; today: s
   return (
     <Row
       muted={mode === "done"}
+      highlight={highlight}
       leading={<DoneCircle entry={entry} />}
       title={entry.subject}
       onOpen={onOpen}
@@ -1528,46 +1441,6 @@ function TodoRow({ entry, today, mode, onOpen }: { entry: TrackerEntry; today: s
 }
 
 // --- personal to-dos ---------------------------------------------------------------
-
-/** Work | Personal, shown on the To-do tab. Arrow keys move between the two. */
-function ScopeToggle({ value, counts, onChange }: { value: TodoScope; counts: Record<TodoScope, number>; onChange: (next: TodoScope) => void }) {
-  const options: Array<{ id: TodoScope; label: string }> = [
-    { id: "all", label: "All" },
-    { id: "work", label: "Work" },
-    { id: "personal", label: "Personal" },
-  ];
-  function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
-    event.preventDefault();
-    const step = event.key === "ArrowLeft" || event.key === "ArrowUp" ? options.length - 1 : 1;
-    const next = options[(options.findIndex((option) => option.id === value) + step) % options.length].id;
-    onChange(next);
-    event.currentTarget.querySelector<HTMLElement>(`[data-scope="${next}"]`)?.focus();
-  }
-  return (
-    <div role="radiogroup" aria-label="To-do list" onKeyDown={onKeyDown} className="tk-scope">
-      {options.map((option) => {
-        const on = option.id === value;
-        return (
-          <button
-            key={option.id}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            tabIndex={on ? 0 : -1}
-            data-scope={option.id}
-            data-on={on || undefined}
-            onClick={() => onChange(option.id)}
-            className="tk-scope-btn"
-          >
-            {option.label}
-            <span className="tabular-nums">{counts[option.id]}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 const STICKY_TILTS = ["-1.2deg", "0.8deg", "-0.5deg", "1.1deg", "-0.9deg"];
 
@@ -1708,11 +1581,12 @@ function StickyEditor({ entry, onDone }: { entry: TrackerEntry; onDone: () => vo
 // --- follow-ups ------------------------------------------------------------------
 
 /**
- * Laid out like Notes (owner, 2026-11-01). Left: the composer and the collapsed
- * closed line. Right: Needs you — Your turn (they replied), Nudge due — then
- * Waiting. "Got it" closes; "Mark nudged" records a nudge.
+ * Simpler Tracker (2026-11-17): the list first — Your turn, Time to ping, Waiting on
+ * them — and New follow-up opens the form in a popup, like New note (it used to sit
+ * beside the list, and above it on phones). "Done" closes; "I pinged them" records a ping.
  */
 function FollowUpQueue({ entries, people, today, needle, onOpen }: { entries: TrackerEntry[]; people: string[]; today: string; needle: string; onOpen: (entry: TrackerEntry) => void }) {
+  const [adding, setAdding] = useState(false);
   const groups = useMemo(() => {
     const next = { replied: [] as TrackerEntry[], due: [] as TrackerEntry[], waiting: [] as TrackerEntry[], closed: [] as TrackerEntry[] };
     for (const entry of entries) {
@@ -1725,47 +1599,69 @@ function FollowUpQueue({ entries, people, today, needle, onOpen }: { entries: Tr
     }
     next.replied.sort(byNeed);
     next.due.sort(byNeed);
-    // Not due yet: soonest nudge first, then whoever has waited longest.
+    // Not due yet: soonest reminder first, then whoever has waited longest.
     next.waiting.sort((a, b) => important(a, b) || (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999") || a.updatedAt.localeCompare(b.updatedAt));
     next.closed.sort(byCompleted);
     return next;
   }, [entries, today, needle]);
 
-  const row = (entry: TrackerEntry) => <FollowUpRow key={entry.id} entry={entry} today={today} onOpen={() => onOpen(entry)} />;
-  const needCount = groups.replied.length + groups.due.length;
+  const row = (entry: TrackerEntry) => <FollowUpRow key={entry.id} entry={entry} today={today} inGroup onOpen={() => onOpen(entry)} />;
+  const open = groups.replied.length + groups.due.length + groups.waiting.length;
 
   return (
-    <Columns>
-      <Column title="New update">
-        <div className="relative z-10 pt-5"><AddFollowUp people={people} today={today} /></div>
-        <FinishedGroup verb="closed" entries={groups.closed} today={today} needle={needle} render={row} />
-      </Column>
-      <Column title="Follow-ups" count={needCount + groups.waiting.length} needs={needCount > 0} aside={needLine(needCount)}>
-        {groups.replied.length ? <Bucket label="Your turn" needs>{groups.replied.map(row)}</Bucket> : null}
-        {groups.due.length ? <Bucket label="Nudge due" needs>{groups.due.map(row)}</Bucket> : null}
-        {groups.waiting.length ? <Bucket label="Waiting">{groups.waiting.map(row)}</Bucket> : null}
-        {needCount + groups.waiting.length === 0 ? <Empty>{needle ? "Nothing matches." : "Nothing open. Start a follow-up on the left."}</Empty> : null}
-      </Column>
-    </Columns>
+    <div className="flex min-w-0 flex-col gap-3">
+      <div className="flex justify-end">
+        <button type="button" onClick={() => setAdding(true)} className={cn(PILL, PILL_INK, "gap-2")}>
+          <Plus className="size-4.5" strokeWidth={2.4} aria-hidden="true" />
+          New follow-up
+        </button>
+      </div>
+      {/* The same white list card as To-do (2026-11-17; was the older tinted lane). */}
+      <div className="tk-list">
+        {groups.replied.length ? <ListGroup title="Your turn" tone="today" count={groups.replied.length} hint="They replied — answer or press Done"><ol>{groups.replied.map(row)}</ol></ListGroup> : null}
+        {groups.due.length ? <ListGroup title="Time to ping" tone="needs" count={groups.due.length} hint="No reply by the reminder date"><ol>{groups.due.map(row)}</ol></ListGroup> : null}
+        {groups.waiting.length ? <ListGroup title="Waiting on them" tone="upcoming" count={groups.waiting.length}><ol>{groups.waiting.map(row)}</ol></ListGroup> : null}
+        {open === 0 ? <p className="tk-list-empty">{needle ? "Nothing matches." : "Nothing open. Press New follow-up to start one."}</p> : null}
+        {groups.closed.length ? <div className="tk-grp px-4 pb-3"><FinishedGroup verb="closed" entries={groups.closed} today={today} needle={needle} render={row} /></div> : null}
+      </div>
+      {adding ? (
+        <Modal open size="lg" onClose={() => setAdding(false)} title="New follow-up">
+          <AddFollowUp people={people} today={today} onSaved={() => setAdding(false)} />
+        </Modal>
+      ) : null}
+    </div>
   );
 }
 
 /**
- * What a new follow-up records. Not stored as its own field: "they told me" is a
- * first message with `fromThem`, and only "waiting" carries a reminder date — the
- * others use the date as when it was said. "General" is the catch-all for any
- * conversation that isn't clearly one direction: saved like "I told", neutral copy.
+ * What a new follow-up records (2026-11-17: two types, were General / Waiting on /
+ * I told / They told me). "Waiting on" carries a reminder date. "Log a chat" uses
+ * the date as when you talked, and "They spoke last" records the first message as
+ * theirs (`fromThem`), so it opens in Your turn — what "They told me" did. Saved
+ * fields are unchanged, so older follow-ups read the same.
  */
 const FOLLOW_MODES = {
-  general: { label: "General", Icon: MessagesSquare, subject: "What was it about?", body: "Notes (optional)…", who: "Who was it with?", whoTool: (p: string) => `With ${p}`, submit: "Save", datePrefix: "On", date: "Talked on", dateHint: "When the conversation happened. Past dates are fine." },
-  waiting: { label: "Waiting on", Icon: Clock, subject: "What are you waiting on?", body: "What you sent them (optional)…", who: "Who are you waiting on?", whoTool: (p: string) => `Waiting on ${p}`, submit: "Add follow-up", datePrefix: "", date: "Remind me on", dateHint: "Choose when you want to follow up again if they have not replied." },
-  told: { label: "I told", Icon: Send, subject: "What did you tell them?", body: "Details (optional)…", who: "Who did you tell?", whoTool: (p: string) => `Told ${p}`, submit: "Save", datePrefix: "Said", date: "Told them on", dateHint: "When you told them. Past dates are fine." },
-  theyTold: { label: "They told me", Icon: MessageSquareReply, subject: "What did they tell you?", body: "What they said (optional)…", who: "Who told you?", whoTool: (p: string) => `From ${p}`, submit: "Save", datePrefix: "Said", date: "They told me on", dateHint: "When they told you. Past dates are fine." },
+  waiting: { label: "Waiting on", subject: "What are you waiting on?", body: "What you sent them (optional)…", who: "Who are you waiting on?", whoTool: (p: string) => `Waiting on ${p}`, submit: "Add follow-up", datePrefix: "", date: "Remind me on", dateHint: "The day WorkNest reminds you to ping them again if they haven't replied." },
+  chat: { label: "Log a chat", subject: "What was it about?", body: "Notes (optional)…", who: "Who was it with?", whoTool: (p: string) => `With ${p}`, submit: "Save", datePrefix: "On", date: "Talked on", dateHint: "When the conversation happened. Past dates are fine." },
 } as const;
 type FollowMode = keyof typeof FOLLOW_MODES;
 
-/** The same card as New note: the subject, the first message, then type (dropdown) / the first message, then who / when / star. */
-function AddFollowUp({ people, today }: { people: string[]; today: string }) {
+/**
+ * Focus a popup's first field. The Modal is a native <dialog>: its showModal()
+ * runs after the form mounts and moves focus to the Close button, overriding
+ * autoFocus. The Modal's effect runs after this child's, so a zero-delay timeout
+ * lands after showModal (2026-11-17; a frame callback stalls in background tabs).
+ */
+function useFocusInPopup(id: string, inPopup: boolean) {
+  useEffect(() => {
+    if (!inPopup) return;
+    const timer = window.setTimeout(() => document.getElementById(id)?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [id, inPopup]);
+}
+
+/** The New follow-up popup: type, then the same card as New note — subject, first message, then who / when / star. */
+function AddFollowUp({ people, today, onSaved }: { people: string[]; today: string; onSaved?: () => void }) {
   const { channels } = useContext(ListsContext);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState<EditorValue>({ doc: null, text: "", hasContent: false });
@@ -1775,12 +1671,16 @@ function AddFollowUp({ people, today }: { people: string[]; today: string }) {
   const [channel, setChannel] = useState(defaultChannel(channels));
   const [date, setDate] = useState(today);
   const [pinned, setPinned] = useState(false);
-  const [mode, setMode] = useState<FollowMode>("general");
+  // Log a chat first, as General was (owner, 2026-11-11).
+  const [mode, setMode] = useState<FollowMode>("chat");
+  const [theySpokeLast, setTheySpokeLast] = useState(false);
   const copy = FOLLOW_MODES[mode];
   const [panel, setPanel] = useState<"who" | "date" | null>(null);
+  useFocusInPopup("add-follow-up", Boolean(onSaved));
   const { create, pending, error, setError } = useCreate(() => {
     setSubject(""); setBody({ doc: null, text: "", hasContent: false }); setEditorKey((key) => key + 1);
-    setPerson(""); setDate(today); setPinned(false); setPanel(null);
+    setPerson(""); setDate(today); setPinned(false); setPanel(null); setTheySpokeLast(false);
+    onSaved?.();
   });
 
   function save() {
@@ -1797,17 +1697,34 @@ function AddFollowUp({ people, today }: { people: string[]; today: string }) {
         // comes from the same place as every later nudge. No message → the subject.
         ...(body.hasContent ? { doc: body.doc, note: body.text } : { note: subject.trim() }),
         channel,
-        // Waiting: the date is the reminder. Told / they told: it is when it was said.
+        // Waiting: the date is the reminder. A chat: it is when you talked.
         dueDate: waiting ? date || null : null,
         occurredAt: waiting ? null : date || null,
-        fromThem: mode === "theyTold",
+        fromThem: mode === "chat" && theySpokeLast,
       },
       pinned,
     );
   }
 
   return (
-    <form aria-label="Add a follow-up" onSubmit={(event) => { event.preventDefault(); save(); }} className="relative">
+    <form aria-label="Add a follow-up" onSubmit={(event) => { event.preventDefault(); save(); }} className={cn("relative", onSaved && "tk-inline-panels")}>
+      <div role="radiogroup" aria-label="Follow-up type" className="mb-3 flex w-fit gap-1 rounded-full border border-border bg-surface p-0.5">
+        {(Object.keys(FOLLOW_MODES) as FollowMode[]).map((key) => (
+          <button
+            key={key}
+            type="button"
+            role="radio"
+            aria-checked={mode === key}
+            onClick={() => { setMode(key); setDate(today); setError(undefined); }}
+            className={cn(
+              "inline-flex h-9 cursor-pointer items-center rounded-full px-4 text-sm font-semibold transition-colors duration-150",
+              mode === key ? "bg-sidebar text-sidebar-fg" : "text-text-muted hover:text-text",
+            )}
+          >
+            {FOLLOW_MODES[key].label}
+          </button>
+        ))}
+      </div>
       <div className="tk-field flex flex-col rounded-2xl border border-border-strong bg-surface">
         <label htmlFor="add-follow-up" className="sr-only">{copy.subject}</label>
         <input
@@ -1821,13 +1738,18 @@ function AddFollowUp({ people, today }: { people: string[]; today: string }) {
         />
         <UpdateEditor key={editorKey} id="add-follow-up-body" label="First message" placeholder={`${copy.body} paste formatted text, images or files`} minHeight="min-h-32" onChange={setBody} onSubmit={save} />
         <div className="flex flex-wrap items-center gap-1 border-t border-border py-1.5 pr-1.5 pl-2">
-          <FollowModeMenu value={mode} onChange={(next) => { setMode(next); setError(undefined); }} />
           <ToolButton label={person ? copy.whoTool(person) : copy.who} expanded={panel === "who"} onClick={() => setPanel(panel === "who" ? null : "who")} className={person ? "text-text" : undefined}>
             {person ? <Avatar name={person} /> : <UserRound className="size-5" strokeWidth={1.8} aria-hidden="true" />}
             {person ? <span className="max-w-32 truncate">{person}</span> : null}
           </ToolButton>
           <DateTool label={copy.date} prefix={copy.datePrefix} value={date} today={today} expanded={panel === "date"} onClick={() => setPanel(panel === "date" ? null : "date")} />
           <StarTool value={pinned} onChange={setPinned} />
+          {mode === "chat" ? (
+            <label className="inline-flex h-11 cursor-pointer items-center gap-2 px-2 text-sm font-medium text-text">
+              <input type="checkbox" checked={theySpokeLast} onChange={(event) => setTheySpokeLast(event.target.checked)} className="size-4 accent-[var(--tk-ink)]" />
+              They spoke last
+            </label>
+          ) : null}
           <span className="ml-auto text-sm text-text-subtle max-md:hidden">⌘/Ctrl + Enter</span>
           <button type="submit" disabled={pending} className="ml-2 h-11 shrink-0 cursor-pointer rounded-full bg-sidebar px-5 text-md font-semibold text-sidebar-fg transition-colors duration-150 hover:bg-sidebar-3 disabled:cursor-wait disabled:opacity-60 max-md:ml-auto">
             {copy.submit}
@@ -1858,61 +1780,20 @@ function AddFollowUp({ people, today }: { people: string[]; today: string }) {
   );
 }
 
-/** The follow-up type as a compact dropdown in the composer's toolbar — one card for every kind of conversation. */
-function FollowModeMenu({ value, onChange }: { value: FollowMode; onChange: (mode: FollowMode) => void }) {
-  const current = FOLLOW_MODES[value];
-  return (
-    <Menu
-      label="Follow-up type"
-      align="start"
-      side="top"
-      trigger={(props) => (
-        <button
-          {...props}
-          type="button"
-          aria-label={`Type: ${current.label}`}
-          className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full bg-primary-subtle px-3 text-sm font-semibold text-primary-strong transition-colors duration-150 hover:bg-surface-3"
-        >
-          <current.Icon className="size-4" aria-hidden="true" />
-          {current.label}
-          <ChevronDown className="size-3.5" aria-hidden="true" />
-        </button>
-      )}
-    >
-      {(Object.keys(FOLLOW_MODES) as FollowMode[]).map((key) => {
-        const option = FOLLOW_MODES[key];
-        return (
-          <button
-            key={key}
-            type="button"
-            role="menuitemradio"
-            aria-checked={value === key}
-            onClick={() => onChange(key)}
-            className={cn(menuItemClass, value === key && "text-primary-strong")}
-          >
-            <option.Icon aria-hidden="true" />
-            <span className="flex-1 text-left">{option.label}</span>
-            {value === key ? <Check aria-hidden="true" /> : null}
-          </button>
-        );
-      })}
-    </Menu>
-  );
-}
-
-/** "· nudge due Wed 7 Oct · 3 days ago", "· replied 2d ago", "· you wrote 3d ago via Slack · nudge Tue 13 Oct". */
+/** "· time to ping since Wed 7 Oct · 3 days ago", "· replied 2d ago", "· you wrote 3d ago via Slack · ping Tue 13 Oct". */
 function followMeta(entry: TrackerEntry, today: string) {
   const state = followStateOf(entry);
   const last = entry.updates[0];
   if (state === "closed") return entry.completedAt ? `closed ${ago(entry.completedAt, today)}` : "closed";
   if (state === "replied") return `replied ${ago(last!.occurredAt, today)}`;
-  if (entry.dueDate && entry.dueDate <= today) return `nudge due ${dayLabel(entry.dueDate)} · ${fromToday(entry.dueDate, today, "ago")}`;
+  if (entry.dueDate && entry.dueDate <= today) return `time to ping since ${dayLabel(entry.dueDate)} · ${fromToday(entry.dueDate, today, "ago")}`;
   const wrote = last ? `you wrote ${ago(last.occurredAt, today)}${last.channel ? ` via ${last.channel}` : ""}` : `added ${ago(entry.createdAt, today)}`;
-  return entry.dueDate ? `${wrote} · nudge ${dayLabel(entry.dueDate)}` : wrote;
+  return entry.dueDate ? `${wrote} · ping ${dayLabel(entry.dueDate)}` : wrote;
 }
 
-/** Eyebrow "NUDGE DUE · ASHWINI" over the title; compact (upcoming / finished) = tick + title + person. */
-function FollowUpRow({ entry, today, compact = false, onOpen }: { entry: TrackerEntry; today: string; compact?: boolean; onOpen: () => void }) {
+/** Eyebrow "TIME TO PING · ASHWINI" over the title; compact (upcoming / finished) = tick + title + person. */
+/** `inGroup`: the row sits under a group that already names its state (Follow-ups tab), so the eyebrow is just the person. */
+function FollowUpRow({ entry, today, compact = false, inGroup = false, onOpen }: { entry: TrackerEntry; today: string; compact?: boolean; inGroup?: boolean; onOpen: () => void }) {
   const state = followStateOf(entry);
   const person = entry.person ?? "Someone";
   const needs = needsYou(entry, today);
@@ -1928,14 +1809,14 @@ function FollowUpRow({ entry, today, compact = false, onOpen }: { entry: Tracker
       />
     );
   }
-  const status = state === "closed" ? "Closed" : state === "replied" ? "Replied" : needs ? "Nudge due" : entry.dueDate ? `Nudge ${dayLabel(entry.dueDate)}` : "Waiting";
+  const status = state === "closed" ? "Closed" : state === "replied" ? "Replied" : needs ? "Time to ping" : entry.dueDate ? `Ping ${dayLabel(entry.dueDate)}` : "Waiting on them";
   return (
     <Row
       // Wide: the text keeps its width and the buttons drop below it in a narrow column.
       wide
       muted={state === "closed"}
       needs={needs}
-      eyebrow={`${status} · ${person}`}
+      eyebrow={inGroup ? person : `${status} · ${person}`}
       leading={<span className="tk-avatar tk-avatar-sm" aria-hidden="true">{person.trim().charAt(0).toUpperCase()}</span>}
       title={entry.subject}
       onOpen={onOpen}
@@ -1951,13 +1832,13 @@ function FollowUpRow({ entry, today, compact = false, onOpen }: { entry: Tracker
           {state === "closed" ? (
             <ActionPill label="Reopen" action={markOpen(entry)} success="Reopened" />
           ) : state === "replied" ? (
-            <ActionPill ink label="Got it" action={markDone(entry)} success="Closed" />
+            <ActionPill ink label="Done" action={markDone(entry)} success="Closed" />
           ) : needs ? (
             <NudgePill entry={entry} ink />
           ) : (
             <>
               <NudgePill entry={entry} ink={false} />
-              <ActionPill label="Got it" action={markDone(entry)} success="Closed" />
+              <ActionPill label="Done" action={markDone(entry)} success="Closed" />
             </>
           )}
         </>
@@ -2085,6 +1966,7 @@ function AddNote({ suggestions, today, onSaved }: { suggestions: string[]; today
   const [tags, setTags] = useState<string[]>([]);
   const [pinned, setPinned] = useState(false);
   const [panel, setPanel] = useState<"tags" | "date" | null>(null);
+  useFocusInPopup("add-note", Boolean(onSaved));
   const { create, pending, error, setError } = useCreate(() => {
     setSubject(""); setBody({ doc: null, text: "", hasContent: false }); setEditorKey((key) => key + 1);
     setDate(today); setTags([]); setPinned(false); setPanel(null);
@@ -2114,7 +1996,6 @@ function AddNote({ suggestions, today, onSaved }: { suggestions: string[]; today
         <label htmlFor="add-note" className="sr-only">Note title</label>
         <input
           id="add-note"
-          autoFocus
           value={subject}
           maxLength={300}
           placeholder="Note title"
@@ -2239,7 +2120,7 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
   const kind = entry.kind;
   const state = kind === "FollowUp" ? followStateOf(entry) : null;
 
-  const doneLabel = kind === "Note" ? (isDone ? "Restore" : "Archive") : kind === "FollowUp" ? (isDone ? "Reopen" : "Close") : isDone ? "Reopen" : "Mark done";
+  const doneLabel = kind === "Note" ? (isDone ? "Restore" : "Archive") : kind === "FollowUp" ? (isDone ? "Reopen" : "Done") : isDone ? "Reopen" : "Mark done";
   const doneToast = kind === "Note" ? (isDone ? "Restored" : "Archived") : isDone ? "Reopened" : kind === "FollowUp" ? "Closed" : "Done";
 
   // Notes archive through their main button (status); to-dos and follow-ups have their own.
@@ -2308,6 +2189,13 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
           {isDone ? <RotateCcw aria-hidden="true" /> : <Check aria-hidden="true" />}
           {doneLabel}
         </Button>
+        {/* Labelled since 2026-11-17 (simplification phase 4): an unlabelled box icon read as nothing. Notes archive through the button above. */}
+        {canArchive ? (
+          <Button size="sm" variant="secondary" onClick={() => run(() => setFollowUpArchived({ followUpId: entry.id, archived: !shelved }), shelved ? "Restored" : "Archived. Find it on the Archived tab.")}>
+            {shelved ? <ArchiveRestore aria-hidden="true" /> : <Archive aria-hidden="true" />}
+            {shelved ? "Restore" : "Archive"}
+          </Button>
+        ) : null}
         <div className="ml-auto flex items-center gap-1">
           <Button
             size="sm"
@@ -2320,18 +2208,6 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
           >
             <Star aria-hidden="true" className={cn(entry.pinned && "fill-current text-warning")} />
           </Button>
-          {canArchive ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              iconOnly
-              aria-label={shelved ? "Restore from archive" : "Archive"}
-              title={shelved ? "Restore from archive" : "Archive"}
-              onClick={() => run(() => setFollowUpArchived({ followUpId: entry.id, archived: !shelved }), shelved ? "Restored" : "Archived")}
-            >
-              {shelved ? <ArchiveRestore aria-hidden="true" /> : <Archive aria-hidden="true" />}
-            </Button>
-          ) : null}
           <Button size="sm" variant="ghost" iconOnly className="hover:text-danger" aria-label={`Delete ${entry.subject}`} title="Delete" onClick={() => setConfirmDelete(true)}>
             <Trash2 aria-hidden="true" />
           </Button>

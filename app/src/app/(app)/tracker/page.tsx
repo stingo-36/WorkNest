@@ -9,7 +9,7 @@ import { getOrderedList, getSavedTags } from "@/lib/user-lists";
 
 export const metadata = { title: "Tracker" };
 
-const VIEWS = new Set<TrackerView>(["todo", "followups", "notes", "archived"]);
+const VIEWS = new Set<TrackerView>(["todo", "followups", "personal", "notes", "archived"]);
 
 /**
  * Three lists on one page: to-dos (what you owe), follow-ups (what you told

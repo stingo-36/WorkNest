@@ -4,7 +4,7 @@
 > (with the *why*), gotchas that cost time before, and a changelog. Newest first in
 > every section. Update rules are in `AGENTS.md` §2.
 >
-> Last synced with the codebase: **2026-11-14**
+> Last synced with the codebase: **2026-11-17**
 
 ---
 
@@ -25,6 +25,36 @@
 
 ## Decisions
 
+- **2026-11-17 — Tracker simplification phases 4–5: Archived tab stays; Notes tab decided later.** Phase 4
+  only labels the dialog's Archive / Restore button; the owner kept the Archived tab rather than a link
+  under To-do. Phase 5 is deferred: Tracker notes (`FollowUp` kind Note — tags, append-only timeline,
+  `MeetingMinutesLink`s) are a different record from Notes notebooks (`Note` → `NoteSection` →
+  `NotePage`, editable). Options for the Notes review: keep them in the Tracker; show them on /notes as a
+  "Quick notes" section with no data change (repoint `/tracker?open=` and `?view=notes` links from Work
+  Logs, Ask, Favourites, sprint deck); or migrate into notebook pages (advised against — lossy).
+- **2026-11-17 — Follow-ups: list first, two types, plain words (simplification phase 3).** The composer
+  beside the list pushed the list a screen down on phones; it is now a New follow-up popup like New note.
+  General / I told / They told me only differed by copy and who spoke first, so they are one **Log a chat**
+  with a "They spoke last" tick (same saved fields). "Nudge" was jargon: Tracker screens now say "I pinged
+  them", "Time to ping", "Ping", "Waiting on them", and "Done" for closing. New ping updates are stored as
+  "Pinged them again"; older "Nudged" rows stay (append-only). Ask, Work Logs and the Kaizen app still say
+  "nudge" — change them when those features are reviewed. Log a chat is the default type, as General was.
+- **2026-11-17 — Personal is a Tracker tab, not a switch (simplification phase 2).** The All / Work /
+  Personal switch sat under the To-do tab, so the To-do tab stayed underlined (with the work count)
+  while sticky notes showed. Personal is now `?view=personal`; the mixed "All" list is dropped (Needs you
+  already flags due personal to-dos with a line). Nothing changed in data or the Kaizen API, which reads
+  the `personal` flag itself.
+- **2026-11-17 — Simpler Tracker, phase 1: one list, counts mean "needs you".** The owner reviewed
+  a clickable prototype (desktop + phone) and approved a five-phase simplification. Phase 1 (this
+  change, To-do only): the four stat cards, sprint meter, Next up card and This week card are removed
+  (Next up repeated the list's first row; the week ring is reporting, and can go to Reports if
+  missed). Work to-dos are Needs you + Coming up. Tab counts show only what needs you, so the To-do
+  count equals its Needs you group. "Waiting on" became **People** because it listed people waiting
+  on *your* reply under that title. A just-added to-do always shows, because a due-today item sorts
+  after the overdue ones and used to land behind "Show more". Coming up keeps future nudges (as
+  before). Still to come: Personal as its own tab (phase 2), follow-up wording "I pinged them" /
+  "Done" and a New follow-up popup (3), a labelled Archive and where Archived lives (4), the Notes
+  tab when Notes is reviewed (5).
 - **2026-11-14 — Tracker follows the owner's plain mockup.** White cards on grey, navy ink, stat cards, underline tabs, All/Work/Personal, This week back in the rail (the owner had removed it the same day, then chose to keep it with the mockup). Later/Someday start folded; overdue shows 4 then "Show N more". "Reschedule all" from the mockup was not built — no bulk reschedule exists. The Personal mini-stickies card left the rail.
 
 Format: **date — decision.** Why. *Rejected:* alternatives.
@@ -1074,6 +1104,12 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-11-17 — Tracker end-to-end test pass (to-do, personal, follow-ups, notes, archive, links, 4 widths); fixed New follow-up / New note popups not focusing their title (native <dialog> showModal moved focus to Close) with `useFocusInPopup`; PRD corrected (note rows have no delete button) — `components/tracker/tracker-board.tsx`, `PRD.md`
+- 2026-11-17 — Tracker polish after the usability review: Follow-ups in To-do's white list card with person-only eyebrows; People card real totals + "+N more"; `.tk-hint` boxes removed (Notes, Archived); `needLine` dropped — `components/tracker/tracker-board.tsx`, `globals.css`
+- 2026-11-17 — Tracker simplification phase 4: labelled Archive / Restore button in the entry dialog; phase 5 (Notes tab) deferred to the Notes review — `components/tracker/tracker-board.tsx`
+- 2026-11-17 — Tracker simplification phase 3: Follow-ups list first + New follow-up popup; types Waiting on / Log a chat (+ They spoke last); wording I pinged them · Done · Time to ping · Waiting on them · Ping; phone add row wraps — `components/tracker/tracker-board.tsx`, `globals.css`
+- 2026-11-17 — Tracker simplification phase 2: Personal is its own tab (`?view=personal`, count = due or late, `?open=` lands there); All / Work / Personal switch and `.tk-scope` removed — `components/tracker/tracker-board.tsx`, `(app)/tracker/page.tsx`, `globals.css`
+- 2026-11-17 — Tracker simplification phase 1: header pills replace stat cards + sprint meter; Next up and This week cards removed; Work to-dos in two groups (Needs you · Coming up) with the just-added to-do kept in view; tab counts = needs you; People card replaces Waiting on; personal due line — `components/tracker/tracker-board.tsx`, `globals.css`
 - 2026-11-14 — Entry dialog: the Added date is editable (`setFollowUpAdded` changes `createdAt`, keeping the time of day; history rows untouched) — `actions/follow-ups.ts`, `lib/follow-ups.ts`, `lib/validation.ts`, `components/tracker/tracker-board.tsx`
 - 2026-11-14 — Tracker redesign to the owner's mockup (`.tk-plain`): stat cards, sprint meter, underline tabs, All scope, list card, This week restored, Waiting on Reply/Nudge, search portalled into the desk bar — `components/tracker/tracker-board.tsx`, `components/shell/app-nav.tsx`, `globals.css`, PRD §4/§5.3, Design-System
 - 2026-11-14 — Profile → People list (`UserListKind.FollowUpPerson`, migration `follow_up_person_list`) feeds the follow-up "Who" suggestions; Tracker pill panels open upward above the pill when there is no room below; To-do rail "This week" card removed; sidebar gets a sky→aqua tint — `lib/user-lists.ts`, `lib/follow-ups.ts`, `actions/user-lists.ts`, `components/profile/*`, `components/tracker/tracker-board.tsx`, `globals.css`

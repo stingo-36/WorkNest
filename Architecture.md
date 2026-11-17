@@ -4,7 +4,7 @@
 > delete a module, route, model or script, update the relevant section in the same
 > change.
 >
-> Last synced with the codebase: **2026-11-14**
+> Last synced with the codebase: **2026-11-17**
 
 ---
 
@@ -78,7 +78,7 @@ authenticated shell.
 | `/work-logs/[workLogId]` | `.../page.tsx` | read-only detail + Copy as text; side rail begins with that day's Tracker to-dos |
 | `/work-logs/[workLogId]/edit` | `.../edit/page.tsx` | `WorkLogEditor` |
 | `/tickets` | `(app)/tickets/page.tsx` | `TicketBoard` (`PageHead`, direct New ticket form, underline status tabs, list + open ticket with editable number/title/project, compact journey and latest update); redirects to `/work-logs` if tickets disabled; `?ticket=<id>` selects that ticket (status filter → All) |
-| `/tracker` | `(app)/tracker/page.tsx` | `TrackerBoard` — two-column queue per tab (To-do: Today | Upcoming; Follow-ups: Needs you | Waiting; Notes: composer | notes), latest update inline, finished entries in a collapsed group; entries open in a two-column dialog; rich editor + read-only renderer in `components/tracker/update-editor.tsx` (Notes TipTap schema + upload-only images), legacy plain-text rendering in `note-text.tsx`; default landing after login; `?view=todo\|followups\|notes` picks the tab; `?open=<id>` opens that entry (Ask's source links; dropped from the URL once opened) |
+| `/tracker` | `(app)/tracker/page.tsx` | `TrackerBoard` — two-column queue per tab (To-do: Today | Upcoming; Follow-ups: Needs you | Waiting; Notes: composer | notes), latest update inline, finished entries in a collapsed group; entries open in a two-column dialog; rich editor + read-only renderer in `components/tracker/update-editor.tsx` (Notes TipTap schema + upload-only images), legacy plain-text rendering in `note-text.tsx`; default landing after login; `?view=todo\|followups\|personal\|notes\|archived` picks the tab; `?open=<id>` opens that entry (Ask's source links; dropped from the URL once opened) |
 | `/notes`, `/notes/new`, `/notes/[noteId]`, `/notes/[noteId]/edit` | `(app)/notes/**` | notebooks; the list is `NoteLibrary` (layout "F": header, summary column, bookshelf) |
 | `/resources` | `(app)/resources/page.tsx` | `ResourceLibrary` |
 | `/favourites` | `(app)/favourites/page.tsx` | reads Prisma directly; `?show=important\|notes\|resources` picks the tab |
