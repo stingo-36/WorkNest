@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Check, CircleCheck, LayoutTemplate, MessageSquareShare, NotebookPen, Pencil, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, CircleCheck, LayoutTemplate, MessageSquareShare, NotebookPen, Pencil, Sparkles, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useId, useMemo, useState, useTransition, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useState, useTransition, type ReactNode } from "react";
 
 import { applyQuickLog, draftQuickLog, getWorkLogTemplate } from "@/actions/quick-log";
 import { cn } from "@/components/cn";
@@ -18,16 +18,18 @@ import { toast } from "@/components/ui/toast";
 import type { WorkflowStatus } from "@/lib/workflow-status";
 
 /**
- * Quick log — choose what to create, paste rough text, review what the AI read
- * out of it, then apply. Nothing is saved before "Apply"; every row can be
- * unticked or edited first. Server side: actions/quick-log.ts → lib/quick-log.ts.
+ * Quick log — paste rough text (tabs pick Work log / To-dos / Follow-ups; chips
+ * pick the day), review what the AI read out of it, then apply. Two steps since
+ * 2026-11-20 (was Choose → Paste → Review). Nothing is saved before "Apply";
+ * every row can be unticked or edited first. Server side: actions/quick-log.ts → lib/quick-log.ts.
  *
  * Mounted once in AppShell; `useQuickLog().open()` opens it from anywhere
  * (the nav button and the Work Logs page header).
  */
 
-/** `text` pre-fills the paste step (the Work Logs quick-log bar). */
-type Ctx = { open: (kind?: QuickLogKind, text?: string) => void };
+/** What to open on: the tab, the log's day (YYYY-MM-DD, work log only) and pre-filled text. */
+export type QuickLogOpen = { kind?: QuickLogKind; date?: string; text?: string };
+type Ctx = { open: (options?: QuickLogOpen) => void };
 const QuickLogContext = createContext<Ctx | null>(null);
 
 export function useQuickLog() {
@@ -37,8 +39,9 @@ export function useQuickLog() {
 }
 
 export function QuickLogProvider({ ticketsEnabled, children }: { ticketsEnabled: boolean; children: ReactNode }) {
-  const [state, setState] = useState<{ open: boolean; kind: QuickLogKind; text: string; session: number }>({ open: false, kind: "worklog", text: "", session: 0 });
-  const open = useCallback((kind?: QuickLogKind, text?: string) => setState((s) => ({ open: true, kind: kind ?? s.kind, text: text ?? "", session: s.open ? s.session : s.session + 1 })), []);
+  const [state, setState] = useState<{ open: boolean; kind: QuickLogKind; date: string | null; text: string; session: number }>({ open: false, kind: "worklog", date: null, text: "", session: 0 });
+  // Each opener says where it opens (the Tracker → To-dos, a day page → that day); no option = a work log for today.
+  const open = useCallback((options?: QuickLogOpen) => setState((s) => ({ open: true, kind: options?.kind ?? "worklog", date: options?.date ?? null, text: options?.text ?? "", session: s.open ? s.session : s.session + 1 })), []);
   const ctx = useMemo(() => ({ open }), [open]);
   return (
     <QuickLogContext.Provider value={ctx}>
@@ -48,6 +51,7 @@ export function QuickLogProvider({ ticketsEnabled, children }: { ticketsEnabled:
         key={state.session}
         open={state.open}
         initialKind={state.kind}
+        initialDate={state.date}
         initialText={state.text}
         ticketsEnabled={ticketsEnabled}
         onClose={() => setState((s) => ({ ...s, open: false }))}
@@ -70,7 +74,14 @@ const KIND_HINT = (ticketsEnabled: boolean): Record<QuickLogKind, string> => ({
   followup: "Things you asked someone and are waiting on",
 });
 
+/** A short, light hint in the empty box; the full example sits behind "Show an example". */
 const PLACEHOLDER = (ticketsEnabled: boolean): Record<QuickLogKind, string> => ({
+  worklog: ticketsEnabled ? "Meetings, tickets, what you did… in any order." : "Meetings and what you did… in any order.",
+  todo: "One to-do per line. Add \"tomorrow\" or a weekday for a due date.",
+  followup: "One per line, with the person's name.",
+});
+
+const EXAMPLE = (ticketsEnabled: boolean): Record<QuickLogKind, string> => ({
   worklog: ticketsEnabled
     ? "For ASU meeting I said the catalogue import is done, need prod access\nFor Veritech meeting I said demo moves to Friday\n\nTickets I worked on\n1233 same status, worked on UI, waiting for confirmation\nASU-1240 checkout banner fix, sent to QA\n\nAlso reviewed the release notes"
     : "For ASU meeting I said the catalogue import is done, need prod access\nFor Veritech meeting I said demo moves to Friday\n\nFixed the checkout banner and reviewed the release notes",
@@ -88,6 +99,13 @@ function defaultLogDay() {
   const date = new Date();
   if (date.getDay() === 0) date.setDate(date.getDate() - 2);
   if (date.getDay() === 6) date.setDate(date.getDate() - 1);
+  return dayKey(date);
+}
+
+/** The weekday before `key` (YYYY-MM-DD). */
+function previousWeekday(key: string) {
+  const date = new Date(`${key}T00:00:00`);
+  do date.setDate(date.getDate() - 1); while (date.getDay() === 0 || date.getDay() === 6);
   return dayKey(date);
 }
 
@@ -128,30 +146,38 @@ function includedCount(review: Review) {
 function QuickLogDialog({
   open,
   initialKind,
+  initialDate,
   initialText,
   ticketsEnabled,
   onClose,
 }: {
   open: boolean;
   initialKind: QuickLogKind;
+  initialDate: string | null;
   initialText: string;
   ticketsEnabled: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
   const ids = useId();
-  // Arriving with text skips "choose": the bar already said it's a work log.
-  const [step, setStep] = useState<"choose" | "paste" | "review">(initialText ? "paste" : "choose");
+  const [step, setStep] = useState<"paste" | "review">("paste");
   const [kind, setKind] = useState<QuickLogKind>(initialKind);
   const [text, setText] = useState(initialText);
-  const [date, setDate] = useState(defaultLogDay);
+  const [date, setDate] = useState(() => initialDate ?? defaultLogDay());
+  const [showExample, setShowExample] = useState(false);
+  // The native <dialog> puts focus on Close when it opens; start typing in the box instead.
+  useEffect(() => {
+    if (!open || step !== "paste") return;
+    const timer = window.setTimeout(() => document.getElementById(`${ids}-text`)?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [open, step, ids]);
   const [review, setReview] = useState<Review | null>(null);
   const [error, setError] = useState<string>();
   const [reading, startReading] = useTransition();
   const [applying, startApplying] = useTransition();
   const [templating, startTemplating] = useTransition();
 
-  /** Headings for the day's meetings and open tickets — easier for free models to read. */
+  /** Headings for the day's meetings and Work done — easier for free models to read. */
   function applyTemplate() {
     startTemplating(async () => {
       const result = await getWorkLogTemplate({ date });
@@ -231,32 +257,22 @@ function QuickLogDialog({
   const count = review ? includedCount(review) : 0;
 
   const footer =
-    step === "choose" ? (
+    step === "paste" ? (
       <>
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button onClick={() => { setError(undefined); setStep("paste"); }}>
-          Continue
-          <ArrowRight aria-hidden="true" />
-        </Button>
-      </>
-    ) : step === "paste" ? (
-      <>
-        <Button variant="secondary" onClick={() => { setError(undefined); setStep("choose"); }} disabled={busy}>
-          <ArrowLeft aria-hidden="true" />
-          Back
-        </Button>
-        <Button onClick={read} loading={reading}>
+        <p className="mr-auto hidden text-sm text-text-muted md:block">Nothing is saved until you review it and click Apply.</p>
+        <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+        <Button onClick={read} loading={reading} className="max-md:flex-1">
           {reading ? null : <Sparkles aria-hidden="true" />}
-          {reading ? "Reading…" : "Read my text"}
+          {reading ? "Reading…" : "Read my notes"}
         </Button>
       </>
     ) : (
       <>
         <Button variant="secondary" onClick={() => { setError(undefined); setStep("paste"); }} disabled={busy}>
           <ArrowLeft aria-hidden="true" />
-          Edit text
+          Edit notes
         </Button>
-        <Button onClick={apply} loading={applying} disabled={count === 0}>
+        <Button onClick={apply} loading={applying} disabled={count === 0} className="max-md:flex-1">
           {applying ? null : <Check aria-hidden="true" />}
           {count === 0 ? "Nothing ticked" : `Apply ${count} ${count === 1 ? "change" : "changes"}`}
         </Button>
@@ -267,62 +283,29 @@ function QuickLogDialog({
     <Modal
       open={open}
       onClose={busy ? () => {} : onClose}
-      // Full screen (Ocean redesign, 2026-11-01): a composer, not a popup.
-      size="full"
+      // A normal popup while pasting, wide for Review; a full-screen sheet on phones (2026-11-20).
+      size={step === "review" ? "xl" : "lg"}
+      sheetOnPhone
       eyebrow={<Steps step={step} />}
-      title="Quick log"
+      title={<span className="inline-flex items-center gap-2"><Zap className="size-5 text-accent-text" aria-hidden="true" />Quick log</span>}
       footer={footer}
     >
-      {step === "choose" ? (
-        <fieldset className="mx-auto w-full max-w-4xl">
-          <legend className="mb-3 text-base text-text-muted">What do you want to create?</legend>
-          <div className="grid gap-3 md:grid-cols-3">
+      {step === "paste" ? (
+        <div className="flex w-full flex-col gap-4">
+          {/* What to create: tabs, not a separate step. */}
+          <div role="group" aria-label="What to create" className="ql-tabs">
             {KINDS.map(({ kind: option, label, icon: Icon }) => (
-              <label
-                key={option}
-                className={cn(
-                  "flex cursor-pointer flex-col gap-1.5 rounded-xl border border-border-strong bg-surface p-4 transition-colors duration-150 ease-standard",
-                  "hover:border-primary/60 hover:bg-surface-2",
-                  "has-[:checked]:border-primary has-[:checked]:bg-primary-subtle has-[:checked]:ring-1 has-[:checked]:ring-primary",
-                  "has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring",
-                )}
-              >
-                <input
-                  type="radio"
-                  name={`${ids}-kind`}
-                  value={option}
-                  checked={kind === option}
-                  onChange={() => setKind(option)}
-                  className="sr-only"
-                />
-                <Icon className="size-5 text-accent-text" aria-hidden="true" />
-                <span className="text-md font-semibold text-text">{label}</span>
-                <span className="text-sm leading-snug text-text-muted">{KIND_HINT(ticketsEnabled)[option]}</span>
-              </label>
+              <button key={option} type="button" aria-pressed={kind === option} title={KIND_HINT(ticketsEnabled)[option]} onClick={() => { setKind(option); setError(undefined); setShowExample(false); }}>
+                <Icon className="size-4" aria-hidden="true" />
+                {label}
+              </button>
             ))}
           </div>
-          <p className="mt-4 text-sm text-text-subtle">Nothing is saved until you review it and click Apply.</p>
-        </fieldset>
-      ) : null}
-
-      {step === "paste" ? (
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-          {kind === "worklog" ? (
-            <Field label="Log day" htmlFor={`${ids}-date`} hint="Weekdays only; today or earlier.">
-              <Input
-                id={`${ids}-date`}
-                type="date"
-                value={date}
-                max={dayKey(new Date())}
-                onChange={(event) => setDate(event.target.value)}
-                className="max-w-56"
-              />
-            </Field>
-          ) : null}
-          <Field label={`Your ${KINDS.find((k) => k.kind === kind)!.label.toLowerCase()} notes`} htmlFor={`${ids}-text`} error={error}>
+          {kind === "worklog" ? <DayChips value={date} onChange={setDate} /> : null}
+          <Field label={kind === "worklog" ? `Your notes for ${date === dayKey(new Date()) ? "today" : formatDay(date)}` : kind === "todo" ? "Your to-dos, one per line" : "Who you're waiting on, or who's waiting on you"} htmlFor={`${ids}-text`} error={error}>
             <Textarea
               id={`${ids}-text`}
-              rows={9}
+              rows={8}
               value={text}
               autoFocus
               placeholder={PLACEHOLDER(ticketsEnabled)[kind]}
@@ -332,14 +315,18 @@ function QuickLogDialog({
               }}
               aria-invalid={error ? true : undefined}
               aria-describedby={error ? `${ids}-text-error` : undefined}
+              className="ql-notes"
             />
           </Field>
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <p className="text-sm text-text-subtle">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <p className="mr-auto text-sm text-text-subtle">
               {reading
                 ? "Reading your notes — free AI models can take up to a minute."
-                : "Write it however you like. ⌘/Ctrl + Enter to read it."}
+                : "Write it however you like. ⌘/Ctrl + Enter reads it."}
             </p>
+            <button type="button" onClick={() => setShowExample((value) => !value)} aria-expanded={showExample} className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 text-sm font-semibold text-accent-text hover:underline">
+              <Sparkles className="size-3.5" aria-hidden="true" />{showExample ? "Hide example" : "Show an example"}
+            </button>
             {kind === "worklog" && !text.trim() ? (
               <Button variant="outline" size="sm" onClick={applyTemplate} loading={templating} disabled={reading}>
                 {templating ? null : <LayoutTemplate aria-hidden="true" />}
@@ -347,6 +334,12 @@ function QuickLogDialog({
               </Button>
             ) : null}
           </div>
+          {showExample ? (
+            <div className="flex flex-col items-start gap-2">
+              <pre className="w-full overflow-x-auto rounded-xl border border-border bg-surface-2 p-3 font-mono text-sm leading-relaxed whitespace-pre-wrap text-text-muted">{EXAMPLE(ticketsEnabled)[kind]}</pre>
+              <Button variant="outline" size="sm" onClick={() => { setText(EXAMPLE(ticketsEnabled)[kind]); setShowExample(false); setError(undefined); document.getElementById(`${ids}-text`)?.focus(); }}>Use this example</Button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -377,8 +370,47 @@ function QuickLogDialog({
   );
 }
 
-function Steps({ step }: { step: "choose" | "paste" | "review" }) {
-  const steps = [["choose", "Choose"], ["paste", "Paste"], ["review", "Review"]] as const;
+/**
+ * Today · Yesterday · Older (the last six weekdays before yesterday). Logs are
+ * weekday-only and never in the future, so these are the only days on offer;
+ * the server still checks.
+ */
+function DayChips({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+  const today = defaultLogDay();
+  const yesterday = previousWeekday(today);
+  const older: string[] = [];
+  for (let day = yesterday; older.length < 6;) { day = previousWeekday(day); older.push(day); }
+  const isOlder = value !== today && value !== yesterday;
+  const [showOlder, setShowOlder] = useState(false);
+  const chip = (day: string, label: string) => (
+    <button key={day} type="button" className="ql-day" aria-pressed={value === day} onClick={() => { onChange(day); setShowOlder(false); }}>
+      {label} <small>{formatDay(day)}</small>
+    </button>
+  );
+  return (
+    <div>
+      <p className="mb-1.5 text-sm font-semibold text-text" id="ql-day-label">Which day?</p>
+      <div role="group" aria-labelledby="ql-day-label" className="flex flex-wrap gap-1.5">
+        {chip(today, today === dayKey(new Date()) ? "Today" : "Friday")}
+        {chip(yesterday, today === dayKey(new Date()) ? "Yesterday" : "Thursday")}
+        <button type="button" className="ql-day" aria-pressed={isOlder} aria-expanded={showOlder} onClick={() => setShowOlder((open) => !open)}>
+          {isOlder ? formatDay(value) : "Older"}
+          <ChevronDown className={cn("size-3.5 transition-transform duration-150", showOlder && "rotate-180")} aria-hidden="true" />
+        </button>
+      </div>
+      {showOlder ? (
+        <div role="group" aria-label="Older days" className="mt-2 flex flex-wrap gap-1.5 rounded-xl border border-dashed border-border-strong bg-surface-2 p-2">
+          {older.map((day) => (
+            <button key={day} type="button" className="ql-day ql-day-sm" aria-pressed={value === day} onClick={() => { onChange(day); setShowOlder(false); }}>{formatDay(day)}</button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Steps({ step }: { step: "paste" | "review" }) {
+  const steps = [["paste", "Paste"], ["review", "Review"]] as const;
   return (
     <ol className="flex items-center gap-2 text-sm" aria-label="Steps">
       {steps.map(([key, label], index) => (

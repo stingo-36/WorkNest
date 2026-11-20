@@ -19,6 +19,7 @@ export function Modal({
   eyebrow,
   footer,
   size = "md",
+  sheetOnPhone = false,
   children,
 }: {
   open: boolean;
@@ -28,6 +29,8 @@ export function Modal({
   footer?: ReactNode;
   /** `full`: fills the screen (Quick log's composer, Ocean 2026-11-01). */
   size?: "md" | "lg" | "xl" | "full";
+  /** Below md, fill the screen like a sheet (footer pinned to the bottom); a normal popup from md. */
+  sheetOnPhone?: boolean;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -72,10 +75,11 @@ export function Modal({
         "t-modal m-auto overflow-hidden border-border bg-surface p-0 text-text shadow-lg backdrop:bg-overlay",
         size === "full" ? "modal-full h-dvh max-h-none w-full max-w-none rounded-none border-0" : "w-[calc(100%-2rem)] rounded-2xl border",
         size === "xl" ? "max-w-5xl" : size === "lg" ? "max-w-2xl" : size === "md" ? "max-w-xl" : null,
+        sheetOnPhone && "max-md:h-dvh max-md:max-h-none max-md:w-full max-md:max-w-none max-md:rounded-none max-md:border-0",
       )}
     >
       {open ? (
-        <div className={cn("flex flex-col", size === "full" ? "h-dvh" : "max-h-[calc(100dvh-2rem)]")}>
+        <div className={cn("flex flex-col", size === "full" ? "h-dvh" : "max-h-[calc(100dvh-2rem)]", sheetOnPhone && "max-md:h-dvh max-md:max-h-none")}>
           <header className="flex items-start gap-3 border-b border-border px-5 py-4 md:px-6">
             <div className="min-w-0 flex-1">
               {eyebrow ? <div className="mb-1 text-sm text-text-muted">{eyebrow}</div> : null}

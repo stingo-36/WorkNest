@@ -1,26 +1,23 @@
 "use client";
 
-import { ChevronDown, CornerDownLeft, Loader2, Plus, Search, TicketPlus } from "lucide-react";
+import { CornerDownLeft, Loader2, Plus, Search, TicketPlus } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
 
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 
-import { findTicket, listTickets } from "@/actions/tickets";
+import { findTicket, listActiveTickets, listTickets } from "@/actions/tickets";
 import { cn } from "@/components/cn";
-import { Badge, TicketId } from "@/components/ui/badge";
+import { TicketId } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { ProjectInput } from "@/components/ui/project-input";
 import { Select } from "@/components/ui/select";
-import { MarkdownEditor } from "@/components/work-log/markdown-editor";
 import {
   TICKET_STATUS_LABELS,
   TICKET_STATUS_ORDER,
   TicketStatusBadge,
 } from "@/components/ui/ticket-status-badge";
-import { TicketHistory } from "@/components/work-log/ticket-history";
 import { toMergedHistory, type HistoryEntry } from "@/components/work-log/types";
 import type { WorkflowStatus } from "@/lib/workflow-status";
 
@@ -29,8 +26,8 @@ import type { WorkflowStatus } from "@/lib/workflow-status";
  *
  * One input, no modal, no page change:
  *   type ASU-1234 -> `findTicket({ ticketKey })`
- *     found     -> ID, title, current status, expandable previous updates,
- *                  one keystroke (Enter) to attach
+ *     found     -> one line (ID, title, status) + Add; Enter attaches
+ *   empty box      -> "Your open tickets" chips, one tap to attach (2026-11-18)
  *     not found -> `{ found: false }`, never an error, so we offer inline
  *                  create right there: title + initial status + Enter
  *
@@ -92,16 +89,10 @@ export function TicketSearch({
 
   const [query, setQuery] = useState("");
   const [state, setState] = useState<LookupState>({ kind: "empty" });
-  const [showHistory, setShowHistory] = useState(false);
 
   // New-ticket draft (only used when the key is not found).
   const [newTitle, setNewTitle] = useState("");
-  const [newProject, setNewProject] = useState("");
   const [newStatus, setNewStatus] = useState<WorkflowStatus>("InProgress");
-  /** Status to set when attaching an EXISTING ticket — starts at its current status. */
-  const [foundStatus, setFoundStatus] = useState<WorkflowStatus>("InProgress");
-  const [foundProject, setFoundProject] = useState("");
-  const [workDescription, setWorkDescription] = useState("");
 
   const [attaching, startAttach] = useTransition();
 
@@ -128,6 +119,17 @@ export function TicketSearch({
     void loadOptions();
   }, [loadOptions]);
 
+  // "Your open tickets" — the ones not Done, most recently touched first.
+  const [active, setActive] = useState<TicketOption[]>([]);
+  const loadActive = useCallback(async () => {
+    const result = await listActiveTickets(8);
+    if (result.ok && aliveRef.current) setActive(result.data.map((t) => ({ ticketKey: t.ticketId, title: t.title, projectName: t.projectName, status: t.status })));
+  }, []);
+  useEffect(() => {
+    void loadActive();
+  }, [loadActive]);
+  const chips = active.filter((option) => !attachedKeys.includes(option.ticketKey)).slice(0, 6);
+
   const key = normaliseKey(query);
   const valid = key.length > 0 && TICKET_KEY_RE.test(key);
   const alreadyAttached = valid && attachedKeys.includes(key);
@@ -146,8 +148,6 @@ export function TicketSearch({
 
     if (result.data.found) {
       const t = result.data.ticket;
-      setFoundStatus(t.status);
-      setFoundProject(t.projectName ?? "");
       setState({
         kind: "found",
         ticket: {
@@ -162,9 +162,7 @@ export function TicketSearch({
     } else {
       setState({ kind: "missing", ticketKey: result.data.ticketKey });
       setNewTitle("");
-    setNewProject("");
-      setNewProject("");
-      setNewStatus("InProgress");
+        setNewStatus("InProgress");
     }
   }, []);
 
@@ -193,8 +191,6 @@ export function TicketSearch({
     setState({ kind: "empty" });
     setNewTitle("");
     setNewStatus("InProgress");
-    setWorkDescription("");
-    setShowHistory(false);
     searchRef.current?.focus();
   }
 
@@ -204,6 +200,7 @@ export function TicketSearch({
       if (ok && aliveRef.current) {
         reset();
         void loadOptions();
+        void loadActive();
       }
     });
   }
@@ -216,7 +213,7 @@ export function TicketSearch({
       return;
     }
     if (state.kind === "found") {
-      attach({ ticketKey: state.ticket.ticketKey, description: workDescription, status: foundStatus });
+      attach({ ticketKey: state.ticket.ticketKey });
       return;
     }
     if (state.kind === "missing") {
@@ -235,7 +232,7 @@ export function TicketSearch({
       <Field
         label="Add a ticket"
         htmlFor={`${uid}-search`}
-        hint="Type a ticket ID and press Enter. If it doesn't exist yet you can create it right here."
+        className="wl-tk-find"
       >
         <Autocomplete<TicketOption, false, false, true>
           id={`${uid}-search`}
@@ -253,13 +250,11 @@ export function TicketSearch({
             if (reason === "reset") return;
             setQuery(next);
             setState({ kind: "typing" });
-            setShowHistory(false);
-          }}
+                  }}
           onChange={(_event, next, reason) => {
             if (reason === "selectOption" && next && typeof next !== "string") {
               setQuery(next.ticketKey);
-              setShowHistory(false);
-              void lookup(next.ticketKey);
+                        void lookup(next.ticketKey);
               return;
             }
             if (reason === "createOption") handleEnter();
@@ -287,7 +282,7 @@ export function TicketSearch({
             <TextField
               {...params}
               inputRef={searchRef}
-              placeholder="Search or enter a ticket ID…"
+              placeholder="Type a ticket key or title, like ASU-1234"
               slotProps={{
                 ...params.slotProps,
                 input: {
@@ -303,7 +298,6 @@ export function TicketSearch({
                 htmlInput: {
                   ...params.slotProps.htmlInput,
                   spellCheck: false,
-                  "aria-describedby": `${uid}-search-hint`,
                   className: cn((params.slotProps.htmlInput as { className?: string }).className, "font-mono"),
                 },
               }}
@@ -348,77 +342,15 @@ export function TicketSearch({
 
         {state.kind === "found" && !alreadyAttached ? (
           <ResultShell tone="primary">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <TicketId>{state.ticket.ticketKey}</TicketId>
-                  <TicketStatusBadge status={state.ticket.status} />
-                  <Badge tone="neutral">
-                    {state.ticket.history.length} previous{" "}
-                    {state.ticket.history.length === 1 ? "update" : "updates"}
-                  </Badge>
-                </div>
-                <p className="mt-1 max-w-[72ch] text-md text-text">{state.ticket.title}</p>
-              </div>
-
-            </div>
-
-            <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_14rem] lg:items-start">
-              <Field label="What did you do?" htmlFor={`${uid}-found-work`} className="min-w-0">
-                <MarkdownEditor
-                  id={`${uid}-found-work`}
-                  value={workDescription}
-                  ariaLabel="Work completed for this ticket"
-                  minHeight="min-h-24"
-                  onChange={setWorkDescription}
-                />
-              </Field>
-              <div className="flex min-w-0 flex-col gap-4">
-                <Field label="Status" htmlFor={`${uid}-found-status`} className="min-w-0">
-                  <Select id={`${uid}-found-status`} value={foundStatus} onChange={(event) => setFoundStatus(event.target.value as WorkflowStatus)}>
-                    {TICKET_STATUS_ORDER.map((option) => (
-                      <option key={option} value={option}>{TICKET_STATUS_LABELS[option]}</option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Project / site" htmlFor={`${uid}-found-project`} className="min-w-0">
-                  <ProjectInput id={`${uid}-found-project`} value={foundProject} onValueChange={setFoundProject} />
-                </Field>
-              </div>
-            </div>
-            <div className="mt-3 flex justify-end">
-              <Button onClick={() => attach({ ticketKey: state.ticket.ticketKey, description: workDescription, status: foundStatus, projectName: foundProject.trim() })} loading={attaching}>
+            <div className="flex flex-wrap items-center gap-3">
+              <TicketId>{state.ticket.ticketKey}</TicketId>
+              <p className="min-w-0 flex-1 truncate text-sm font-medium text-text">{state.ticket.title}</p>
+              <TicketStatusBadge status={state.ticket.status} />
+              <Button size="sm" onClick={() => attach({ ticketKey: state.ticket.ticketKey })} loading={attaching}>
                 <Plus aria-hidden="true" />
-                Add ticket + work
+                Add
               </Button>
             </div>
-
-            {state.ticket.history.length > 0 ? (
-              <div className="mt-4 pt-1">
-                <button
-                  type="button"
-                  className={cn(
-                    "inline-flex cursor-pointer items-center gap-1.5 rounded-sm text-sm font-semibold",
-                    "text-accent-text transition-colors duration-150 ease-standard hover:text-primary",
-                  )}
-                  aria-expanded={showHistory}
-                  onClick={() => setShowHistory((open) => !open)}
-                >
-                  <ChevronDown
-                    aria-hidden="true"
-                    className={cn(
-                      "size-3.5 transition-transform duration-200 ease-standard",
-                      showHistory && "rotate-180",
-                    )}
-                  />
-                  {showHistory ? "Hide previous updates" : "View previous updates"}
-                </button>
-
-                {showHistory ? (
-                  <TicketHistory entries={state.ticket.history} className="mt-3" />
-                ) : null}
-              </div>
-            ) : null}
           </ResultShell>
         ) : null}
 
@@ -431,13 +363,8 @@ export function TicketSearch({
               </p>
             </div>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-2 md:items-start">
-              <Field
-                label="Title / summary"
-                htmlFor={`${uid}-title`}
-                className="min-w-0"
-                hint={`Optional — defaults to ${state.ticketKey}.`}
-              >
+            <div className="mt-3 flex flex-wrap items-end gap-3">
+              <Field label="Title" htmlFor={`${uid}-title`} className="min-w-0 flex-[1_1_16rem]">
                 <Input
                   id={`${uid}-title`}
                   ref={titleRef}
@@ -447,59 +374,19 @@ export function TicketSearch({
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
                       event.preventDefault();
-                      attach({
-                        ticketKey: state.ticketKey,
-                        title: newTitle.trim() || undefined,
-                        projectName: newProject.trim() || undefined,
-                        status: newStatus,
-                        description: workDescription,
-                      });
+                      attach({ ticketKey: state.ticketKey, title: newTitle.trim() || undefined, status: newStatus });
                     }
                   }}
                 />
               </Field>
-
-              <Field label="Project / site" htmlFor={`${uid}-project`} className="min-w-0" hint="Optional — which project or site this ticket is for.">
-                <ProjectInput id={`${uid}-project`} value={newProject} onValueChange={setNewProject} />
-              </Field>
-
-              <Field label="Initial status" htmlFor={`${uid}-status`} className="min-w-0">
-                <Select
-                  id={`${uid}-status`}
-                  value={newStatus}
-                  onChange={(event) => setNewStatus(event.target.value as WorkflowStatus)}
-                >
+              <Field label="Status" htmlFor={`${uid}-status`} className="min-w-0 flex-[0_1_12rem]">
+                <Select id={`${uid}-status`} value={newStatus} onChange={(event) => setNewStatus(event.target.value as WorkflowStatus)}>
                   {TICKET_STATUS_ORDER.map((status) => (
-                    <option key={status} value={status}>
-                      {TICKET_STATUS_LABELS[status]}
-                    </option>
+                    <option key={status} value={status}>{TICKET_STATUS_LABELS[status]}</option>
                   ))}
                 </Select>
               </Field>
-
-              <Field label="What did you do?" htmlFor={`${uid}-new-work`} className="min-w-0 md:col-span-2" hint="Optional — you can add it later on the ticket card.">
-                <MarkdownEditor
-                  id={`${uid}-new-work`}
-                  value={workDescription}
-                  ariaLabel="Initial work completed for this ticket"
-                  minHeight="min-h-28"
-                  onChange={setWorkDescription}
-                />
-              </Field>
-
-              <Button
-                className="w-full md:col-span-2 md:justify-self-end md:w-auto"
-                loading={attaching}
-                onClick={() =>
-                  attach({
-                    ticketKey: state.ticketKey,
-                    title: newTitle.trim() || undefined,
-                    projectName: newProject.trim() || undefined,
-                    status: newStatus,
-                    description: workDescription,
-                  })
-                }
-              >
+              <Button loading={attaching} onClick={() => attach({ ticketKey: state.ticketKey, title: newTitle.trim() || undefined, status: newStatus })}>
                 <Plus aria-hidden="true" />
                 Create &amp; add
               </Button>
@@ -507,6 +394,19 @@ export function TicketSearch({
           </ResultShell>
         ) : null}
       </div>
+
+      {chips.length > 0 && !query ? (
+        <div className="wl-chips" role="group" aria-label="Your open tickets">
+          <span className="text-xs font-medium text-text-muted">Your open tickets:</span>
+          {chips.map((option) => (
+            <button key={option.ticketKey} type="button" className="wl-chip" disabled={attaching} onClick={() => attach({ ticketKey: option.ticketKey })} aria-label={`Add ${option.ticketKey}: ${option.title}`}>
+              <Plus className="size-3" aria-hidden="true" />
+              <span className="font-mono">{option.ticketKey}</span>
+              <small>{option.title}</small>
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

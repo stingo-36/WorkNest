@@ -4,7 +4,7 @@
 > (with the *why*), gotchas that cost time before, and a changelog. Newest first in
 > every section. Update rules are in `AGENTS.md` §2.
 >
-> Last synced with the codebase: **2026-11-14**
+> Last synced with the codebase: **2026-11-21**
 
 ---
 
@@ -24,6 +24,83 @@
   take ~4.5 MB — lower the limit or move files to Vercel Blob (free, hard-capped).
 
 ## Decisions
+
+- **2026-11-21 — AI requests are fitted to a token budget, not just capped on output.** Every call
+  already had `max_tokens`, but prompt + reply could exceed Groq's free per-request limit (~8k),
+  which answers 413 and was shown as "couldn't reach the AI". `fitToBudget` in `lib/ai-summary.ts`
+  now sizes each request per provider (env-overridable), trims the middle of the longest input with
+  a visible note, and reports `too_long` when nothing fits. Title / summary reply room raised
+  (1,000 → 3,000, 3,000 → 5,000): free reasoning models were spending it all thinking and
+  returning nothing. AI settings moved out of Profile → Account into their own **AI** section;
+  Gmail "Undo last email" now confirms and says the email won't be imported again; Tickets uses
+  sentence-case statuses, hides empty status tabs and has the day page's compact update field.
+
+- **2026-11-20 — Quick log: two steps, opens where you are; AI reading unchanged.** The Choose screen
+  became tabs on the Paste step; the date field became Today / Yesterday / Older chips (last six
+  weekdays); the popup is `lg` → `xl` for Review (was full-screen) and a sheet on phones; the template
+  no longer pre-lists open tickets (same reason the day page starts with no tickets). Openers pass
+  `{ kind, date }`: Tracker → To-dos (Follow-ups tab → Follow-ups), the day page's **Paste notes
+  instead** → that day. Apply still navigates to the day's read page, so the editor never shows stale
+  text after an append.
+
+- **2026-11-20 — Resources simplified inside the Notes layout; no schema change.** The owner kept the
+  Notes-style page (type rows + preview) and the type pages. Changes: search lists resources, not
+  types; preview items Open / Copy / star in one tap; Add starts from a pasted link or command and
+  guesses title + type **client-side only** (no URL fetching — no network calls from the server for a
+  paste); a link already saved is refused on the web Add (mobile API unchanged); look-alike types
+  (Website / Link / Reference) can be merged into Links with Undo, which also rewrites the Profile
+  type list. The preview now starts at xl, because at lg (1024) titles and type names were cut off.
+
+- **2026-11-18 — Work Logs day page: numbered steps, sprint page unchanged, no schema change.** After
+  five prototype layouts the owner kept today's sprint page (strip + preview) and simplified only the
+  day editor: Meetings rows (Skip = delete that day's `Meeting`, Undo re-creates it empty — the
+  Profile defaults are untouched), Tickets that start empty with "Your open tickets" chips
+  (`listActiveTickets`), one-tap In progress / QA / Done with the other three stages under More (all
+  six `WorkflowStatus` values kept), "Anything else?" (still `learningNotes`), Files & links with
+  page-level screenshot paste. **Finish day stores nothing**: it waits for autosaves and opens the read
+  page with `?finished=1`, which refreshes a stale AI summary; the leave beacon is skipped so the AI
+  isn't called twice. The title field stays (small, optional; the AI fills it). "Paste notes
+  instead" (Quick log) was left for the Quick log review.
+
+- **2026-11-17 — Tracker simplification phases 4–5: Archived tab stays; Notes tab decided later.** Phase 4
+  only labels the dialog's Archive / Restore button; the owner kept the Archived tab rather than a link
+  under To-do. Phase 5 is deferred: Tracker notes (`FollowUp` kind Note — tags, append-only timeline,
+  `MeetingMinutesLink`s) are a different record from Notes notebooks (`Note` → `NoteSection` →
+  `NotePage`, editable). Options for the Notes review: keep them in the Tracker; show them on /notes as a
+  "Quick notes" section with no data change (repoint `/tracker?open=` and `?view=notes` links from Work
+  Logs, Ask, Favourites, sprint deck); or migrate into notebook pages (advised against — lossy).
+- **2026-11-17 — Follow-ups: list first, two types, plain words (simplification phase 3).** The composer
+  beside the list pushed the list a screen down on phones; it is now a New follow-up popup like New note.
+  General / I told / They told me only differed by copy and who spoke first, so they are one **Log a chat**
+  with a "They spoke last" tick (same saved fields). "Nudge" was jargon: Tracker screens now say "I pinged
+  them", "Time to ping", "Ping", "Waiting on them", and "Done" for closing. New ping updates are stored as
+  "Pinged them again"; older "Nudged" rows stay (append-only). Ask, Work Logs and the Kaizen app still say
+  "nudge" — change them when those features are reviewed. Log a chat is the default type, as General was.
+- **2026-11-17 — Personal is a Tracker tab, not a switch (simplification phase 2).** The All / Work /
+  Personal switch sat under the To-do tab, so the To-do tab stayed underlined (with the work count)
+  while sticky notes showed. Personal is now `?view=personal`; the mixed "All" list is dropped (Needs you
+  already flags due personal to-dos with a line). Nothing changed in data or the Kaizen API, which reads
+  the `personal` flag itself.
+- **2026-11-17 — Simpler Tracker, phase 1: one list, counts mean "needs you".** The owner reviewed
+  a clickable prototype (desktop + phone) and approved a five-phase simplification. Phase 1 (this
+  change, To-do only): the four stat cards, sprint meter, Next up card and This week card are removed
+  (Next up repeated the list's first row; the week ring is reporting, and can go to Reports if
+  missed). Work to-dos are Needs you + Coming up. Tab counts show only what needs you, so the To-do
+  count equals its Needs you group. "Waiting on" became **People** because it listed people waiting
+  on *your* reply under that title. A just-added to-do always shows, because a due-today item sorts
+  after the overdue ones and used to land behind "Show more". Coming up keeps future nudges (as
+  before). Still to come: Personal as its own tab (phase 2), follow-up wording "I pinged them" /
+  "Done" and a New follow-up popup (3), a labelled Archive and where Archived lives (4), the Notes
+  tab when Notes is reviewed (5).
+- **2026-11-17 — Resources follows the Notes layout; Gmail fills a Drupal type.** The owner
+  approved a mockup: a list of types beside a preview, a page per type, and modules from
+  the "Drupal Daily" Gmail label added automatically (no review step) with Undo. Gmail is
+  read with the Gmail API directly (OAuth, `gmail.readonly`), not MCP: the app decides
+  what to fetch, so an AI tool layer adds nothing. Imports run after a page load
+  (`after()`, ≤ every 6 h) instead of a cron, so nothing extra is deployed. Only the name,
+  link and one-line description are kept — the owner wanted it clean. The Gmail type is
+  listed first. *Rejected:* a review panel before adding (owner chose automatic); the
+  Gmail MCP; storing whole emails.
 
 - **2026-11-14 — Tracker follows the owner's plain mockup.** White cards on grey, navy ink, stat cards, underline tabs, All/Work/Personal, This week back in the rail (the owner had removed it the same day, then chose to keep it with the mockup). Later/Someday start folded; overdue shows 4 then "Show N more". "Reschedule all" from the mockup was not built — no bulk reschedule exists. The Personal mini-stickies card left the rail.
 
@@ -874,6 +951,24 @@ is done on the real rendered app.
 
 ## Gotchas
 
+- **Sonner's default toast (~4s) is too short for an Undo you need to read first.** The Resources
+  merge toast sets `duration: 15_000`; give any "Undo" for a bulk change the same.
+- **The browser pane can't copy while hidden.** `navigator.clipboard.writeText` rejects when the
+  document has no focus, so Copy buttons show their "Couldn't copy" toast in a hidden test pane;
+  that's the environment, not the button.
+
+- **App-wide icon tints beat local `color`.** `.app-shell svg.lucide-check` (and plus, upload-cloud…)
+  paint those icons green/blue at specificity (0,2,1); an icon on a solid fill (the day page's done
+  step, the Finish day button) needs a selector of (0,3,1) or more to inherit white.
+
+- **`db:migrate` didn't regenerate the client (2026-11-17).** After `npm run db:migrate`
+  the new models were missing from `src/generated/prisma` and typecheck failed; run
+  `npx prisma generate` (in `app/`) after a migration.
+- **Client helpers can't be called from a server page (2026-11-17).** A function
+  exported from a `"use client"` file is a client reference on the server — calling it
+  throws "Attempted to call … from the server". Shared Resources helpers live in
+  `lib/resource-types.ts` for that reason.
+
 - **Portaled MUI lists count as "outside" (2026-11-14).** MUI portals Autocomplete lists into `.app-shell`, outside any form, so an outside-click close handler must ignore `.MuiPopper-root` or a picked option never lands (`PillPanel`).
 - **Frosted lanes trap popups (2026-11-11).** `.tk-lane` uses `backdrop-filter`, which makes
   each lane its own stacking context — a popup's z-index only counts inside its lane, so a
@@ -1074,6 +1169,18 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-11-21 — AI token budgets + `too_long`, bigger title/summary reply room, no "No …" filler in summaries, readable ticket statuses for Ask; Profile → AI section; confirming Gmail Undo; Tickets consistency (sentence case, empty tabs hidden, compact update) — `lib/ai-summary.ts`, `lib/ask.ts`, `lib/workflow-status.ts`, `components/profile/profile-form.tsx`, `components/resources/resource-cards.tsx`, `components/tickets/ticket-board.tsx`, `components/ui/ticket-status-badge.tsx`, `.env.example`
+- 2026-11-20 — Site-wide usability pass (9 pages, 1440 + 375, no overflow, no console errors); background AI summary no longer throws when the log was deleted mid-run (`updateMany`, returns null) — `lib/worklogs.ts`
+- 2026-11-20 — Quick log simplified: Paste → Review with kind tabs and day chips, context openers (`open({ kind, date })`), Paste notes instead on the day page, example behind a link, template without tickets, `Modal sheetOnPhone`, focus starts in the box — `components/quick-log/quick-log.tsx`, `components/ui/modal.tsx`, `components/shell/app-nav.tsx`, `components/work-log/work-log-editor.tsx`, `lib/quick-log.ts`, `globals.css`
+- 2026-11-20 — Resources simplification: search lists resources (`ResourceRow`), preview items Open/Copy/star + Gmail Undo + Add, link-first Add with title/type guessing and duplicate-link refusal, merge look-alike types with Undo, preview from xl, popup focuses its first field — `components/resources/resource-library.tsx`, `resource-cards.tsx`, `app/(app)/resources/page.tsx`, `lib/resource-types.ts`, `lib/content.ts`, `actions/content.ts`, `lib/validation.ts`, `globals.css`
+- 2026-11-18 — Work Logs day page redesign (5 phases): top bar + one card of numbered steps with progress, meeting rows with Skip/Undo, compact ticket cards with one-tap status + More + Details, open-ticket chips, simpler ticket search (one-line found result, title + status create), "Anything else?", Files & links with page paste, Finish day → read page `?finished=1` refreshing a stale summary — `components/work-log/work-log-editor.tsx`, `meeting-section.tsx`, `ticket-work-card.tsx`, `ticket-search.tsx`, `learning-section.tsx`, `attachments-section.tsx`, `section-heading.tsx`, `markdown-editor.tsx` (`compact`), `save-status.tsx`, `work-log-summary.tsx`, `work-logs/[workLogId]/page.tsx`, `globals.css`
+- 2026-11-17 — Tracker end-to-end test pass (to-do, personal, follow-ups, notes, archive, links, 4 widths); fixed New follow-up / New note popups not focusing their title (native <dialog> showModal moved focus to Close) with `useFocusInPopup`; PRD corrected (note rows have no delete button) — `components/tracker/tracker-board.tsx`, `PRD.md`
+- 2026-11-17 — Tracker polish after the usability review: Follow-ups in To-do's white list card with person-only eyebrows; People card real totals + "+N more"; `.tk-hint` boxes removed (Notes, Archived); `needLine` dropped — `components/tracker/tracker-board.tsx`, `globals.css`
+- 2026-11-17 — Tracker simplification phase 4: labelled Archive / Restore button in the entry dialog; phase 5 (Notes tab) deferred to the Notes review — `components/tracker/tracker-board.tsx`
+- 2026-11-17 — Tracker simplification phase 3: Follow-ups list first + New follow-up popup; types Waiting on / Log a chat (+ They spoke last); wording I pinged them · Done · Time to ping · Waiting on them · Ping; phone add row wraps — `components/tracker/tracker-board.tsx`, `globals.css`
+- 2026-11-17 — Tracker simplification phase 2: Personal is its own tab (`?view=personal`, count = due or late, `?open=` lands there); All / Work / Personal switch and `.tk-scope` removed — `components/tracker/tracker-board.tsx`, `(app)/tracker/page.tsx`, `globals.css`
+- 2026-11-17 — Tracker simplification phase 1: header pills replace stat cards + sprint meter; Next up and This week cards removed; Work to-dos in two groups (Needs you · Coming up) with the just-added to-do kept in view; tab counts = needs you; People card replaces Waiting on; personal due line — `components/tracker/tracker-board.tsx`, `globals.css`
+- 2026-11-17 — Resources redesigned like Notes (type rows + preview, `/resources/<type>` page with banner, filters, cards); Gmail import (Profile → connect, label → resource type, auto-check, Undo) fills a new built-in Drupal type from the Drupal Daily email — `resources/*`, `resource-cards.tsx`, `resource-type-view.tsx`, `lib/gmail.ts`, `lib/drupal-digest.ts`, `actions/gmail.ts`, `api/gmail/*`, `profile/gmail-settings.tsx`, migration `gmail_import`, `globals.css`
 - 2026-11-14 — Entry dialog: the Added date is editable (`setFollowUpAdded` changes `createdAt`, keeping the time of day; history rows untouched) — `actions/follow-ups.ts`, `lib/follow-ups.ts`, `lib/validation.ts`, `components/tracker/tracker-board.tsx`
 - 2026-11-14 — Tracker redesign to the owner's mockup (`.tk-plain`): stat cards, sprint meter, underline tabs, All scope, list card, This week restored, Waiting on Reply/Nudge, search portalled into the desk bar — `components/tracker/tracker-board.tsx`, `components/shell/app-nav.tsx`, `globals.css`, PRD §4/§5.3, Design-System
 - 2026-11-14 — Profile → People list (`UserListKind.FollowUpPerson`, migration `follow_up_person_list`) feeds the follow-up "Who" suggestions; Tracker pill panels open upward above the pill when there is no room below; To-do rail "This week" card removed; sidebar gets a sky→aqua tint — `lib/user-lists.ts`, `lib/follow-ups.ts`, `actions/user-lists.ts`, `components/profile/*`, `components/tracker/tracker-board.tsx`, `globals.css`

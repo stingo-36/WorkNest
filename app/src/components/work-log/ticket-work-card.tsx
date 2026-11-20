@@ -12,7 +12,6 @@ import { ProjectInput } from "@/components/ui/project-input";
 import { MarkdownEditor } from "@/components/work-log/markdown-editor";
 import {
   TICKET_STATUS_LABELS,
-  TICKET_STATUS_DOT,
   TICKET_STATUS_ORDER,
 } from "@/components/ui/ticket-status-badge";
 import { useAutosave, type SaveResult } from "@/components/work-log/save-status";
@@ -21,19 +20,23 @@ import { toMergedHistory, type EditorTicket, type HistoryEntry } from "@/compone
 import type { WorkflowStatus } from "@/lib/workflow-status";
 
 /**
- * One attached ticket — spec §24.
- *
- * ID + status badge + title · "Work Done Today" · status select ·
- * "View Previous Updates" · remove.
- *
- * Status is communicated by the labelled badge and native select rather than
- * a decorative card edge, so it remains clear without relying on colour alone.
+ * One attached ticket on the day page (compact, 2026-11-18): key + title,
+ * one-tap status (In progress / QA / Done, the other stages under More), × to
+ * remove, a one-line update, and project + previous updates behind Details.
+ * Status buttons are labelled and pressed-state, not colour alone.
  *
  * Remove calls `detachTicketFromWorkLog` — it deletes THIS log's update row
  * only. The ticket and every other day's history survive.
  */
 
 type Draft = { description: string; status: WorkflowStatus };
+
+/** One-tap statuses on the card; the rest of the six stages sit under "More". */
+const QUICK_STATUSES: Array<{ value: WorkflowStatus; label: string }> = [
+  { value: "InProgress", label: "In progress" },
+  { value: "SentToQA", label: "QA" },
+  { value: "Done", label: "Done" },
+];
 
 const draftEquals = (a: Draft, b: Draft) =>
   a.description === b.description && a.status === b.status;
@@ -95,131 +98,109 @@ export function TicketWorkCard({
 
   const pending = !draft.description.trim();
 
+  const quick = QUICK_STATUSES.some((item) => item.value === draft.status);
+  function setStatus(status: WorkflowStatus) {
+    if (status === draft.status) return;
+    const next: Draft = { ...draft, status };
+    setDraft(next);
+    // A status change is a decision, not a keystroke — save it now.
+    flush(next);
+  }
+
   return (
     <article
       id={`ticket-card-${ticket.ticketKey}`}
       aria-labelledby={`ticket-heading-${ticket.id}`}
-      className={cn("scroll-mt-24 px-4 py-4 transition-colors duration-150 md:px-5", pending && "bg-surface-2")}
+      className={cn("wl-tk scroll-mt-24", !pending && "is-on")}
     >
-      <header className="mb-3 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-            <TicketId className="text-xs text-text-muted">{ticket.ticketKey}</TicketId>
-            {project ? (
-              <span className="inline-flex items-center gap-1 font-medium text-accent-text">
-                <FolderKanban className="size-3.5" aria-hidden="true" />
-                {project}
-              </span>
-            ) : null}
-            {pending ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-3 px-2 py-0.5 font-semibold text-accent-text">
-                <span className="size-1.5 rounded-full bg-accent-text" aria-hidden="true" />
-                No update yet
-              </span>
-            ) : null}
-          </div>
-          <h3 id={`ticket-heading-${ticket.id}`} className="mt-1 max-w-[72ch] text-base font-semibold leading-snug text-text">
-            {ticket.title}
-          </h3>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-1">
-          {/* Status: a neutral pill with the stage's colour dot; native select for a11y. */}
-          <span className="relative inline-flex h-9 items-center rounded-full border border-border-strong bg-surface pl-3 pr-8 text-sm font-semibold text-text transition-colors duration-150 focus-within:border-primary hover:border-primary">
-            <span className={cn("mr-2 size-2 rounded-full", TICKET_STATUS_DOT[draft.status])} aria-hidden="true" />
-            {TICKET_STATUS_LABELS[draft.status]}
-            <ChevronDown className="pointer-events-none absolute right-2.5 size-4 text-text-muted" aria-hidden="true" />
-            <label htmlFor={`status-${ticket.id}`} className="sr-only">Status for {ticket.ticketKey}</label>
-            <select
-              id={`status-${ticket.id}`}
-              value={draft.status}
-              onChange={(event) => {
-                const next: Draft = { ...draft, status: event.target.value as WorkflowStatus };
-                setDraft(next);
-                // A status change is a decision, not a keystroke — save it now.
-                flush(next);
-              }}
-              className="absolute inset-0 cursor-pointer appearance-none rounded-full opacity-0"
-            >
-              {TICKET_STATUS_ORDER.map((status) => (
+      <header className="wl-tk-head">
+        <TicketId className="shrink-0 text-xs">{ticket.ticketKey}</TicketId>
+        <h3 id={`ticket-heading-${ticket.id}`} className="wl-tk-title">{ticket.title}</h3>
+        <div className="wl-tk-status" role="group" aria-label={`Status for ${ticket.ticketKey}`}>
+          <span className="wl-seg">
+            {QUICK_STATUSES.map((item) => (
+              <button key={item.value} type="button" aria-pressed={draft.status === item.value} data-tone={item.value} onClick={() => setStatus(item.value)}>{item.label}</button>
+            ))}
+          </span>
+          {/* The other stages (Blocked, Ready for production, Released) live under More. */}
+          <span className={cn("wl-more", !quick && "is-set")}>
+            <label htmlFor={`status-${ticket.id}`} className="sr-only">More statuses for {ticket.ticketKey}</label>
+            <select id={`status-${ticket.id}`} value={quick ? "" : draft.status} onChange={(event) => { if (event.target.value) setStatus(event.target.value as WorkflowStatus); }}>
+              <option value="" disabled>More</option>
+              {TICKET_STATUS_ORDER.filter((status) => !QUICK_STATUSES.some((item) => item.value === status)).map((status) => (
                 <option key={status} value={status}>{TICKET_STATUS_LABELS[status]}</option>
               ))}
             </select>
+            <ChevronDown className="pointer-events-none size-3.5" aria-hidden="true" />
           </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            iconOnly
-            aria-label={`Remove ${ticket.ticketKey} from this work log`}
-            title={`Remove ${ticket.ticketKey} from this work log`}
-            loading={detaching}
-            onClick={() => {
-              if (draft.description.trim()) setConfirming(true);
-              else void detach();
-            }}
-          >
-            <X aria-hidden="true" />
-          </Button>
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          iconOnly
+          className="wl-tk-x"
+          aria-label={`Remove ${ticket.ticketKey} from this work log`}
+          title={`Remove ${ticket.ticketKey} from this work log`}
+          loading={detaching}
+          onClick={() => {
+            if (draft.description.trim()) setConfirming(true);
+            else void detach();
+          }}
+        >
+          <X aria-hidden="true" />
+        </Button>
       </header>
 
-      <label htmlFor={`work-${ticket.id}`} className="sr-only">What I did today on {ticket.ticketKey}</label>
       <MarkdownEditor
         id={`work-${ticket.id}`}
+        compact
         value={draft.description}
-        ariaLabel={`Work completed for ${ticket.ticketKey}`}
-        minHeight="min-h-24"
+        ariaLabel={`What you did on ${ticket.ticketKey} today`}
+        placeholder={`What did you do on ${ticket.ticketKey} today?`}
+        minHeight="min-h-6"
         onChange={(description) => setDraft((current) => ({ ...current, description }))}
         onBlur={() => flush()}
       />
 
-      <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
-        <div className="w-full md:w-64">
-          <label htmlFor={`project-${ticket.id}`} className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-text-muted">
-            <FolderKanban className="size-3.5" aria-hidden="true" />
-            Project / site
-          </label>
-          <ProjectInput
-            id={`project-${ticket.id}`}
-            value={project}
-            placeholder="Add a project"
-            disabled={savingProject}
-            onValueChange={setProject}
-            onCommit={(next) => void saveProject(next)}
-          />
-        </div>
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls={`history-${ticket.id}`}
-          onClick={() => {
-            if (!open) void loadHistory();
-            setOpen((value) => !value);
-          }}
-          className={cn(
-            "tap-area inline-flex cursor-pointer items-center gap-1.5 rounded-sm text-sm font-semibold",
-            "text-accent-text transition-colors duration-150 ease-standard hover:text-primary",
-          )}
-        >
-          <History className="size-3.5" aria-hidden="true" />
-          Previous updates
-          {typeof historyCount === "number" ? ` (${historyCount})` : ""}
-          <ChevronDown
-            aria-hidden="true"
-            className={cn(
-              "size-3.5 transition-transform duration-200 ease-standard",
-              open && "rotate-180",
-            )}
-          />
-        </button>
-      </div>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={`details-${ticket.id}`}
+        onClick={() => {
+          if (!open) void loadHistory();
+          setOpen((value) => !value);
+        }}
+        className="wl-link-btn mt-2"
+      >
+        {project ? <><FolderKanban className="size-3.5" aria-hidden="true" />{project} · </> : null}
+        Details
+        {typeof historyCount === "number" ? ` · ${historyCount} previous ${historyCount === 1 ? "update" : "updates"}` : ""}
+        <ChevronDown aria-hidden="true" className={cn("size-3.5 transition-transform duration-200 ease-standard", open && "rotate-180")} />
+      </button>
 
-      <div>
-        <div id={`history-${ticket.id}`} hidden={!open}>
-          {open ? (
-            <TicketHistory entries={previous} loading={loadingHistory} className="mt-3" />
-          ) : null}
-        </div>
+      <div id={`details-${ticket.id}`} hidden={!open}>
+        {open ? (
+          <div className="mt-3 flex flex-col gap-3">
+            <div className="w-full md:w-64">
+              <label htmlFor={`project-${ticket.id}`} className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-text-muted">
+                <FolderKanban className="size-3.5" aria-hidden="true" />
+                Project / site
+              </label>
+              <ProjectInput
+                id={`project-${ticket.id}`}
+                value={project}
+                placeholder="Add a project"
+                disabled={savingProject}
+                onValueChange={setProject}
+                onCommit={(next) => void saveProject(next)}
+              />
+            </div>
+            <div>
+              <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-text-muted"><History className="size-3.5" aria-hidden="true" />Previous updates</p>
+              <TicketHistory entries={previous} loading={loadingHistory} />
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <ConfirmationDialog

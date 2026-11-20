@@ -17,6 +17,78 @@ const TIMEOUT_MS = 90_000;
 const OPENROUTER_TIMEOUT_WITH_BACKUP_MS = 40_000;
 const MAX_INPUT_CHARS = 16_000;
 
+/*
+ * Token budgets (2026-11-20). A request's prompt + its reply room (`max_tokens`)
+ * must fit what the provider takes in one go: Groq's free tier refuses anything
+ * over its per-minute token limit (~8k on gpt-oss) with a 413, and free
+ * OpenRouter models have finite contexts. Each request is fitted before it's
+ * sent — reply room first, then the middle of the longest input is trimmed (with
+ * a note saying so) — so callers can ask for generous `maxTokens`.
+ */
+const envInt = (name: string, fallback: number) => {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value >= 2_000 ? Math.floor(value) : fallback;
+};
+const REQUEST_TOKENS = {
+  groq: envInt("GROQ_MAX_REQUEST_TOKENS", 7_500),
+  openrouter: envInt("OPENROUTER_MAX_REQUEST_TOKENS", 60_000),
+} as const;
+/** Reply room we won't go below: reasoning models spend tokens thinking first. */
+const MIN_REPLY_TOKENS = 1_200;
+/** ~3.5 characters a token for English + code: errs on the high side, so we under-fill. */
+const CHARS_PER_TOKEN = 3.5;
+/** Per-message overhead (role, separators) in the provider's count. */
+const MESSAGE_OVERHEAD_TOKENS = 8;
+
+export function estimateTokens(text: string) {
+  return Math.ceil(text.length / CHARS_PER_TOKEN);
+}
+
+/** Keeps the start and end of `text` (most of the start) within `maxChars`, saying what was left out. */
+export function trimMiddle(text: string, maxChars: number) {
+  if (text.length <= maxChars) return text;
+  const note = `\n[… ${text.length - maxChars} characters left out to fit the AI model's limit …]\n`;
+  const room = Math.max(0, maxChars - note.length);
+  const head = Math.ceil(room * 0.7);
+  return text.slice(0, head) + note + text.slice(text.length - (room - head));
+}
+
+type Budgeted<M> = { messages: M[]; maxTokens: number } | null;
+
+/**
+ * Fits `messages` + reply room into `budget` tokens: lowers `maxTokens` to what's
+ * left (never below the reply floor, or the asked amount if smaller), then trims
+ * the longest non-system message — over and over — until it fits. Null when even
+ * the system prompt alone is too big (the caller reports `too_long`).
+ */
+export function fitToBudget<M extends { role: string; content: string | null }>(messages: M[], maxTokens: number, budget: number): Budgeted<M> {
+  // Reply room: at least MIN_REPLY_TOKENS or 35% of the budget (reasoning models think before answering), never more than asked.
+  const reply = Math.min(maxTokens, Math.max(MIN_REPLY_TOKENS, Math.floor(budget * 0.35)));
+  const size = (list: M[]) => list.reduce((sum, m) => sum + estimateTokens(m.content ?? "") + MESSAGE_OVERHEAD_TOKENS, 0);
+  let list = messages.map((m) => ({ ...m }));
+  for (let guard = 0; guard < 50 && size(list) + reply > budget; guard += 1) {
+    const over = size(list) + reply - budget;
+    let longest = -1;
+    list.forEach((m, i) => { if (m.role !== "system" && (longest < 0 || (m.content ?? "").length > (list[longest].content ?? "").length)) longest = i; });
+    const content = longest >= 0 ? list[longest].content ?? "" : "";
+    if (longest < 0 || content.length < 400) return null;
+    const keep = Math.max(200, content.length - Math.ceil((over + 50) * CHARS_PER_TOKEN));
+    list = list.map((m, i) => (i === longest ? { ...m, content: trimMiddle(content, keep) } : m));
+  }
+  const used = size(list);
+  if (used + reply > budget) return null;
+  return { messages: list, maxTokens: Math.max(reply, Math.min(maxTokens, budget - used)) };
+}
+
+/** Provider status → why it failed. 413 / a "context too long" 400 = the request was too big. */
+function failureFor(status: number, body: string): AiFailure {
+  if (status === 401 || status === 403) return "auth";
+  if (status === 402) return "credits";
+  if (status === 413 || (status === 400 && /context|too (long|large)|maximum.*tokens|reduce the length|request too large/i.test(body))) return "too_long";
+  if (status === 429) return /request too large|tokens per minute.*requested/i.test(body) ? "too_long" : "rate_limited";
+  return "unavailable";
+}
+
 // Everything in the log, one line per item, scannable (owner, 2026-10-09: tickets,
 // work done, to-dos, follow-ups and notes; meetings are not in the input).
 const SYSTEM_PROMPT = `Summarise this developer's work log for one day so they can recall all of it at a glance.
@@ -24,6 +96,7 @@ Reply with ONLY Markdown bullet points ("- "), one per item, each under 20 words
 Cover every section present, in this order: ticket work (start with the ticket key, e.g. "25917:"), other work done,
 to-dos finished, to-dos still due or overdue (start those with "Overdue:" or "Due:"), follow-ups (who, about what, where it stands), notes.
 No headings, no section labels, no intro or closing line, no reasoning. Merge repeated items.
+Skip any section with nothing in it — never write a line saying there is nothing (no "No to-dos…", "No notes").
 Use only facts in the log.`;
 
 /** Longer than this means the model ignored the brief (often it's its reasoning). */
@@ -149,19 +222,20 @@ function request(target: Target, body: Record<string, unknown>) {
 const providerName = (target: Target) => (target.provider === "groq" ? "Groq" : "OpenRouter");
 
 /** Why an AI request produced nothing. There is no non-AI fallback, so the UI explains it. */
-export type AiFailure = "not_configured" | "auth" | "credits" | "rate_limited" | "unavailable" | "cut_off" | "bad_reply";
+export type AiFailure = "not_configured" | "auth" | "credits" | "rate_limited" | "unavailable" | "cut_off" | "bad_reply" | "too_long";
 /** `model` on a failure = the model whose reply was rejected, when there was one; `retryAfter` = seconds the provider asked to wait; `resetAt` = when its limit resets (ms). */
 export type AiResult = { ok: true; text: string; model: string } | { ok: false; reason: AiFailure; model?: string; retryAfter?: number; resetAt?: number };
 
 /** What to tell the user for each failure. */
 export const AI_FAILURE_MESSAGE: Record<AiFailure, string> = {
-  not_configured: "AI isn't set up. Add your OpenRouter key in Profile → Account.",
-  auth: "OpenRouter rejected your API key. Check it in Profile → Account.",
+  not_configured: "AI isn't set up. Add your OpenRouter key in Profile → AI.",
+  auth: "OpenRouter rejected your API key. Check it in Profile → AI.",
   credits: "Your OpenRouter account has no credit left for this model.",
   rate_limited: "The free AI models are busy or today's free limit is used up. Try again in a few minutes.",
   unavailable: "Couldn't reach the AI right now. Try again shortly.",
-  cut_off: "The AI stopped before finishing — common with small or “thinking” free models. Try again, or set a stronger model in Profile → Account.",
-  bad_reply: "The AI's reply didn't follow the expected format. Try again, or set a stronger model in Profile → Account.",
+  cut_off: "The AI stopped before finishing — common with small or “thinking” free models. Try again, or set a stronger model in Profile → AI.",
+  bad_reply: "The AI's reply didn't follow the expected format. Try again, or set a stronger model in Profile → AI.",
+  too_long: "That's more text than the AI model can take in one go. Shorten it and try again, or set a model with a bigger limit in Profile → AI.",
 };
 
 /** The message for a failure, naming the model that answered when there was one. */
@@ -202,23 +276,19 @@ async function completeOnce(
   target: Target,
   { system, user, maxChars, maxTokens, accept, checkReasoning = true }: CompleteOptions,
 ): Promise<AiResult> {
+  const fitted = fitToBudget([{ role: "system", content: system }, { role: "user", content: user }], maxTokens, REQUEST_TOKENS[target.provider]);
+  if (!fitted) return { ok: false, reason: "too_long" };
   try {
     const response = await request(target, {
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
+      messages: fitted.messages,
       temperature: 0.2,
       // Room for a reasoning model to think; the answer itself is capped by the prompt + maxChars.
-      max_tokens: maxTokens,
+      max_tokens: fitted.maxTokens,
     });
     if (!response.ok) {
-      console.warn(`[ai] ${providerName(target)} ${response.status}: ${(await response.text()).slice(0, 300)}`);
-      const reason: AiFailure =
-        response.status === 401 || response.status === 403 ? "auth"
-        : response.status === 402 ? "credits"
-        : response.status === 429 ? "rate_limited"
-        : "unavailable";
+      const body = (await response.text()).slice(0, 300);
+      console.warn(`[ai] ${providerName(target)} ${response.status}: ${body}`);
+      const reason = failureFor(response.status, body);
       return { ok: false, reason, retryAfter: retryAfter(response), resetAt: resetAt(response) };
     }
     const json = (await response.json()) as { model?: string; choices?: Array<{ finish_reason?: string; message?: { content?: string | null } }> };
@@ -255,7 +325,9 @@ export function titleWithOpenRouter(logText: string, config: OpenRouterConfig): 
     system: TITLE_PROMPT,
     user: logText.slice(0, MAX_INPUT_CHARS),
     maxChars: 200,
-    maxTokens: 1000,
+    // The title itself is short; the rest is room for a free "thinking" model to reason first
+    // (at 1,000 they often spent it all thinking and replied with nothing).
+    maxTokens: 3000,
     accept: acceptTitle,
   });
 }
@@ -266,7 +338,8 @@ export function summarizeWithOpenRouter(logText: string, config: OpenRouterConfi
     system: SYSTEM_PROMPT,
     user: logText.slice(0, MAX_INPUT_CHARS),
     maxChars: MAX_SUMMARY_CHARS,
-    maxTokens: 3000,
+    // Room to think first (free reasoning models); fitted to each provider's budget.
+    maxTokens: 5000,
   });
 }
 
@@ -299,23 +372,23 @@ export async function openRouterChat(
 type ChatOptions = { messages: ChatMessage[]; tools?: ToolSpec[]; maxTokens: number };
 
 async function chatOnce(target: Target, { messages, tools, maxTokens }: ChatOptions): Promise<ChatResult> {
+  // Tool definitions count against the budget too.
+  const toolTokens = tools?.length ? estimateTokens(JSON.stringify(tools)) : 0;
+  const fitted = fitToBudget(messages, maxTokens, REQUEST_TOKENS[target.provider] - toolTokens);
+  if (!fitted) return { ok: false, reason: "too_long" };
   try {
     const response = await request(target, {
-      messages,
+      messages: fitted.messages,
       ...(tools?.length ? { tools, ...(target.provider === "openrouter" ? { provider: { require_parameters: true } } : {}) } : {}),
       temperature: 0.2,
-      max_tokens: maxTokens,
+      max_tokens: fitted.maxTokens,
     });
     if (!response.ok) {
       const body = (await response.text()).slice(0, 300);
       console.warn(`[ai] ${providerName(target)} ${response.status}: ${body}`);
       // 404 "No endpoints found that support tool use" (or 400 from a model that rejects `tools`).
       if (tools?.length && (response.status === 404 || (response.status === 400 && /tool/i.test(body)))) return { ok: false, reason: "unavailable", noTools: true };
-      const reason: AiFailure =
-        response.status === 401 || response.status === 403 ? "auth"
-        : response.status === 402 ? "credits"
-        : response.status === 429 ? "rate_limited"
-        : "unavailable";
+      const reason = failureFor(response.status, body);
       return { ok: false, reason, retryAfter: retryAfter(response), resetAt: resetAt(response) };
     }
     const json = (await response.json()) as { model?: string; choices?: Array<{ finish_reason?: string; message?: { content?: string | null; tool_calls?: ToolCall[] } }> };

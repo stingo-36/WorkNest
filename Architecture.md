@@ -4,7 +4,7 @@
 > delete a module, route, model or script, update the relevant section in the same
 > change.
 >
-> Last synced with the codebase: **2026-11-14**
+> Last synced with the codebase: **2026-11-21**
 
 ---
 
@@ -46,7 +46,7 @@
     ├── components.json        shadcn config (utils alias → @/components/cn)
     ├── prisma/
     │   ├── schema.prisma      the data model (§5)
-    │   ├── migrations/        28 migrations, init 2026-09-11 → tracker_personal_todos 2026-10-21
+    │   ├── migrations/        migrations from init 2026-09-11 → gmail_import 2026-11-17
     │   └── seed*.ts           seed scripts (§8)
     ├── scripts/
     │   ├── hosted-db.mjs      migrate (+ optional seed) the hosted DB
@@ -76,11 +76,12 @@ authenticated shell.
 | `/login`, `/register` | `(auth)/*/page.tsx` | public; direct sign-in redirects by persisted role (`Admin` → `/admin`, `User` → `/tracker`); an explicit safe callback still wins |
 | `/work-logs` | `(app)/work-logs/page.tsx` | sprint deck (`components/work-log/sprint-deck.tsx`; `?day=` picks the day and its sprint, ‹ › step between past sprints; logs loaded for that sprint's range only); Tracker entries per day via `listTrackerForRange` (actions/lib `follow-ups.ts`) |
 | `/work-logs/[workLogId]` | `.../page.tsx` | read-only detail + Copy as text; side rail begins with that day's Tracker to-dos |
-| `/work-logs/[workLogId]/edit` | `.../edit/page.tsx` | `WorkLogEditor` |
+| `/work-logs/[workLogId]/edit` | `.../edit/page.tsx` | `WorkLogEditor` — the day page: numbered steps (`StepHeading` in `section-heading.tsx`), Finish day → `/work-logs/[id]?finished=1` |
 | `/tickets` | `(app)/tickets/page.tsx` | `TicketBoard` (`PageHead`, direct New ticket form, underline status tabs, list + open ticket with editable number/title/project, compact journey and latest update); redirects to `/work-logs` if tickets disabled; `?ticket=<id>` selects that ticket (status filter → All) |
-| `/tracker` | `(app)/tracker/page.tsx` | `TrackerBoard` — two-column queue per tab (To-do: Today | Upcoming; Follow-ups: Needs you | Waiting; Notes: composer | notes), latest update inline, finished entries in a collapsed group; entries open in a two-column dialog; rich editor + read-only renderer in `components/tracker/update-editor.tsx` (Notes TipTap schema + upload-only images), legacy plain-text rendering in `note-text.tsx`; default landing after login; `?view=todo\|followups\|notes` picks the tab; `?open=<id>` opens that entry (Ask's source links; dropped from the URL once opened) |
+| `/tracker` | `(app)/tracker/page.tsx` | `TrackerBoard` — two-column queue per tab (To-do: Today | Upcoming; Follow-ups: Needs you | Waiting; Notes: composer | notes), latest update inline, finished entries in a collapsed group; entries open in a two-column dialog; rich editor + read-only renderer in `components/tracker/update-editor.tsx` (Notes TipTap schema + upload-only images), legacy plain-text rendering in `note-text.tsx`; default landing after login; `?view=todo\|followups\|personal\|notes\|archived` picks the tab; `?open=<id>` opens that entry (Ask's source links; dropped from the URL once opened) |
 | `/notes`, `/notes/new`, `/notes/[noteId]`, `/notes/[noteId]/edit` | `(app)/notes/**` | notebooks; the list is `NoteLibrary` (layout "F": header, summary column, bookshelf) |
-| `/resources` | `(app)/resources/page.tsx` | `ResourceLibrary` |
+| `/resources` | `(app)/resources/page.tsx` | `ResourceLibrary`; queues a stale Gmail check with `after()` |
+| `/resources/[type]` | `(app)/resources/[type]/page.tsx` | `ResourceTypeView`; slug = `resourceTypeKey(type)` (404 for an unknown type) |
 | `/favourites` | `(app)/favourites/page.tsx` | reads Prisma directly; `?show=important\|notes\|resources` picks the tab |
 | `/profile` | `(app)/profile/page.tsx` | `ProfileForm` |
 | `/achievements` | `(app)/achievements/page.tsx` | `AchievementsBoard` (account menu) |
@@ -96,7 +97,7 @@ authenticated shell.
 | `POST /api/work-logs/[workLogId]/attachments` | route handler | multipart upload (field `files`) |
 | `POST /api/tracker-files` | route handler | editor uploads for every rich field — Tracker updates, Work Log / Ticket Markdown fields, Resource and Achievement descriptions (field `files`, ≤5 × 4 MB) → `{ files: [{ id, name, mimeType, size, url }] }` |
 | `GET /api/tracker-files/[fileId]` | route handler | owner-only download; images/PDF/text inline, everything else as attachment, `nosniff` |
-| `POST /api/work-logs/[workLogId]/ai-refresh` | route handler | leave-the-editor beacon: 202 now, then `after()` regenerates the AI summary/title if the content changed |
+| `POST /api/work-logs/[workLogId]/ai-refresh` | route handler | leave-the-editor beacon: 202 now, then `after()` regenerates the AI summary/title if the content changed (not sent after Finish day: the read page's `?finished=1` refreshes a stale summary instead) |
 | `GET /api/attachments/[attachmentId]` | route handler | owner-only download |
 | `POST /api/achievements/[achievementId]/files` | route handler | certificate upload (field `files`) |
 | `GET /api/achievement-files/[fileId]` | route handler | owner-only certificate download |
@@ -106,6 +107,8 @@ authenticated shell.
 | `POST /api/mobile/tracker/[followUpId]/updates` | route handler | bearer token; `addFollowUpUpdateSchema` — append to the entry's history |
 | `GET/POST /api/mobile/resources` | route handler | bearer token; GET → library (newest first) + the user's resource types; POST saves with `createResourceSchema` |
 | `PATCH /api/mobile/resources/[resourceId]` | route handler | bearer token; star/unstar (`toggleResourceFavoriteSchema`) |
+| `GET /api/gmail/connect` | route handler | session; sets a `wn_gmail_state` cookie and redirects to Google consent (`gmail.readonly`, offline) |
+| `GET /api/gmail/callback` | route handler | session; checks state, stores the sealed refresh token, runs a first import, back to `/profile?section=gmail&gmail=<result>` |
 
 `(app)/layout.tsx` runs `requireUser()` + `getUserSettings()` once, wraps children in
 `MuiProvider` + `AppShell`, and passes `ticketsEnabled` and `isAdmin` to the nav. `AppShell` mounts
@@ -177,17 +180,17 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `lib/worklogs.ts` | work logs, meetings (3 defaults), learning notes, attachments, days off, UTC-date helpers, `touchWorkLog`, `saveWorkLogSummaryRow` (modes manual/auto/background; skips unchanged content via `aiInputHash`; retitles only default/AI titles) |
 | `lib/worklog-summary.ts` | AI input for one log: `workLogHasContent`, `workLogAsText` (tickets, Work done, the day's Tracker to-dos / follow-ups / notes; **no meetings**). No code-built summary |
 | `lib/day-tracker.ts` | `trackerOnDay` — sorts `listTrackerForRange` entries into one day (to-dos done/due/overdue/created, follow-ups, notes); shared by the Work Logs day card and the AI input |
-| `lib/ai-summary.ts` | `openRouterComplete` → `AiResult` (text/model, or an `AiFailure`: not_configured/auth/credits/rate_limited/unavailable/cut_off/bad_reply, with the model when one answered); optional `accept` to tidy/reject; `checkReasoning: false` for JSON replies (skips the reasoning-leak regex, `accept` validates instead); one automatic retry on cut_off/bad_reply; `aiFailureMessage`; `summarizeWithOpenRouter`, `titleWithOpenRouter`; `openRouterChat` (messages + tools, `require_parameters`, reads tool calls incl. ones written as text by some free models, `noTools` when no model can call tools). Both go to **Groq** (`withGroqBackup`, same request) when OpenRouter fails or has no key — its models in turn while each is rate-limited (8k tokens/min per model on the free tier), then one wait-and-retry if the `retry-after` is ≤ 15 s; once OpenRouter is down (`auth`/`credits`/`rate_limited`/`unavailable`) the config's `skipOpenRouter` keeps the rest of that request on Groq, and `openRouterOutUntil` (per key, in memory) sends later requests straight to Groq until OpenRouter's `x-ratelimit-reset` (its free daily limit) or a cooldown (10 min rate limit, 1 h credits/auth, 2 min unreachable). With a Groq key, OpenRouter's timeout is 40 s instead of 90 s. **AI only — no non-AI fallback** |
+| `lib/ai-summary.ts` | `openRouterComplete` → `AiResult` (text/model, or an `AiFailure`: not_configured/auth/credits/rate_limited/unavailable/cut_off/bad_reply/too_long, with the model when one answered); **token budgets** (2026-11-21): `fitToBudget` sizes every request (prompt + `max_tokens`) to `REQUEST_TOKENS[provider]` — reply room first (floor 35% of the budget), then `trimMiddle` on the longest non-system message; tool schemas count too; 413 / "context too long" / Groq "request too large" map to `too_long`; optional `accept` to tidy/reject; `checkReasoning: false` for JSON replies (skips the reasoning-leak regex, `accept` validates instead); one automatic retry on cut_off/bad_reply; `aiFailureMessage`; `summarizeWithOpenRouter`, `titleWithOpenRouter`; `openRouterChat` (messages + tools, `require_parameters`, reads tool calls incl. ones written as text by some free models, `noTools` when no model can call tools). Both go to **Groq** (`withGroqBackup`, same request) when OpenRouter fails or has no key — its models in turn while each is rate-limited (8k tokens/min per model on the free tier), then one wait-and-retry if the `retry-after` is ≤ 15 s; once OpenRouter is down (`auth`/`credits`/`rate_limited`/`unavailable`) the config's `skipOpenRouter` keeps the rest of that request on Groq, and `openRouterOutUntil` (per key, in memory) sends later requests straight to Groq until OpenRouter's `x-ratelimit-reset` (its free daily limit) or a cooldown (10 min rate limit, 1 h credits/auth, 2 min unreachable). With a Groq key, OpenRouter's timeout is 40 s instead of 90 s. **AI only — no non-AI fallback** |
 | `lib/tickets.ts` | **the critical piece** — ticket lookup/upsert, `addTicketWorkUpdate` (upsert on `(ticketId, workLogId)`), detach, standalone history, project names, `findTicketsByKeyHint` (Quick log: exact key or bare number → `*-1233`) |
 | `lib/ask.ts` | Ask your workspace — a tool-using agent. Starts with CONTEXT (keyword matches via `searchTerms`/`findCandidates`/`rank`, every open Tracker entry via `openTracker` with exact counts and due wording, the work-log date span), then up to 4 tool rounds via `openRouterChat`: `search_workspace`, `get_work_logs` (≤ 62 days), `list_tracker` (open/done, done-in-range), `create_tracker_item`, `change_tracker_item` (done/reopen/reschedule/add_update by record number → id mapped server-side by `Records`). Last round goes without tools (`flatten`). Proposals are returned, never applied. Uses `ASK_MODELS` (tool-capable free models) while the user is on the default model list; falls back to one plain completion with an `<items>` block (`askWithoutTools`/`parseItems`) when no model supports tools. Cites `[n]`; if none, lists what the tools looked up. Notebook tools: `create_notebook`, `change_notebook`, `save_document` (a pasted document — found by `splitMessage`, or sent again by the chat as `document` — is described to the AI as an outline via `documentOutline`; the server turns its text into pages). A new notebook whose name already exists, a missing title, or an empty notebook while a document is in the chat come back to the AI as errors so it asks the user. Notebook proposals carry `before` and a page plan for the card |
-| `lib/quick-log.ts` | Quick log: `draftQuickLog` (AI → JSON read leniently with Zod, then matched to the user's tickets / meeting cards / people / channels; to-dos fall back to one per line without AI) `workLogTemplate` (headings: the day's meetings, open tickets, Work done), and `applyQuickLog` (writes via `worklogs`/`tickets`/`follow-ups` lib functions; same-day re-apply appends) |
+| `lib/quick-log.ts` | Quick log: `draftQuickLog` (AI → JSON read leniently with Zod, then matched to the user's tickets / meeting cards / people / channels; to-dos fall back to one per line without AI) `workLogTemplate` (headings: the day's meetings, an empty Tickets heading, Work done — no pre-listed tickets since 2026-11-20), and `applyQuickLog` (writes via `worklogs`/`tickets`/`follow-ups` lib functions; same-day re-apply appends) |
 | `lib/workflow-status.ts` | 5-stage workflow + legacy status normalisation |
 | `lib/meeting-minutes.ts` | minutes of meeting (MoM): `listMinutesCandidates` (the user's Tracker Notes, `mom`-tagged first), `linkMeetingMinutes` / `unlinkMeetingMinutes` (both ends checked against `userId`; unlink never deletes the note), `createMeetingMinutes` (a new Note tagged `mom` via `createFollowUp`, then linked) |
 | `lib/follow-ups.ts` | Tracker entries + append-only updates, pin, status, reschedule, tags, `editPersonalTodo` (rewrites a personal to-do's text only), `listTodosAroundDay` (work-log to-dos card) |
 | `lib/note-store.ts`, `lib/notes.ts`, `lib/note-icons.ts`, `lib/note-colors.ts` | notebooks, trash/restore, icon search, accent colours |
 | `lib/note-import.ts` | a pasted document → notebook pages (`marked` lexer → TipTap JSON); the AI in `lib/ask.ts` decides where it goes. `splitMessage` (instruction vs document), `parseDocument` (`#` = the document's own title, `##` = a page, `###`+ headings inside the page), `documentOutline` (what the AI sees), `planDocumentSave` (pages new/changed/removed, `reshaped`) and `saveDocument` (new notebook with one section, or reshape notebook `noteId` to match: pages matched by title anywhere, ignoring case and a leading number; pages and sections not in the document are deleted by `updateNote`). Saved via `importNotebook` in `actions/notes.ts`; title/description/icon-only changes via `saveNotebookDetails` (`updateNoteDetails` in `lib/note-store.ts`); icons found by `findIcon` in `lib/note-icons.ts` |
 | `components/notes/smooth-scroll.ts`, `components/notes/doc-height.ts` | client: frame-by-frame smooth jump that follows a moving target and pauses lazy page mounting while in flight (`isJumping`, `NOTE_SCROLL_END`); estimated height for an unmounted page body. Used by the reader and the editor |
-| `lib/content.ts` | tasks, links, resources (+ favourite) |
+| `lib/content.ts` | tasks, links, resources (+ favourite, `findResourceByUrl` duplicate check, `mergeResourceTypes` / `restoreResourceTypes`) |
 | `components/shell/page-head.tsx` | the shared page header (`PageHead`), `SearchPill`, `UnderlineTabs`, `primaryPill` / `outlinePill` — every list page except Work Logs |
 | `components/shell/page-motion.tsx` | Pathname-keyed wrapper for authenticated pages; the entrance itself is CSS (`.app-page-motion`, no JS writes to the markup — hydration-safe with streaming); reduced-motion safe |
 | `lib/sprint.ts` | **the only** sprint arithmetic (`getSprint`) — local calendar days |
@@ -203,6 +206,9 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `lib/account-security.ts` | self-service password change: verifies the current bcrypt hash, writes a new cost-12 hash and increments `authVersion` |
 | `lib/ai-settings.ts` | per-user OpenRouter key/model and Groq key: `getAiSettings` (client-safe view, never a key; `aiOn`, `keySource`, `groqSource`), `getOpenRouterConfig` (user keys → env fallbacks, for OpenRouter and the Groq backup; null only when neither exists), `checkOpenRouterKey` / `checkGroqKey`, save/clear for each |
 | `lib/secret-box.ts` | AES-256-GCM `seal`/`open` for stored secrets, keyed off `AUTH_SECRET` |
+| `lib/gmail.ts` | Gmail import: OAuth URL / code exchange (plain fetch), `getGmailStatus`, `saveGmailRule`, `disconnectGmail` (revokes), `syncGmail` (label search, 14 days, unseen emails only, skips known URLs; `onlyIfStale` = 6 h), `latestGmailImport`, `undoGmailImport` |
+| `lib/drupal-digest.ts` | pure: Drupal Daily email HTML → `{ title, url, description, moduleOfTheDay }[]` |
+| `lib/resource-types.ts` | type labels/keys plus the shared Resources helpers: `typeSlug`, `typeTone`, `matchesSearch`, `orderTypes` (client + server) |
 | `lib/mobile-api.ts` | Kaizen phone link: stateless HMAC token (`wn1.<userId>.<authVersion>.<sig>`, keyed off `AUTH_SECRET`) `createMobileToken` / `verifyMobileToken`, CORS `mobileJson` / `preflight`, `listMobileTracker` (the phone's list shape) |
 | `lib/validation.ts` | all Zod schemas |
 | `lib/prisma.ts` | Prisma client singleton with the pg adapter |
@@ -215,7 +221,8 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `actions/tickets.ts` | create standalone, find, upsert-for-work-log, save work update, detach, get, list, projects, active, update, append/delete history entry, delete ticket |
 | `actions/follow-ups.ts` | create, add update, pin, status, reschedule, `setFollowUpAdded` (re-date `createdAt`), `setFollowUpTags`, `editPersonalTodo`, `listTodosForDay`, delete, list, people |
 | `actions/notes.ts` | create, update, delete (trash), restore, toggle favourite |
-| `actions/content.ts` | tasks, links, resources CRUD + `toggleResourceFavorite` |
+| `actions/content.ts` | tasks, links, resources CRUD (create refuses a link already saved) + `toggleResourceFavorite`, `mergeResourceTypes` / `undoMergeResourceTypes` (retype + Profile type list) |
+| `actions/gmail.ts` | `syncGmailNow`, `saveGmailRule`, `disconnectGmail`, `undoGmailImport` |
 | `actions/profile.ts` | `updateProfile`, self-service `changePassword`, `saveAiKey`, `removeAiKey`, `saveAiModel` |
 | `actions/user-lists.ts` | Profile lists: set/reset ordered list, resource-type icon, add/remove project, add/rename/delete/delete-all tags |
 | `actions/reports.ts` | `generateReport` |
@@ -261,7 +268,9 @@ User ─┬─ WorkLog ─┬─ Meeting ── MeetingMinutesLink ──► Fol
 | `FollowUpUpdate` | `note`, `doc Json?` (TipTap JSON from the rich editor; `note` is then its plain text, derived server-side), `channel` (free text from the user's list), `occurredAt`, `fromThem` (their reply vs. what you said — drives Waiting/Replied). **Never updated in place.** |
 | `FollowUpFile` | `userId`, `followUpId?` (set when the update that references it is saved), `name`, `mimeType`, `size`, `data Bytes` (≤4 MB). Uploaded while writing; deleted with the entry or account. |
 | `Note` / `NoteSection` / `NotePage` | icon (`iconName`, `iconLibrary` si/lu/fa6), `favorite`, `deletedAt` (trash); sections & pages ordered by `order`; page `content Json` |
-| `Resource` | `type` (free text from the user's list; was an enum), `url?`, `content`, `tags[]`, `favorite` |
+| `Resource` | `type` (free text from the user's list; was an enum), `url?`, `content`, `tags[]`, `favorite`, `source?` ("gmail"), `sourceMessageId?` (Undo key) |
+| `GmailConnection` | one per user (`userId` PK): `email`, sealed `refreshToken`, `label` (default "Drupal Daily"), `resourceType` (default "Drupal"), `lastSyncAt?`, `lastSyncError?` |
+| `GmailImport` | `(userId, messageId)` PK — every email read, `added`, `undone`; an email is never imported twice |
 | `SprintReport` | one per `(userId, sprintStart)` (`@db.Date`, UTC midnight like `WorkLog.date`); `content` (Markdown), `model?` (null = built), `generatedAt` |
 | `Achievement` | `title`, `type` (free text), `status` (`AchievementStatus` InProgress/Completed), `assignedBy?`, `startDate?`/`endDate?` `@db.Date`, `description` |
 | `AchievementFile` | `name`, `mimeType`, `size`, `data Bytes` (≤10 MB); `userId` denormalised for owner-only download. **`data` never selected in lists.** |
@@ -315,6 +324,8 @@ writes), `TaskPriority`, `TaskStatus`, `FollowUpStatus`, `EntryKind`,
 | `OPENROUTER_API_KEY` | optional server-wide key for AI work-log summaries; a user's Profile key takes priority |
 | `OPENROUTER_MODEL` | comma-separated fallback list; default `google/gemma-4-31b-it:free, openrouter/free` |
 | `GROQ_API_KEY` | optional server-wide backup AI, used when OpenRouter fails or has no key; a user's Profile Groq key takes priority |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | optional Google Cloud OAuth **Web** client (Gmail API enabled) for Profile → Gmail import; redirect URI `<site>/api/gmail/callback`. Unset → the card says it's off |
+| `GROQ_MAX_REQUEST_TOKENS` / `OPENROUTER_MAX_REQUEST_TOKENS` | optional; the most tokens (prompt + reply) one AI request may use. Defaults 7,500 / 60,000 (min 2,000). Bigger inputs are trimmed to fit |
 | `GROQ_MODEL` | comma-separated Groq models, tried in turn when one is rate-limited; default `openai/gpt-oss-120b, qwen/qwen3.8-27b, openai/gpt-oss-20b` (all call tools) |
 
 `app/.env.vercel` (gitignored) holds values to paste into Vercel. Never commit real

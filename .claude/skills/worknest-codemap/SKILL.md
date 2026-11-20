@@ -10,7 +10,7 @@ description: File-level map of the WorkNest codebase — which route, action, li
 > section in the last column if you need the *why*. `npm run docs:check` fails when a
 > file is missing from this map or a listed path no longer exists — keep it green.
 >
-> Last synced with the codebase: **2026-11-12**
+> Last synced with the codebase: **2026-11-17**
 
 Paths are relative to `app/src/` unless they start with `app/` or `/`.
 Docs: **PRD** = `PRD.md`, **Arch** = `Architecture.md`, **DS** = `Design-System.md`,
@@ -51,7 +51,7 @@ Models: `WorkLog`, `Meeting`, `MeetingMinutesLink` (→ Tracker Note = MoM), `Wo
 - Actions: `actions/worklog.ts`
 - Lib: `lib/worklogs.ts`, `lib/worklog-summary.ts` (AI input), `lib/day-tracker.ts` (day's Tracker items), `lib/meeting-minutes.ts` (MoM link/create)
 - Deck: `components/work-log/sprint-deck.tsx`, `deck-search.tsx`, `open-day-bar.tsx`, `day-todos.tsx`
-- Editor: `components/work-log/work-log-editor.tsx`, `save-status.tsx` (autosave provider), `markdown-editor.tsx`, `meeting-section.tsx`, `meeting-minutes.tsx` (MoM links + picker), `learning-section.tsx`, `attachments-section.tsx`, `attachment-utils.ts`, `section-heading.tsx`, `day-type-toggle.tsx`, `day-type.ts`
+- Editor: `components/work-log/work-log-editor.tsx`, `save-status.tsx` (autosave provider), `markdown-editor.tsx`, `meeting-section.tsx`, `meeting-minutes.tsx` (MoM links + picker), `learning-section.tsx`, `attachments-section.tsx`, `attachment-utils.ts`, `section-heading.tsx` (`SectionHeading` + day-page `StepHeading`), `day-type-toggle.tsx`, `day-type.ts`
 - Tickets inside a log: `components/work-log/ticket-search.tsx`, `ticket-work-card.tsx`, `ticket-history.tsx`
 - Detail/summary: `components/work-log/work-log-summary.tsx`, `copy-log-button.tsx`, `types.ts` (client view models)
 
@@ -75,9 +75,10 @@ Models: `Note` → `NoteSection` → `NotePage` (TipTap JSON)
 - Edit: `components/notes/NoteForm.tsx`, `SectionEditor.tsx`, `PageEditor.tsx`, `RichTextEditor.tsx`, `editor-extensions.ts`, `CodeBlock.tsx`, `NoteIcon.tsx`, `NoteIconPicker.tsx`, `note-field.tsx`
 
 ### Resources — PRD §5.5
-Model: `Resource` (+ `UserList` for types)
-- Route: `app/(app)/resources/page.tsx` · Actions: `actions/content.ts` · Lib: `lib/content.ts`
-- UI: `components/resources/resource-library.tsx`, `components/resources/type-icon.tsx`
+Models: `Resource` (+ `UserList` for types), `GmailConnection`, `GmailImport`
+- Routes: `app/(app)/resources/page.tsx`, `app/(app)/resources/[type]/page.tsx` · Actions: `actions/content.ts`, `actions/gmail.ts` · Lib: `lib/content.ts`, `lib/resource-types.ts`
+- UI: `components/resources/resource-library.tsx` (type list + preview + search results + merge note), `resource-type-view.tsx` (one type), `resource-cards.tsx` (cards, `ResourceRow`, `ResourceQuickActions`, link-first add/edit popup), `type-icon.tsx`
+- Gmail import: `lib/gmail.ts`, `lib/drupal-digest.ts`, `app/api/gmail/connect/route.ts`, `app/api/gmail/callback/route.ts`, `components/profile/gmail-settings.tsx`
 
 ### Favourites — PRD §5.6
 - Route: `app/(app)/favourites/page.tsx` (reads Prisma directly)
@@ -85,7 +86,7 @@ Model: `Resource` (+ `UserList` for types)
 ### Profile & settings — PRD §5.7
 Models: `User`, `UserList`
 - Route: `app/(app)/profile/page.tsx` · Actions: `actions/profile.ts`, `actions/user-lists.ts`
-- UI: `components/profile/profile-form.tsx`, `list-editors.tsx`, `ai-settings.tsx`, `password-settings.tsx`, `components/ui/password-field.tsx`
+- UI: `components/profile/profile-form.tsx`, `list-editors.tsx`, `ai-settings.tsx`, `gmail-settings.tsx`, `password-settings.tsx`, `components/ui/password-field.tsx`
 
 ### Achievements — PRD §5.8
 Models: `Achievement`, `AchievementFile`

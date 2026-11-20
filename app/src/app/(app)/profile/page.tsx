@@ -2,6 +2,7 @@ import { format } from "date-fns";
 
 import { ProfileForm } from "@/components/profile/profile-form";
 import { getAiSettings } from "@/lib/ai-settings";
+import { getGmailStatus } from "@/lib/gmail";
 import { requireUser } from "@/lib/session";
 import { SPRINT_CYCLE_ANCHOR } from "@/lib/sprint";
 import { getOrderedListState, getResourceTypeIcons, listPersonOptions, listProjectOptions, listTagUsage } from "@/lib/user-lists";
@@ -11,7 +12,7 @@ export const metadata = { title: "Profile" };
 
 export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ section?: string }> }) {
   const [{ section }, user] = await Promise.all([searchParams, requireUser()]);
-  const [settings, channels, resourceTypes, meetings, projects, people, noteTags, resourceTags, resourceTypeIcons, ai] = await Promise.all([
+  const [settings, channels, resourceTypes, meetings, projects, people, noteTags, resourceTags, resourceTypeIcons, ai, gmail] = await Promise.all([
     getUserSettings(user.id),
     getOrderedListState(user.id, "FollowUpChannel"),
     getOrderedListState(user.id, "ResourceType"),
@@ -22,6 +23,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
     listTagUsage(user.id, "ResourceTag"),
     getResourceTypeIcons(user.id),
     getAiSettings(user.id),
+    getGmailStatus(user.id),
   ]);
 
   return (
@@ -35,6 +37,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
       }}
       lists={{ channels, resourceTypes, resourceTypeIcons, meetings, projects, people, noteTags, resourceTags }}
       ai={ai}
+      gmail={gmail}
       initialSection={section}
     />
   );

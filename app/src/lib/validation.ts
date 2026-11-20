@@ -380,6 +380,18 @@ export const updateResourceSchema = createResourceSchema.partial().extend({
 
 export const deleteResourceSchema = z.object({ resourceId: idSchema });
 
+/** Fold look-alike resource types into one (Resources merge note). */
+export const mergeResourceTypesSchema = z.object({
+  from: z.array(resourceTypeSchema).min(1).max(10),
+  into: resourceTypeSchema,
+});
+
+/** Undo a merge: put each resource back on its old type and restore the type list. */
+export const undoMergeResourceTypesSchema = z.object({
+  moves: z.array(z.object({ resourceId: idSchema, type: resourceTypeSchema })).max(1000),
+  types: z.array(resourceTypeSchema).max(50),
+});
+
 // --- follow-ups -------------------------------------------------------------
 
 /** A follow-up due date is a plain calendar day; no time component is stored. */
@@ -676,6 +688,16 @@ export const setResourceTypeIconSchema = z.object({
 });
 
 export const renameTagSchema = z.object({ kind: tagKind, from: tagValue, to: tagValue });
+
+// --- gmail import --------------------------------------------------------------
+
+/** Profile → Gmail import: which label to read and which resource type its modules become. */
+export const saveGmailRuleSchema = z.object({
+  label: z.string().trim().min(1, "Enter the Gmail label").max(100),
+  resourceType: listValue,
+});
+
+export const undoGmailImportSchema = z.object({ messageId: idSchema });
 
 // --- achievements ------------------------------------------------------------
 

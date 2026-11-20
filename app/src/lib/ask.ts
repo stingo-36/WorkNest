@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { docToText, markdownPreview } from "@/lib/rich-text";
 import { getUserSettings } from "@/lib/user-settings";
 import { askChangeSchema, askNotebookSchema, askProposalSchema, askRangeSchema, type AskProposal, dateOnlySchema } from "@/lib/validation";
+import { workflowStatusLabel } from "@/lib/workflow-status";
 
 /**
  * Ask: an assistant over your own workspace. Answers come from your records
@@ -137,7 +138,7 @@ function logCandidate(log: LogRow): Candidate {
   const parts = [
     log.dayType !== "Work" ? `Day type: ${log.dayType}` : "",
     log.learningNotes.trim() ? `Work done:\n${markdownPreview(log.learningNotes)}` : "",
-    ...log.ticketUpdates.map((u) => `Ticket ${u.ticket.ticketId} ${u.ticket.title} [${u.status}]: ${markdownPreview(u.description)}`),
+    ...log.ticketUpdates.map((u) => `Ticket ${u.ticket.ticketId} ${u.ticket.title} [${workflowStatusLabel(u.status)}]: ${markdownPreview(u.description)}`),
     ...log.meetings.filter((m) => m.notes.trim()).map((m) => `Meeting ${m.name}: ${markdownPreview(m.notes)}`),
   ].filter(Boolean);
   return { kind: "Work log", title: log.title, date: day(log.date), href: `/work-logs/${log.id}`, text: [log.title, ...parts].join("\n"), at: log.date };
@@ -270,13 +271,13 @@ async function findCandidates(userId: string, terms: string[], ticketsEnabled: b
   for (const log of logs) candidates.push(logCandidate(log));
 
   for (const ticket of tickets) {
-    const updates = ticket.updates.map((u) => `- ${u.workLog ? day(u.workLog.date) : "?"} [${u.status}]: ${markdownPreview(u.description)}`);
+    const updates = ticket.updates.map((u) => `- ${u.workLog ? day(u.workLog.date) : "?"} [${workflowStatusLabel(u.status)}]: ${markdownPreview(u.description)}`);
     candidates.push({
       kind: "Ticket",
       title: `${ticket.ticketId} ${ticket.title}`,
       date: day(ticket.updatedAt),
       href: `/tickets?ticket=${ticket.id}`,
-      text: [`${ticket.ticketId} ${ticket.title}`, `Status: ${ticket.status}${ticket.projectName ? ` · Project: ${ticket.projectName}` : ""}`, updates.length ? `Work updates (newest first):\n${updates.join("\n")}` : ""].filter(Boolean).join("\n"),
+      text: [`${ticket.ticketId} ${ticket.title}`, `Status: ${workflowStatusLabel(ticket.status)}${ticket.projectName ? ` · Project: ${ticket.projectName}` : ""}`, updates.length ? `Work updates (newest first):\n${updates.join("\n")}` : ""].filter(Boolean).join("\n"),
       at: ticket.updatedAt,
     });
   }

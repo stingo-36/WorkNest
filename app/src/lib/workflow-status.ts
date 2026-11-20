@@ -50,3 +50,16 @@ export function toStoredTicketStatus(
 ): StoredTicketStatus {
   return status as StoredTicketStatus;
 }
+
+/** Readable name for any stored status (legacy values included) — for AI prompts and plain text. */
+export function workflowStatusLabel(status: string) {
+  const labels: Record<WorkflowStatus, string> = {
+    InProgress: "In progress",
+    Blocked: "Blocked",
+    SentToQA: "Sent to QA",
+    ReadyForProduction: "Ready for production",
+    Released: "Released",
+    Done: "Done",
+  };
+  return labels[normalizeTicketStatus(status)];
+}

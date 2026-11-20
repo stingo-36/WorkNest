@@ -5,7 +5,7 @@
 > and `app/src/app/(auth)/auth-motion.css` (login / register). This file explains the system and the rules. If you change a token,
 > update the table here in the same change.
 >
-> Last synced with the codebase: **2026-11-14**
+> Last synced with the codebase: **2026-11-20**
 
 ---
 
@@ -119,11 +119,18 @@ to-dos and upcoming rows. Finished entries collapse under "✓ N completed today
 a `.tk-field` card (title · hairline · body · toolbar). Entry dialogs use `Modal size="xl"`.
 **Plain Tracker (owner's mockup, 2026-11-14):** the page is scoped `.tk-plain` — cool grey page
 (`--tk-page`), white cards with a `--tk-line` hairline and 0.75rem radius, navy ink `--tk-ink`
-(buttons, active tab underline, sprint segments `.tk-sprint`, ring), a dark `--tk-hero` Next up
-card. Stat cards are `.tk-glance` (`.tk-stat` is taken by the old summary). Rows show a
+(buttons, active tab underline). **Simpler To-do (2026-11-17)** replaced the sprint meter, the four
+stat cards (`.tk-glance`), the Next up card and the This week card (ring, bars) — all removed with
+their CSS: the header is date · sprint day, the greeting and three `.tk-pills` / `.tk-pill[data-tone=
+late|needs|turn]` buttons (white, `--tk-line` edge, coloured number); tab counts show only what needs
+you, as an amber `.tk-tab-count[data-needs]` chip on `--tk-amber-bg`. The list has two groups,
+Needs you (`.tk-grp-hint` beside the title, hidden on phones; the just-added row is
+`.tk-item[data-new]` on `--c-card-tint`; `.tk-pline` for due personal to-dos) and Coming up. The
+rail holds one **People** card (`.tk-people-head` over "Waiting on you" / "You're waiting on" lists,
+`.tk-mini-btn` Reply / Nudge) and no longer turns into two columns at md–xl. Rows show a
 `.tk-badge` (late = `--tk-late` on `--tk-late-bg`) in `.tk-row-meta`; row buttons are 40px
 `rounded-lg`. Search is portalled into the desk bar's `#app-deskbar-slot` from 1024px. The
-**All / Work / Personal** switch is `.tk-scope` (grey track, white active segment). Personal to-dos are `.tk-sticky` cards:
+All / Work / Personal switch (`.tk-scope`) was removed 2026-11-17 — Personal is an ordinary tab. Personal to-dos are `.tk-sticky` cards:
 `--c-sticky-1…5` paper tints (`#fff1b8` yellow, `#ffdbe4` pink, `#d8f2e0` green, `#d9ecfa`
 blue, `#ebe2fb` lilac; ink text), `--radius-md`, `--sh-md`, a ±1.2° tilt picked from the id
 that straightens (and lifts to `--sh-lg`) on hover/focus — no motion under reduced motion.
@@ -174,13 +181,13 @@ components"); keep them distinct when adding to a page:
 |---|---|
 | Tracker | date · tabs + search → title + add field → **two columns** (Today \| Upcoming, Needs you \| Waiting, composer \| notes); finished entries collapse under one *Show* line; entry opens in a two-column dialog |
 | Work Logs | split hero (form + slate sprint card with ring) → **vertical timeline** per sprint |
-| Work-log editor | action strip → **one document** (`.wl-doc` turns section cards into ruled chapters) + margin outline |
+| Work-log editor (day page, 2026-11-18) | top bar (Back to sprint, ‹ ›, day type, View log) → **one white `.wl-steps` card**: `.wl-steps-head` (date, optional title, `.wl-progress` "x of 3", save status) and numbered `.wl-card` steps under hairlines (`StepHeading`: `.wl-step-num` turns green with a white tick when done) → `.wl-finish` bar; to-dos below. Max width 56rem, no side rail |
 | Work-log detail | `.wld` scope: back link + dated ‹ › → `.wld-hero` card (`.wld-datebox`, `.wld-title`, Copy + primary Edit log, `.wld-stats` row) → main (summary, ticket work as `.wld-ticket` with `.wld-this` + `.wld-history` timeline, meetings + work done 2-up from xl) + 19–21rem rail (to-dos, attachments & links, activity); card headings are uppercase micro-labels |
 | Tickets | `.tkt` scope: eyebrow + `.tkt-title`, search + New ticket → `.tkt-split`: `.tkt-list` card (`.tkt-filter` chips, `.tkt-group` labels, `.tkt-row` rows with `.tkt-key`; sticky from xl) beside the open ticket `.tkt-card` (`.tkt-steps` status radios, latest update, add update, history); under xl `.tkt-detail[data-open]` is a full-screen layer with `.tkt-back` |
 | Favourites | `PageHead` → **underline tabs** (All · Important · Notes · Resources, `?show=`) → Important as a two-column section, then Notes and Resources side by side; items = disc + meta + big title |
 | Notes | layout "F": title + search + New note → **summary column** (notebook count, cover-colour bars, sections/pages/starred) + **bookshelf** of accent-coloured covers |
 | Note reader | **three-column docs** (contents · page · on this page at xl) |
-| Resources | `.rs` scope: `.rs-hero` deep-ocean band (eyebrow, title, white `.rs-add`, `.rs-search`, `.rs-type` chips; current = white) → list header + sort → `.rs-cards` link cards (1/2/3 across) and `.rs-terms` dark code cards (2 across, `.rs-code` + `$` prompt, `.rs-copy`) beside a 16–18rem rail (`.rs-rail`: `.rs-tag` mono chips, Starred) |
+| Resources | Notes pattern (2026-11-17): `PageHead` (date, counts, `SearchPill`, `primaryPill`) → type rows (`.rt-tile` in a `.rt-tone-0…7` tone, name + `.rt-fresh` "N new", newest titles, items, added) beside a sticky preview (tone band, Gmail line, numbered `.rp-item`s with one-tap `.rs-act` Open / Copy + star, Add + Open) at xl (2026-11-20; lg before). **Search** shows `.rs-rows` of `.rs-row` (tile, title, `.rt-chip` type in its tone, site or `.rs-code-row`, actions; actions wrap under the text below md). A merge note (primary-subtle box, `role="note"`) sits under the type rows. **Type page:** back link → `.rt-banner` in the type tone with white `.rt-banner-add` → `.rt-import` Gmail line → `.rt-filter` pills + search → `.rs-cards` link cards (1/2/3 across; `.rs-card-new` ring + `.rs-new` for today's Gmail imports) or `.rs-terms` dark code cards |
 | Profile | `.pf` scope: 17–19rem sticky left column (`.pf-id` deep-ocean identity card + `.pf-nav` grouped menu; chips under lg) → "Settings · group" title + `.pf-card` cards with `.pf-card-head` icon tile (`ListCard`, `SettingsRows`, Password) |
 | Achievements | totals strip → **centred rail, alternating cards** from lg |
 | Reports | **sprint card rail** → paper on a desk |
@@ -387,7 +394,7 @@ off-palette hues except semantic red/green, orange stars, and real brand logos:
 | Tickets | list header band + open ticket header band | first ticket opens by default; selected row uses a teal tint + teal leading rule |
 | Tracker | active tab, focus lists' toned edge | |
 | Notes | stats band (notes · favourites · sections) with the white "New note" CTA | Favourites / All notes groups |
-| Resources | deep-ocean hero; current type chip white | initials tiles in five Ocean tones; dark code cards with aqua kind/tags |
+| Resources | ink filter pill = current | one tone per type (`.rt-tone-*`, eight Ocean/tracker tones) on tiles, preview band and type banner; initials tiles in five Ocean tones; dark code cards with aqua kind/tags |
 | Favourites | summary band of three count tiles (jump links) | |
 | Profile | open section header band, active menu item | |
 
@@ -465,9 +472,9 @@ What the eye should hit, in order — one step per level, never two the same siz
 - **Shell additions (Ocean):** `.app-deskbar` (≥ 1024 top bar: breadcrumb + Ask, raises
   `--dock-clearance` to 3.75rem; sticky at z-index 30 — above page headers that lift to z-20); phone `.app-tabbar` = Tracker · Logs · `.app-tab-plus`
   (Quick log) · Notes · Ask; Ask opens via `openAsk()` (`ASK_OPEN_EVENT`), no floating
-  bubble; Ask is a full-height right drawer from md; `Modal size="full"` (`.modal-full`)
-  for Quick log; 404 = "Lost at sea." with numbered ways out.
-- **Tracker v3 (2026-11-01, replaces the lanes / week strip on Work to-dos):** greeting
+  bubble; Ask is a full-height right drawer from md; Quick log is `Modal size="lg"` (Paste) / `"xl"`
+  (Review) with `sheetOnPhone` (2026-11-20; was `size="full"`); 404 = "Lost at sea." with numbered ways out.
+- **Tracker v3 (2026-11-01, replaces the lanes / week strip on Work to-dos; header, Next up and rail superseded 2026-11-17 — see Plain Tracker above):** greeting
   header (`.tk-greeting`: "Good evening, {first name}", date · sprint day, overdue / need
   you / done this sprint), pill tabs (`.tk-tabs` / `.tk-tab`), one add bar (`.tk-command`:
   Work/Personal + add field + date + star), a `.tk-next` "Next up" card (most overdue, else
@@ -479,13 +486,23 @@ What the eye should hit, in order — one step per level, never two the same siz
   Rows are an **open list** (2026-11-01, owner's pick "B"): no box, border or shadow; each
   group's rows hang off a 3px colour rail (`.tk-grp-body`, `--tone` per `data-tone`); hover
   tints the row white. Follow-ups show the person's initial (`.tk-avatar-sm`); a due
-  "Mark nudged" is a soft pill (`PILL_SOFT`), "Got it" stays solid.
+  "Mark nudged" is a soft pill (`PILL_SOFT`), "Got it" stays solid (renamed "I pinged them" / "Done" 2026-11-17).
+- **Follow-ups (2026-11-17):** the same white `.tk-list` card as To-do — `ListGroup`s Your turn (`today`
+  tone) · Time to ping (`needs`) · Waiting on them (`upcoming`), each with a `.tk-grp-hint`, then the
+  closed line; rows' eyebrow is just the person (`FollowUpRow inGroup`) — under a right-aligned ink `PILL` **New follow-up**, which opens `Modal size="lg"`
+  with the form in `.tk-inline-panels` (Who / date panels open in the flow). The type is a two-option
+  pill radiogroup above the card (`bg-sidebar` when on), replacing the toolbar dropdown; Log a chat
+  adds a "They spoke last" checkbox to the toolbar. No `.tk-hint` box on any tab (removed with its CSS);
+  the People card shows four per list, the heading keeps the real total, then "+N more" → Follow-ups. Phones (< 48rem): the
+  add row's field takes the first line and its tools + Add wrap under it.
+  The entry dialog's Archive / Restore is a labelled `Button variant="secondary"` beside the main
+  done button (2026-11-17), no longer an icon-only ghost button.
   The pill tabs and Work/Personal use a **sliding highlight** (`.tk-slide` + `useSlidingPill`:
   the box's ::before is moved/sized to the `[data-on]` child, 380ms smooth-out); switching
   lists fades the new one in (`.tk-swap`); both off under reduced motion. The add bar keeps
   one height on Work and Personal (the Personal keys hint is screen-reader only).
-- **Page recipes (Ocean):** `.tk-lane[data-tone]` lanes (Follow-ups / Notes views); Follow-ups mirror Notes (composer card left, list right; follow-up rows use `Row wide` so buttons drop below the text in a narrow column); `.wl-paper.wl-doc` work
-  log document; `.note-band` note section opener (deep ocean gradient, white title — 2026-11-01); Admin directory as table + sticky drawer.
+- **Page recipes (Ocean):** `.tk-lane[data-tone]` lanes (Follow-ups / Notes views); Follow-ups mirror Notes (composer card left, list right; follow-up rows use `Row wide` so buttons drop below the text in a narrow column); `.wl-steps` work-log
+  day page; `.note-band` note section opener (deep ocean gradient, white title — 2026-11-01); Admin directory as table + sticky drawer.
 - **Tracker lanes (Ocean):** each Tracker column is a `.tk-lane` (frosted white, 20px
   radius; `.tk-lane-needs` warm when something is overdue) with a dot + Sora title + count
   pill, and each row is a `.tk-item` tile (white, 16px radius, lifts on hover).
@@ -518,7 +535,7 @@ tokens. Utilities: `.motion-page-enter`, `.motion-stagger`, `.motion-lift`,
   150–250ms. Buttons press with `active:scale-[0.98]`.
 - Animate `transform`/`translate` and `opacity` only; the page entrance follows the same rule. List CSS properties explicitly
   (`transition-[transform,opacity]`), never `transition-all`. Moving indicators
-  (such as meeting tabs) position with `translate3d`, not `left/top`.
+  (such as a sliding tab highlight) position with `translate3d`, not `left/top`.
 - Navigation never animates in; only the route content well is keyed.
 - `prefers-reduced-motion` disables all of it.
 - Homepage scrolling moves **one section per scroll** on desktop (≥900×560): native CSS
@@ -545,7 +562,7 @@ All under `app/src/components/`. Use these before writing new markup.
 | `ProjectInput` | MUI Autocomplete (freeSolo) of the user's project names; loads on open, no module cache. |
 | `TagChip`, `tagChipClass`, `tagChipStyle` | Tag as **coloured mono text, no fill**: `--tag` from `lib/tag-colors.ts` mixed 50/50 with `--c-text` (keeps light brand colours readable); counts in muted text; hover/selected = underline. The brand/fallback hexes there are **data, not UI tokens** — the only raw colours allowed. |
 | `TagInput`, `normalizeTag` | MUI Autocomplete (multiple + freeSolo) chip field over existing tags. Click or ↓+Enter picks a suggestion; Enter/comma adds typed text; blur keeps typed text. Tags normalised (lowercase, no `#`, spaces → `-`), max 25. No `autoHighlight` — in MUI 9 freeSolo, Enter commits typed text, so a pre-highlight would mislead. |
-| `Modal` | Native `<dialog>`: header (eyebrow + title + close), scrolling body, optional footer; `md`/`lg`/`xl` (xl = max-w-5xl, the Tracker entry dialog). Backdrop close only when the press **and** the click are both on the backdrop. |
+| `Modal` | Native `<dialog>`: header (eyebrow + title + close), scrolling body, optional footer; `md`/`lg`/`xl` (xl = max-w-5xl, the Tracker entry dialog); `sheetOnPhone` makes it full-screen below md with the footer at the bottom (Quick log). Backdrop close only when the press **and** the click are both on the backdrop. |
 | `ConfirmationDialog` | Native `<dialog>`; `destructive` uses the danger button; async `onConfirm`. |
 | `EmptyState` | Muted icon, one line, one action. |
 | `Toaster`, `toast` | sonner, bottom-right **above the Ask button** (offset 88px, 76px on phones), max 2. Import `toast` from here, never from sonner. **Not for autosave.** |
@@ -565,7 +582,7 @@ over a hairline.
 Other feature components: `tickets/ticket-board`, `tracker/tracker-board`
 (all per-kind wording lives in `KIND_META`), `notes/*` (TipTap editors, icon picker,
 viewer, TOC), `resources/resource-library`, `profile/profile-form`, `auth/*`,
-`ask/ask-widget` (`AskWidget`, mounted once in `AppShell`: fixed bottom-right ink pill `h-12` → panel `md:w-[26rem]`, `md:h-[min(40rem,100dvh-7rem)]`, phones a `85dvh` bottom sheet; `shadow-lg` as a floating layer; question bubbles ink, answers plain text with `primary-subtle` citation chips, sources as bordered rows; proposal cards `surface-2` + `border-strong` with a primary confirm pill and a ghost Skip, applied state `status-completed-fg` tick, skipped at 60% opacity; `.ask-panel` rise + `.ask-thinking` breathe, both off under reduced motion), `home/*` (homepage), `quick-log/quick-log` (`QuickLogProvider` + `useQuickLog().open(kind?)`; a `Modal size="lg"` with Choose → Paste → Review steps; review rows =
+`ask/ask-widget` (`AskWidget`, mounted once in `AppShell`: fixed bottom-right ink pill `h-12` → panel `md:w-[26rem]`, `md:h-[min(40rem,100dvh-7rem)]`, phones a `85dvh` bottom sheet; `shadow-lg` as a floating layer; question bubbles ink, answers plain text with `primary-subtle` citation chips, sources as bordered rows; proposal cards `surface-2` + `border-strong` with a primary confirm pill and a ghost Skip, applied state `status-completed-fg` tick, skipped at 60% opacity; `.ask-panel` rise + `.ask-thinking` breathe, both off under reduced motion), `home/*` (homepage), `quick-log/quick-log` (`QuickLogProvider` + `useQuickLog().open({ kind?, date?, text? })`; Paste → Review (2026-11-20): `.ql-tabs` kind tabs (pressed = white card on surface-2), `.ql-day` chips (pressed = ink) for Today / Yesterday / Older, review rows =
 tick box + label pill (new = success-subtle, update = primary-subtle, needs you =
 warning-subtle) + inline editor). Dialogs must render inside `.app-shell` or they fall
 back to the old default palette.
@@ -577,7 +594,13 @@ the reminder date is labelled **Remind me on** and includes a plain-language hin
 cannot be mistaken for the date the follow-up was added or an expected reply date.
 
 ### CSS recipes in `globals.css`
-`.wl-card` / `.wl-card-head` (work-log card), `.wl-hero` (ink header that re-points
+`.wl-card` / `.wl-card-head` (work-log card), the day page (2026-11-18): `.wl-steps` /
+`.wl-steps-head` / `.wl-step-head` / `.wl-step-num` / `.wl-step-hint` / `.wl-step-body`,
+`.wl-meetings` / `.wl-meeting` (name · notes · Minutes / Skip; stacks on phones),
+`.wl-tk` (+ `.is-on` once written) / `.wl-seg` (one-tap status, pressed = ink, QA =
+testing purple, Done = success) / `.wl-more` (other statuses, ink when set), `.wl-chips` /
+`.wl-chip` (open tickets), `.wl-link-btn` (text action), `.wl-finish`, and `.md-compact`
+(Markdown field whose toolbar shows only on focus), `.wl-hero` (ink header that re-points
 tokens so normal components render light-on-ink; `.wl-solid` / `.wl-field` reset to
 light inside it), `.wl-inset`, `.wl-off` (hatched holiday/leave tile), `.wl-scroll`
 (slim scrollbar), `.worklog-prose` (Markdown fields, 15px), `.note-prose` /

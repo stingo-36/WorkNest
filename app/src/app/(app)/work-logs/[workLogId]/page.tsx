@@ -25,8 +25,9 @@ export const metadata = { title: "Work Log" };
 const AUTO_TITLES = new Set<string>(Object.values(DEFAULT_TITLE));
 const DAY_ICON = { Work: Briefcase, Holiday: Sun, Leave: Plane } as const;
 
-export default async function WorkLogViewPage({ params }: { params: Promise<{ workLogId: string }> }) {
+export default async function WorkLogViewPage({ params, searchParams }: { params: Promise<{ workLogId: string }>; searchParams: Promise<{ finished?: string }> }) {
   const { workLogId } = await params;
+  const finished = (await searchParams).finished === "1";
   const [result, adjacentResult, user] = await Promise.all([getWorkLog(workLogId), getAdjacentWorkLogs(workLogId), requireUser()]);
   if (!result.ok) notFound();
   const data = result.data;
@@ -142,6 +143,7 @@ export default async function WorkLogViewPage({ params }: { params: Promise<{ wo
         <article className="flex min-w-0 flex-col gap-5">
           <WorkLogSummary
             workLogId={data.id}
+            refreshIfStale={finished}
             // Summaries without a model were built by code before AI-only (2026-10-02); not shown.
             summary={data.summaryModel ? data.summary : null}
             model={data.summaryModel}

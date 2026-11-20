@@ -73,7 +73,7 @@ export function ReportView({ sprintKey, sprints, report, stale, aiOn }: { sprint
           <CircleAlert className="mt-0.5 size-4 shrink-0 text-accent-text" aria-hidden="true" />
           <span>
             Reports are written by AI, and AI isn’t set up. Add your OpenRouter key in{" "}
-            <Link href="/profile" className="font-semibold text-accent-text hover:underline">Profile → Account</Link> to generate one.
+            <Link href="/profile?section=ai" className="font-semibold text-accent-text hover:underline">Profile → AI</Link> to generate one.
           </span>
         </p>
       ) : error ? (
@@ -81,7 +81,7 @@ export function ReportView({ sprintKey, sprints, report, stale, aiOn }: { sprint
           <CircleAlert className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden="true" />
           <span>
             {error} Nothing was generated{report ? " — the saved report below is unchanged" : ""}.
-            {/Profile/.test(error) ? <> <Link href="/profile" className="font-semibold text-accent-text hover:underline">Open Profile</Link></> : null}
+            {/Profile/.test(error) ? <> <Link href="/profile?section=ai" className="font-semibold text-accent-text hover:underline">Open AI settings</Link></> : null}
           </span>
         </p>
       ) : null}

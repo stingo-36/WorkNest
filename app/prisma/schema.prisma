@@ -158,6 +158,8 @@ model User {
   achievementFiles     AchievementFile[]
   followUpUpdates      FollowUpUpdate[]
   sprintReports        SprintReport[]
+  gmailConnection      GmailConnection?
+  gmailImports         GmailImport[]
 
   @@index([email])
 }
@@ -593,12 +595,50 @@ model Resource {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
+  /// "gmail" when an import added it; null = added by hand.
+  source          String?
+  /// The Gmail message it came from — Undo removes everything with this id.
+  sourceMessageId String?
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([userId, favorite])
   @@index([userId, type])
   @@index([userId, createdAt])
+  @@index([userId, sourceMessageId])
+}
+
+/// Profile → Gmail import: one read-only Gmail account per user. Emails under
+/// `label` are read and every module in them becomes a resource of `resourceType`.
+model GmailConnection {
+  userId        String    @id
+  email         String
+  /// OAuth refresh token, sealed with lib/secret-box (AES-256-GCM off AUTH_SECRET).
+  refreshToken  String    @db.Text
+  label         String    @default("Drupal Daily")
+  resourceType  String    @default("Drupal")
+  lastSyncAt    DateTime?
+  lastSyncError String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Every email the importer has read, so it's never read twice — even after Undo.
+model GmailImport {
+  userId     String
+  messageId  String
+  subject    String   @default("")
+  added      Int      @default(0)
+  undone     Boolean  @default(false)
+  importedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, messageId])
+  @@index([userId, importedAt])
 }
 
 /// One editable list per user and kind (Profile → Dropdown lists / Tags).

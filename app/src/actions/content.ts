@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/prisma";
+import { resourceTypeKey } from "@/lib/resource-types";
 import { requireUserId } from "@/lib/session";
-import { notFound, ok, parseOrFail } from "@/lib/result";
+import { getOrderedList, setOrderedList } from "@/lib/user-lists";
+import { fail, notFound, ok, parseOrFail } from "@/lib/result";
 import * as content from "@/lib/content";
 import {
   createLinkSchema,
@@ -13,7 +15,9 @@ import {
   deleteLinkSchema,
   deleteResourceSchema,
   deleteTaskSchema,
+  mergeResourceTypesSchema,
   toggleResourceFavoriteSchema,
+  undoMergeResourceTypesSchema,
   updateLinkSchema,
   updateResourceSchema,
   updateTaskSchema,
@@ -115,6 +119,12 @@ export async function createResource(input: unknown) {
   const parsed = parseOrFail(createResourceSchema, input);
   if (!parsed.ok) return parsed;
 
+  // One link, one resource: adding it again would only split its notes and star.
+  if (parsed.data.url) {
+    const existing = await content.findResourceByUrl(userId, parsed.data.url);
+    if (existing) return fail("CONFLICT", `That link is already in your library as “${existing.title}”.`);
+  }
+
   const resource = await content.createResource(userId, parsed.data);
   revalidatePath("/resources");
   return ok(resource);
@@ -160,6 +170,38 @@ export async function toggleResourceFavorite(input: unknown) {
   revalidatePath("/resources");
   revalidatePath("/favourites");
   return ok({ favorite: parsed.data.favorite });
+}
+
+/**
+ * Merge look-alike types (2026-11-20): retype their resources onto `into` and
+ * drop the merged types from the Profile list. Returns what's needed to undo.
+ */
+export async function mergeResourceTypes(input: unknown) {
+  const userId = await requireUserId();
+  const parsed = parseOrFail(mergeResourceTypesSchema, input);
+  if (!parsed.ok) return parsed;
+
+  const previousTypes = await getOrderedList(userId, "ResourceType");
+  const { moves, fromKeys } = await content.mergeResourceTypes(userId, parsed.data.from, parsed.data.into);
+  const kept = previousTypes.filter((type) => !fromKeys.has(resourceTypeKey(type)));
+  const types = kept.some((type) => resourceTypeKey(type) === resourceTypeKey(parsed.data.into)) ? kept : [...kept, parsed.data.into];
+  await setOrderedList(userId, "ResourceType", types);
+
+  revalidatePath("/resources");
+  revalidatePath("/profile");
+  return ok({ moved: moves.length, undo: { moves, types: previousTypes } });
+}
+
+export async function undoMergeResourceTypes(input: unknown) {
+  const userId = await requireUserId();
+  const parsed = parseOrFail(undoMergeResourceTypesSchema, input);
+  if (!parsed.ok) return parsed;
+
+  await content.restoreResourceTypes(userId, parsed.data.moves);
+  await setOrderedList(userId, "ResourceType", parsed.data.types);
+  revalidatePath("/resources");
+  revalidatePath("/profile");
+  return ok({ restored: parsed.data.moves.length });
 }
 
 export async function listResources(search?: string, type?: string) {

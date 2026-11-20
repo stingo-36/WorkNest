@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { ArrowLeft, ArrowRight, Building2, CalendarDays, History, Loader2, Pencil, Plus, Search, ShieldCheck, Ticket as TicketIcon, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Building2, CalendarDays, History, Loader2, Pencil, Plus, Search, Ticket as TicketIcon, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -151,9 +151,10 @@ export function TicketBoard({ initialTickets, loadError, daysOff = [] }: { initi
   }
 
 
+  // Only statuses that have tickets (plus the one being viewed), so the row stays short (2026-11-20).
   const statusTabs = [
     { key: "All", label: "All", count: tickets.length },
-    ...TICKET_STATUS_ORDER.map((option) => ({ key: option, label: TICKET_STATUS_LABELS[option], count: counts[option] })),
+    ...TICKET_STATUS_ORDER.filter((option) => counts[option] > 0 || option === status).map((option) => ({ key: option, label: TICKET_STATUS_LABELS[option], count: counts[option] })),
   ];
 
   // Status groups in workflow order, only those with tickets after filtering.
@@ -457,27 +458,20 @@ function TicketDetailPanel({ ticket, daysOff, onChange }: {
           </section>
         ) : null}
         <section aria-labelledby={`add-update-heading-${ticket.id}`}>
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <h3 id={`add-update-heading-${ticket.id}`} className="tkt-label">Add a ticket update</h3>
-              <p className="mt-1 max-w-[62ch] text-sm leading-6 text-text-muted">
-                Pick a status above, write an update, or both — then save once. Each update becomes a history entry; work-log notes stay protected.
-              </p>
-            </div>
-            <span className="inline-flex shrink-0 items-center gap-2 self-start rounded-full bg-success-subtle px-3 py-1.5 text-xs font-semibold text-success">
-              <ShieldCheck className="size-4" aria-hidden="true" />Protected work-log history
-            </span>
-          </div>
-          <div className="mt-4 grid gap-4">
-            <Field label="Update details" htmlFor={`ticket-body-${ticket.id}`} hint="Optional when you're only changing the status.">
-              <MarkdownEditor
-                id={`ticket-body-${ticket.id}`}
-                value={body}
-                onChange={(value) => { setBody(value); setMessage(""); }}
-                ariaLabel="Ticket update details"
-                minHeight="min-h-32"
-              />
-            </Field>
+          {/* Same shape as a ticket on the day page (2026-11-20): one line of help, a compact field. */}
+          <h3 id={`add-update-heading-${ticket.id}`} className="tkt-label">Add an update</h3>
+          <p className="mt-1 text-sm text-text-muted">Write what changed, pick a status above, or both — then Save. Each save is added to the history below.</p>
+          <div className="mt-3">
+            <label htmlFor={`ticket-body-${ticket.id}`} className="sr-only">Update details</label>
+            <MarkdownEditor
+              id={`ticket-body-${ticket.id}`}
+              compact
+              value={body}
+              onChange={(value) => { setBody(value); setMessage(""); }}
+              ariaLabel="Ticket update details"
+              placeholder="What changed?"
+              minHeight="min-h-20"
+            />
           </div>
           <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <p role="status" aria-live="polite" className="text-base text-text-muted">

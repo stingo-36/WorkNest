@@ -27,6 +27,7 @@ export function WorkLogSummary({
   todoDate,
   todos,
   aiOn,
+  refreshIfStale = false,
 }: {
   workLogId: string;
   summary: string | null;
@@ -39,6 +40,8 @@ export function WorkLogSummary({
   todos: DayTodo[];
   /** An OpenRouter key is available (Profile or server). */
   aiOn: boolean;
+  /** Just came from Finish day: bring an out-of-date summary up to date once. */
+  refreshIfStale?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -72,12 +75,12 @@ export function WorkLogSummary({
   }
 
   useEffect(() => {
-    if (summary || !canSummarise || !aiOn || autoStarted.current) return;
+    if ((summary && !(refreshIfStale && stale)) || !canSummarise || !aiOn || autoStarted.current) return;
     autoStarted.current = true;
     generate(true);
     // Runs once per mount; `generate` is recreated every render on purpose.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [summary, canSummarise, aiOn]);
+  }, [summary, canSummarise, aiOn, refreshIfStale, stale]);
 
   return (
     <section aria-labelledby="summary-heading" aria-busy={pending} className="wl-card overflow-hidden">
@@ -103,7 +106,7 @@ export function WorkLogSummary({
             <CircleAlert className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden="true" />
             <span>
               {error}
-              {/Profile/.test(error) ? <> <Link href="/profile" className="font-semibold text-accent-text hover:underline">Open Profile</Link></> : null}
+              {/Profile/.test(error) ? <> <Link href="/profile?section=ai" className="font-semibold text-accent-text hover:underline">Open AI settings</Link></> : null}
             </span>
           </p>
         ) : null}
@@ -121,7 +124,7 @@ export function WorkLogSummary({
         ) : !aiOn ? (
           <p className="text-sm text-text-muted">
             AI isn’t set up, so no summary is generated. Add your OpenRouter key in{" "}
-            <Link href="/profile" className="font-semibold text-accent-text hover:underline">Profile → Account</Link>.
+            <Link href="/profile?section=ai" className="font-semibold text-accent-text hover:underline">Profile → AI</Link>.
           </p>
         ) : !error ? (
           <p className="text-sm text-text-muted">

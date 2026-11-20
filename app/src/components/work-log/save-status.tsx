@@ -105,7 +105,7 @@ function useSaveActions(): SaveActions {
   return ctx;
 }
 
-function useSaveState(): SaveState {
+export function useSaveState(): SaveState {
   const ctx = useContext(SaveStateContext);
   if (!ctx) throw new Error("SaveStatusIndicator must be used inside <SaveStatusProvider>");
   return ctx;

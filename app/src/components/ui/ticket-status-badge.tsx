@@ -20,7 +20,7 @@ import {
  */
 
 export const TICKET_STATUS_LABELS: Record<WorkflowStatus, string> = {
-  InProgress: "In Progress",
+  InProgress: "In progress",
   Blocked: "Blocked",
   SentToQA: "Sent to QA",
   ReadyForProduction: "Ready for production",
