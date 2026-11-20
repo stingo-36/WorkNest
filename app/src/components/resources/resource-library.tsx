@@ -8,11 +8,10 @@ import { useRouter } from "next/navigation";
 
 import { cn } from "@/components/cn";
 import { PageHead, SearchPill, primaryPill } from "@/components/shell/page-head";
-import { undoGmailImport } from "@/actions/gmail";
 import { mergeResourceTypes, undoMergeResourceTypes } from "@/actions/content";
 import { FormError } from "@/components/ui/field";
 import { toast } from "@/components/ui/toast";
-import { CODE_TYPES, ResourceComposer, ResourceQuickActions, ResourceRow, isNewImport, safeHost, type ResourceItem } from "@/components/resources/resource-cards";
+import { CODE_TYPES, GmailUndoButton, ResourceComposer, ResourceQuickActions, ResourceRow, isNewImport, safeHost, type ResourceItem } from "@/components/resources/resource-cards";
 import { TypeIcon, TypeIconsProvider, type TypeIconMap } from "@/components/resources/type-icon";
 import { matchesSearch, orderTypes, resourceTypeKey, typeMeta, typeSlug, typeTone } from "@/lib/resource-types";
 
@@ -222,20 +221,9 @@ function TypeRow({ group, href, picked, onPick }: { group: TypeGroup; href: stri
  * newest items — each opens or copies in one tap — then Add and Open.
  */
 function TypePreview({ group, href, gmail, onAdd }: { group: TypeGroup; href: string; /** undefined = Gmail doesn't fill this type. */ gmail: LatestGmailImport | undefined; onAdd: () => void }) {
-  const router = useRouter();
-  const [undoing, startUndo] = useTransition();
   const label = typeMeta(group.type).plural;
   const count = `${group.items.length} ${group.items.length === 1 ? "item" : "items"}`;
   const isCode = CODE_TYPES.has(resourceTypeKey(group.type));
-
-  function undo(messageId: string) {
-    startUndo(async () => {
-      const result = await undoGmailImport({ messageId });
-      if (!result.ok) { toast.error(result.error.message); return; }
-      toast.success("Removed what the last email added");
-      router.refresh();
-    });
-  }
 
   return (
     <aside aria-label={`Preview: ${label}`} className="sticky top-[calc(var(--dock-clearance)+1.5rem)] hidden overflow-hidden rounded-[var(--radius-2xl)] border border-border bg-surface shadow-card xl:block">
@@ -251,7 +239,7 @@ function TypePreview({ group, href, gmail, onAdd }: { group: TypeGroup; href: st
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border bg-surface-2 px-6 py-2.5 text-sm text-text-muted">
           <Mail className="size-4 text-accent-text" aria-hidden="true" />
           <span>From Gmail · last email added {gmail.added}</span>
-          <button type="button" disabled={undoing} onClick={() => undo(gmail.messageId)} className="cursor-pointer font-semibold text-accent-text underline underline-offset-4 disabled:opacity-60">Undo</button>
+          <GmailUndoButton messageId={gmail.messageId} added={gmail.added} />
         </p>
       ) : null}
       <ol className="flex max-h-96 flex-col overflow-y-auto py-1">

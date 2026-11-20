@@ -3,14 +3,12 @@
 import { formatDistanceToNow } from "date-fns";
 import { ChevronLeft, Mail, Plus, Search } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { undoGmailImport } from "@/actions/gmail";
 import { cn } from "@/components/cn";
-import { CODE_TYPES, CodeCard, ResourceCard, ResourceComposer, isNewImport, type ResourceItem } from "@/components/resources/resource-cards";
+import { CODE_TYPES, CodeCard, ResourceCard, ResourceComposer, isNewImport, type ResourceItem, GmailUndoButton } from "@/components/resources/resource-cards";
 import { TypeIcon, TypeIconsProvider, type TypeIconMap } from "@/components/resources/type-icon";
-import { toast } from "@/components/ui/toast";
 import { matchesSearch, resourceTypeKey, typeMeta, typeTone } from "@/lib/resource-types";
 
 type Filter = "all" | "new" | "starred";
@@ -52,7 +50,6 @@ export function ResourceTypeView({
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState(initialQuery);
   const [composer, setComposer] = useState<{ resource?: ResourceItem } | null>(null);
-  const [undoing, startUndo] = useTransition();
 
   const label = typeMeta(type).plural;
   const fresh = resources.filter(isNewImport);
@@ -60,15 +57,6 @@ export function ResourceTypeView({
   const shown = (filter === "new" ? fresh : filter === "starred" ? starred : resources).filter((resource) => matchesSearch(resource, query));
   const isCode = CODE_TYPES.has(resourceTypeKey(type));
   const knownTags = useMemo(() => [...new Set([...resources.flatMap((resource) => resource.tags), ...savedTags])], [resources, savedTags]);
-
-  function undo(messageId: string) {
-    startUndo(async () => {
-      const result = await undoGmailImport({ messageId });
-      if (!result.ok) { toast.error(result.error.message); return; }
-      toast.success(`Removed ${result.data.removed} from ${label}`);
-      router.refresh();
-    });
-  }
 
   const filters: Array<{ id: Filter; label: string; count: number }> = [
     { id: "all", label: "All", count: resources.length },
@@ -107,9 +95,7 @@ export function ResourceTypeView({
               {gmail.lastSyncAt ? `Last checked ${formatDistanceToNow(new Date(gmail.lastSyncAt), { addSuffix: true })}.` : "Not checked yet."}
               {gmail.latest ? ` Last email added ${gmail.latest.added}.` : ""}
             </span>
-            {gmail.latest ? (
-              <button type="button" disabled={undoing} onClick={() => undo(gmail.latest!.messageId)} className="cursor-pointer font-semibold text-accent-text underline underline-offset-4 disabled:opacity-60">Undo</button>
-            ) : null}
+            {gmail.latest ? <GmailUndoButton messageId={gmail.latest.messageId} added={gmail.latest.added} /> : null}
             <Link href="/profile?section=gmail" className="font-semibold text-accent-text hover:underline">Settings</Link>
           </p>
         ) : null}

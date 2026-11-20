@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, CalendarRange, Contact, Inbox, LibraryBig, Mail, MessageSquare, Tag, Tags, Ticket, UserRound, Users, type LucideIcon } from "lucide-react";
+import { Building2, CalendarRange, Contact, Inbox, LibraryBig, Mail, MessageSquare, Sparkles, Tag, Tags, Ticket, UserRound, Users, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { addDays, format } from "date-fns";
@@ -58,6 +58,8 @@ const MENU = [
     label: "You",
     items: [
       { id: "account", label: "Account", Icon: UserRound },
+      // Its own section since 2026-11-20 (was inside Account); AI errors link here.
+      { id: "ai", label: "AI", Icon: Sparkles },
       { id: "sprint", label: "Sprint calendar", Icon: CalendarRange },
       { id: "work-logs", label: "Work logs", Icon: Ticket },
       { id: "gmail", label: "Gmail import", Icon: Inbox },
@@ -202,10 +204,11 @@ export function ProfileForm({ email, initial, lists, ai, gmail, initialSection }
                 </SettingsRow>
               </SettingsRows>
               <PasswordSettings />
-              {/* Saves on its own — not part of the save bar below. */}
-              <AiSettingsCard initial={ai} />
             </div>
           ) : null}
+
+          {/* Saves on its own — not part of the save bar below. */}
+          {section === "ai" ? <AiSettingsCard initial={ai} /> : null}
 
           {/* Saves on its own, like the AI card. */}
           {section === "gmail" ? <GmailSettingsCard initial={gmail} resourceTypes={lists.resourceTypes.values} /> : null}

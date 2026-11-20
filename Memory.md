@@ -4,7 +4,7 @@
 > (with the *why*), gotchas that cost time before, and a changelog. Newest first in
 > every section. Update rules are in `AGENTS.md` §2.
 >
-> Last synced with the codebase: **2026-11-20**
+> Last synced with the codebase: **2026-11-21**
 
 ---
 
@@ -24,6 +24,16 @@
   take ~4.5 MB — lower the limit or move files to Vercel Blob (free, hard-capped).
 
 ## Decisions
+
+- **2026-11-21 — AI requests are fitted to a token budget, not just capped on output.** Every call
+  already had `max_tokens`, but prompt + reply could exceed Groq's free per-request limit (~8k),
+  which answers 413 and was shown as "couldn't reach the AI". `fitToBudget` in `lib/ai-summary.ts`
+  now sizes each request per provider (env-overridable), trims the middle of the longest input with
+  a visible note, and reports `too_long` when nothing fits. Title / summary reply room raised
+  (1,000 → 3,000, 3,000 → 5,000): free reasoning models were spending it all thinking and
+  returning nothing. AI settings moved out of Profile → Account into their own **AI** section;
+  Gmail "Undo last email" now confirms and says the email won't be imported again; Tickets uses
+  sentence-case statuses, hides empty status tabs and has the day page's compact update field.
 
 - **2026-11-20 — Quick log: two steps, opens where you are; AI reading unchanged.** The Choose screen
   became tabs on the Paste step; the date field became Today / Yesterday / Older chips (last six
@@ -1159,6 +1169,7 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-11-21 — AI token budgets + `too_long`, bigger title/summary reply room, no "No …" filler in summaries, readable ticket statuses for Ask; Profile → AI section; confirming Gmail Undo; Tickets consistency (sentence case, empty tabs hidden, compact update) — `lib/ai-summary.ts`, `lib/ask.ts`, `lib/workflow-status.ts`, `components/profile/profile-form.tsx`, `components/resources/resource-cards.tsx`, `components/tickets/ticket-board.tsx`, `components/ui/ticket-status-badge.tsx`, `.env.example`
 - 2026-11-20 — Site-wide usability pass (9 pages, 1440 + 375, no overflow, no console errors); background AI summary no longer throws when the log was deleted mid-run (`updateMany`, returns null) — `lib/worklogs.ts`
 - 2026-11-20 — Quick log simplified: Paste → Review with kind tabs and day chips, context openers (`open({ kind, date })`), Paste notes instead on the day page, example behind a link, template without tickets, `Modal sheetOnPhone`, focus starts in the box — `components/quick-log/quick-log.tsx`, `components/ui/modal.tsx`, `components/shell/app-nav.tsx`, `components/work-log/work-log-editor.tsx`, `lib/quick-log.ts`, `globals.css`
 - 2026-11-20 — Resources simplification: search lists resources (`ResourceRow`), preview items Open/Copy/star + Gmail Undo + Add, link-first Add with title/type guessing and duplicate-link refusal, merge look-alike types with Undo, preview from xl, popup focuses its first field — `components/resources/resource-library.tsx`, `resource-cards.tsx`, `app/(app)/resources/page.tsx`, `lib/resource-types.ts`, `lib/content.ts`, `actions/content.ts`, `lib/validation.ts`, `globals.css`

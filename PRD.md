@@ -4,7 +4,7 @@
 > changes scope, or is retired, update the matching section here (see
 > `AGENTS.md → Keeping the docs current`).
 >
-> Last synced with the codebase: **2026-11-20**
+> Last synced with the codebase: **2026-11-21**
 
 ---
 
@@ -173,11 +173,16 @@ update.*
   (a fingerprint of what the AI reads), so reopening and leaving a log costs nothing. A
   title the user types is never overwritten (clearing it hands it back to the AI). Titles
   look like the owner's own: 1–3 pieces of work in Title Case joined by " | ".
+- **AI request sizes (2026-11-21):** every AI request (summaries, titles, Quick log, reports,
+  Ask) is fitted to the provider's limit before it's sent — Groq ~7,500 tokens per request,
+  OpenRouter 60,000 by default (`GROQ_MAX_REQUEST_TOKENS` / `OPENROUTER_MAX_REQUEST_TOKENS`).
+  The reply room shrinks first (never below 35% of the budget), then the middle of the
+  longest input is trimmed with a note saying so. A request that still can't fit fails as
+  *too long* with a clear message instead of "couldn't reach the AI".
 - **Summary (detail page):** generated **once automatically** the first time the log
   is viewed with content in it (if the background run hasn't already), and whenever the
   user clicks *Regenerate*. **AI
-  only** via **OpenRouter** (free models by default; key from Profile → Account → AI
-  summaries card, else the server's `OPENROUTER_API_KEY`), with **Groq** (`GROQ_API_KEY`)
+  only** via **OpenRouter** (free models by default; key from Profile → **AI**, else the server's `OPENROUTER_API_KEY`), with **Groq** (`GROQ_API_KEY`)
   as a backup AI when OpenRouter fails or has no key. **No code-built fallback:**
   with no key the card says AI isn't set up (link to Profile) and generates nothing; if
   a request fails it shows why (key rejected, rate-limited, no credit, unreachable,
@@ -197,14 +202,15 @@ update.*
   "N tickets · your own key scheme" (eyebrow), a **New ticket** button
   for standalone creation, and a search pill (⌘K);
   then (Ocean v2 list + detail, 2026-11-02) a **list card**: status filter chips (All ·
-  In Progress · Blocked · Sent to QA · Ready for production · Released · Done, with
-  counts; **All** by default) over the tickets **grouped by status** (key, title,
+  In progress · Blocked · Sent to QA · Ready for production · Released · Done, with
+  counts; **All** by default; since 2026-11-21 a status with no tickets is hidden unless it's the one being viewed) over the tickets **grouped by status** (key, title,
   project, log count, last updated; the open one gets a teal rule). Beside it the
   **open ticket** (key, status, project, Edit ticket details; title; log count +
   updated) with **status steps** — six clickable steps showing when each was first
   reached (they replace the Status dropdown and the old journey strip; Save applies
-  the pick) and "Open for / Done in N days" — then the latest update, the add-update
-  form and newest-first history. From xl (1280) the list sticks beside the ticket;
+  the pick) and "Open for / Done in N days" — then the latest update, **Add an update**
+  (2026-11-21: one line of help and a compact field — toolbar on focus, "What changed?" —
+  the same shape as a ticket on the day page) and newest-first history. From xl (1280) the list sticks beside the ticket;
   below xl tapping a ticket opens it **full screen** with "← All tickets" (Esc also
   closes). The first ticket in the list is open by default.
 - Edit the ticket's current **ticket number**, **title**, **status** and **project/site**
@@ -214,7 +220,7 @@ update.*
   the same newest-first timeline, labelled by source, and can **never** be edited or
   deleted from here.
 - A ticket "journey" view accounts for holiday/leave days.
-- **Workflow statuses (UI):** In Progress → Blocked → Sent to QA → Ready for Production →
+- **Workflow statuses (UI, sentence case since 2026-11-21):** In progress → Blocked → Sent to QA → Ready for Production →
   Released → Done. Legacy stored values (Open, Waiting, Testing, Completed, Closed) are
   normalised into these six.
 - **Project / site** lives on the ticket (moved from the work log on 2026-09-25) and
@@ -444,8 +450,9 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   drupal.org project link, the "What does it do?" line) becomes a resource of the chosen
   type (default *Drupal*), tagged `drupal`; *Module of the Day* is starred. Modules whose
   URL is already in the library are skipped. Checks run after a Resources page loads, at
-  most every six hours, plus **Check now** in Profile. **Undo** removes everything the
-  latest email added; that email is never imported again.
+  most every six hours, plus **Check now** in Profile. **Undo last email** (2026-11-21:
+  asks first) removes everything the latest email added; that email is never imported
+  again — the confirmation says so. Resources added by hand are never touched.
   Types that read the same on screen (built-in *Website* shows as "Websites", like a
   custom *Websites*) are one type, and Profile refuses adding such a duplicate.
 - In the add/edit form, **Resource type** is a searchable dropdown (type "doc" →
@@ -469,7 +476,9 @@ two columns.
 
 ### 5.7 Profile
 
-- Display name (email is read-only).
+- **Account:** display name (email is read-only) and password.
+- **AI** (its own section since 2026-11-21; was inside Account): the OpenRouter and Groq
+  keys and models. Every AI error message points here (`/profile?section=ai`).
 - **Change password:** current password + new password + confirmation. A successful
   change revokes every existing session for that account and returns the browser to
   sign-in; passwords are never revealed.

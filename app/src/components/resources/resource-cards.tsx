@@ -8,6 +8,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { createResource, deleteResource, toggleResourceFavorite, updateResource } from "@/actions/content";
+import { undoGmailImport } from "@/actions/gmail";
 import { cn } from "@/components/cn";
 import { Button } from "@/components/ui/button";
 import { Field, FormError } from "@/components/ui/field";
@@ -512,4 +513,41 @@ export function safeHost(url: string) {
 /** Added by Gmail import today — marked "New" until midnight. */
 export function isNewImport(resource: ResourceItem) {
   return resource.source === "gmail" && isToday(new Date(resource.createdAt));
+}
+
+/**
+ * "Undo last email" for Gmail import (2026-11-20). It asks first, because it does
+ * two things: deletes what that email added AND skips that email for good — it is
+ * never imported again. Resources the user added themselves are never touched.
+ */
+export function GmailUndoButton({ messageId, added, className }: { messageId: string; added: number; className?: string }) {
+  const router = useRouter();
+  const [asking, setAsking] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const things = `${added} ${added === 1 ? "resource" : "resources"}`;
+  function confirm() {
+    setAsking(false);
+    startTransition(async () => {
+      const result = await undoGmailImport({ messageId });
+      if (!result.ok) { toast.error(result.error.message); return; }
+      toast.success(`Removed ${result.data.removed}. That email won't be imported again.`);
+      router.refresh();
+    });
+  }
+  return (
+    <>
+      <button type="button" disabled={pending} onClick={() => setAsking(true)} className={cn("cursor-pointer font-semibold text-accent-text underline underline-offset-4 disabled:opacity-60", className)}>
+        Undo last email
+      </button>
+      <ConfirmationDialog
+        open={asking}
+        title={`Remove the ${things} from the last email?`}
+        description={`They're deleted from your library, and that email is skipped from now on — it won't be imported again, even if you check Gmail again. Resources you added yourself aren't touched.`}
+        confirmLabel={`Remove ${things}`}
+        destructive
+        onConfirm={confirm}
+        onCancel={() => setAsking(false)}
+      />
+    </>
+  );
 }

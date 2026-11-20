@@ -106,7 +106,7 @@ export function WorkLogSummary({
             <CircleAlert className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden="true" />
             <span>
               {error}
-              {/Profile/.test(error) ? <> <Link href="/profile" className="font-semibold text-accent-text hover:underline">Open Profile</Link></> : null}
+              {/Profile/.test(error) ? <> <Link href="/profile?section=ai" className="font-semibold text-accent-text hover:underline">Open AI settings</Link></> : null}
             </span>
           </p>
         ) : null}
@@ -124,7 +124,7 @@ export function WorkLogSummary({
         ) : !aiOn ? (
           <p className="text-sm text-text-muted">
             AI isn’t set up, so no summary is generated. Add your OpenRouter key in{" "}
-            <Link href="/profile" className="font-semibold text-accent-text hover:underline">Profile → Account</Link>.
+            <Link href="/profile?section=ai" className="font-semibold text-accent-text hover:underline">Profile → AI</Link>.
           </p>
         ) : !error ? (
           <p className="text-sm text-text-muted">
