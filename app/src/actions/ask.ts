@@ -10,6 +10,7 @@ import { askWorkspaceSchema } from "@/lib/validation";
  * lib/ask.ts) and changes nothing: Tracker items it drafts come back as
  * `proposals` (Tracker items through `createFollowUp` and friends, notebooks
  * through `saveNotebookDetails` / `importNotebook`), applied only when clicked.
+ * Work-log notes come back as `workLogs`, opened in Quick log for review.
  * Input: { question, history: [{ question, answer }], today: "YYYY-MM-DD", document? }.
  */
 export async function askWorkspace(input: unknown) {
@@ -19,5 +20,5 @@ export async function askWorkspace(input: unknown) {
 
   const result = await ask.askWorkspace(userId, parsed.data);
   if (!result.ok) return fail("AI_UNAVAILABLE", result.message);
-  return ok({ answer: result.answer, sources: result.sources, proposals: result.proposals, hasDocument: result.hasDocument });
+  return ok({ answer: result.answer, sources: result.sources, proposals: result.proposals, workLogs: result.workLogs, hasDocument: result.hasDocument });
 }

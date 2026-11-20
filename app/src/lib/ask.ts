@@ -40,7 +40,9 @@ export type AskSource = { n: number; kind: "Work log" | "To-do" | "Follow-up" | 
 export type AskTurn = { question: string; answer: string };
 export type { AskProposal };
 /** `hasDocument`: this message carried a pasted document, so the chat sends it along with later messages. */
-export type AskResult = { ok: true; answer: string; sources: AskSource[]; proposals: AskProposal[]; hasDocument: boolean; model: string } | { ok: false; message: string };
+/** A work log Ask hands to Quick log: the day and the user's notes, read and reviewed there. */
+export type AskWorkLog = { date: string; text: string };
+export type AskResult = { ok: true; answer: string; sources: AskSource[]; proposals: AskProposal[]; workLogs: AskWorkLog[]; hasDocument: boolean; model: string } | { ok: false; message: string };
 
 /** `entry` is set for Tracker entries, so a proposed change can point at one. */
 type Candidate = Omit<AskSource, "n"> & { text: string; at: Date; entry?: { id: string; kind: EntryKind; open: boolean; due: string | null } };
@@ -322,7 +324,8 @@ What you can do (describe this in your own words when asked what you can do or h
 - Answer anything about their own work: daily work logs (what they did, meetings, ticket updates), their Tracker (to-dos, follow-ups with people, notes), tickets, saved resources and notebooks — who they told what, when something happened, what's due, overdue, upcoming, waiting or finished, summaries of a day, week or month.
 - Work on their Tracker: add to-dos (with due dates), follow-ups (something they told a person) and notes; mark items done or reopen them; move due dates; add an update or log a reply to a follow-up. They confirm each change with one click.
 - Notebooks: create a new (empty) notebook with a title, a description and an icon (named by a word like "drupal", "database" or "book"); rename one, or change its description or icon. And when they paste a document (notes, a guide, markdown), save it into a new notebook or replace the pages of an existing one: each "##" heading becomes a page, all in one section. The text goes in exactly as they wrote it — you never retype it. Each change shows them a card with Save changes / Revert; nothing is saved until they press Save.
-- You can't delete anything, and you can't create or edit work logs, tickets or resources yet.`;
+- Work logs: when they give notes for a day ("create a work log for 20 Nov: …", "log today: …"), hand them to Quick log, which reads them into that day's log (meetings, ticket updates, other work) for them to review and save. You can't change a saved log directly.
+- You can't delete anything, and you can't create or edit tickets or resources yet.`;
 
 const ANSWERING = `Answering:
 - Facts about their work come ONLY from numbered records ([n]) — in CONTEXT or returned by tools. Never invent people, dates, numbers or events. Cite every fact and every listed item with its number right after it, like "Book the retro room (due 6 Oct) [4]" — the user taps these to open the record.
@@ -338,6 +341,7 @@ ${ANSWERING}
 Tools:
 - Anything about what they did on a day or in a period ("last week", "in September", "yesterday", "on 3 Oct") → ALWAYS call get_work_logs for that range first; never answer it from CONTEXT alone.
 - If CONTEXT doesn't cover a question, look further before saying you can't find it: search_workspace with other words (synonyms, names, ticket numbers), list_tracker for finished items ("what did I finish this week?").
+- Notes for a day's work log ("create a work log for …", "log today: …", a list of what they did per client or ticket) → call draft_work_log once per day with the date and their notes, then say in one short sentence that it's ready to open in Quick log. Don't turn work-log notes into Tracker items.
 - Changes only when they ask for them — never on your own. Use create_tracker_item / change_tracker_item / create_notebook / change_notebook, then tell them in one short sentence what you've set up for them to confirm. Never say it's created, added or done — it isn't until they click the card's button.
 - Earlier turns may end with "[Proposed: … (not confirmed)]": that card is still waiting for their click. If they just agree ("yes", "ok", "create it", "create empty"), tell them to press the button on that card; if they change something, propose it again with the change.
 - Propose every change they asked for, once each: "Ravi replied, close it" is two changes on that item (add_update with from_them, then done). Each item needs its own call.
@@ -415,6 +419,21 @@ const TOOLS: ToolSpec[] = [
           tags: { type: "array", items: { type: "string" } },
         },
         required: ["kind", "subject"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "draft_work_log",
+      description: "Hand the user's notes for one day's work log to Quick log, where they're read into the log and reviewed before saving. Only when they ask to log a day's work.",
+      parameters: {
+        type: "object",
+        properties: {
+          date: { type: "string", description: "The log's day, YYYY-MM-DD" },
+          notes: { type: "string", description: "Their notes for that day, word for word, without the request itself (\"create a work log for …\")" },
+        },
+        required: ["date", "notes"],
       },
     },
   },
@@ -513,7 +532,7 @@ class Records {
 
 const KIND_OF: Record<string, EntryKind | undefined> = { todo: EntryKind.Task, followup: EntryKind.FollowUp, note: EntryKind.Note };
 
-type ToolContext = { userId: string; ticketsEnabled: boolean; todayKey: string; records: Records; proposals: AskProposal[]; document: ParsedDocument | null };
+type ToolContext = { userId: string; ticketsEnabled: boolean; todayKey: string; records: Records; proposals: AskProposal[]; workLogs: AskWorkLog[]; document: ParsedDocument | null; pasted: string | null };
 
 type NotebookRow = { id: string; title: string; description: string | null; iconName: string | null; iconLibrary: string | null };
 /** The user's live notebook with this title — exact first, else the only one containing it. */
@@ -666,6 +685,17 @@ async function runTool(name: string, rawArgs: string, ctx: ToolContext): Promise
       });
       return "Proposed. The user will see it and confirm it with one click.";
     }
+    case "draft_work_log": {
+      const date = dateOnlySchema.safeParse(args.date);
+      if (!date.success) return "Error: give the day as YYYY-MM-DD.";
+      const key = date.data.toISOString().slice(0, 10);
+      if (key > ctx.todayKey) return "Error: a work log can't be for a future day.";
+      // Notes pasted as a long message go over exactly as written; otherwise the AI's copy of them.
+      const text = (ctx.pasted ?? String(args.notes ?? "")).trim().slice(0, 20_000);
+      if (!text) return "Error: there are no notes to log — ask what they worked on.";
+      ctx.workLogs.splice(0, ctx.workLogs.length, ...ctx.workLogs.filter((log) => log.date !== key), { date: key, text });
+      return "Ready. The user opens it in Quick log, checks what was read and saves it.";
+    }
     default:
       return `Error: there's no tool called ${name}.`;
   }
@@ -762,7 +792,8 @@ export async function askWorkspace(userId: string, input: { question: string; hi
     { role: "assistant" as const, content: turn.answer.replace(/\[\d+\]/g, "") },
   ]);
   const proposals: AskProposal[] = [];
-  const ctx: ToolContext = { userId, ticketsEnabled: settings.ticketsEnabled, todayKey, records, proposals, document };
+  const workLogs: AskWorkLog[] = [];
+  const ctx: ToolContext = { userId, ticketsEnabled: settings.ticketsEnabled, todayKey, records, proposals, workLogs, document, pasted: split?.document ?? null };
 
   const messages: ChatMessage[] = [{ role: "system", content: AGENT_PROMPT }, ...past, { role: "user", content: `CONTEXT:\n${context}\n\nMESSAGE: ${message}` }];
   let reply: string | null = null;
@@ -796,8 +827,8 @@ export async function askWorkspace(userId: string, input: { question: string; hi
       sources.push({ n: sources.length + 1, kind, title, date, href });
     }
   }
-  const fallback = proposals.length ? "Here's what I've set up — confirm below." : "Sorry, I couldn't put an answer together. Try asking again.";
-  return { ok: true, answer: answer || fallback, sources, proposals, hasDocument: Boolean(split && document), model };
+  const fallback = proposals.length || workLogs.length ? "Here's what I've set up — confirm below." : "Sorry, I couldn't put an answer together. Try asking again.";
+  return { ok: true, answer: answer || fallback, sources, proposals, workLogs, hasDocument: Boolean(split && document), model };
 }
 
 /**
@@ -837,5 +868,5 @@ async function askWithoutTools(
   const { rest, proposals, failed } = parseItems(ai.text, todayKey);
   const { answer, sources } = withCitations(rest, records.list);
   const note = failed ? "I couldn't put that into a Tracker item — try saying it a little differently." : "";
-  return { ok: true, answer: [answer, note].filter(Boolean).join("\n\n") || "Here you go.", sources, proposals, hasDocument: false, model: ai.model };
+  return { ok: true, answer: [answer, note].filter(Boolean).join("\n\n") || "Here you go.", sources, proposals, workLogs: [], hasDocument: false, model: ai.model };
 }

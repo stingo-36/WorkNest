@@ -25,6 +25,11 @@
 
 ## Decisions
 
+- **2026-11-21 — Ask hands work logs to Quick log instead of writing them.** Asked to "create a
+  work log for 20 Nov", Ask used to refuse. It now calls `draft_work_log` and shows a card that
+  opens Quick log on that day with the notes filled in. Quick log already reads notes into
+  meetings, ticket updates and follow-ups with a review step and merges into an existing log, so
+  Ask reuses that rather than growing a second, unreviewed way to write logs.
 - **2026-11-21 — AI requests are fitted to a token budget, not just capped on output.** Every call
   already had `max_tokens`, but prompt + reply could exceed Groq's free per-request limit (~8k),
   which answers 413 and was shown as "couldn't reach the AI". `fitToBudget` in `lib/ai-summary.ts`
@@ -1169,6 +1174,7 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-11-21 — Ask hands work-log notes to Quick log: `draft_work_log` tool → Work log card → Open in Quick log (day + notes filled in, reviewed there) — `lib/ask.ts`, `actions/ask.ts`, `components/ask/ask-widget.tsx`
 - 2026-11-21 — AI token budgets + `too_long`, bigger title/summary reply room, no "No …" filler in summaries, readable ticket statuses for Ask; Profile → AI section; confirming Gmail Undo; Tickets consistency (sentence case, empty tabs hidden, compact update) — `lib/ai-summary.ts`, `lib/ask.ts`, `lib/workflow-status.ts`, `components/profile/profile-form.tsx`, `components/resources/resource-cards.tsx`, `components/tickets/ticket-board.tsx`, `components/ui/ticket-status-badge.tsx`, `.env.example`
 - 2026-11-20 — Site-wide usability pass (9 pages, 1440 + 375, no overflow, no console errors); background AI summary no longer throws when the log was deleted mid-run (`updateMany`, returns null) — `lib/worklogs.ts`
 - 2026-11-20 — Quick log simplified: Paste → Review with kind tabs and day chips, context openers (`open({ kind, date })`), Paste notes instead on the day page, example behind a link, template without tickets, `Modal sheetOnPhone`, focus starts in the box — `components/quick-log/quick-log.tsx`, `components/ui/modal.tsx`, `components/shell/app-nav.tsx`, `components/work-log/work-log-editor.tsx`, `lib/quick-log.ts`, `globals.css`
