@@ -27,6 +27,7 @@ export function WorkLogSummary({
   todoDate,
   todos,
   aiOn,
+  refreshIfStale = false,
 }: {
   workLogId: string;
   summary: string | null;
@@ -39,6 +40,8 @@ export function WorkLogSummary({
   todos: DayTodo[];
   /** An OpenRouter key is available (Profile or server). */
   aiOn: boolean;
+  /** Just came from Finish day: bring an out-of-date summary up to date once. */
+  refreshIfStale?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -72,12 +75,12 @@ export function WorkLogSummary({
   }
 
   useEffect(() => {
-    if (summary || !canSummarise || !aiOn || autoStarted.current) return;
+    if ((summary && !(refreshIfStale && stale)) || !canSummarise || !aiOn || autoStarted.current) return;
     autoStarted.current = true;
     generate(true);
     // Runs once per mount; `generate` is recreated every render on purpose.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [summary, canSummarise, aiOn]);
+  }, [summary, canSummarise, aiOn, refreshIfStale, stale]);
 
   return (
     <section aria-labelledby="summary-heading" aria-busy={pending} className="wl-card overflow-hidden">

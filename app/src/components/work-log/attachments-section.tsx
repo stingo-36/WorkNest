@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, FileText, Link2, Loader2, Trash2, UploadCloud } from "lucide-react";
+import { ExternalLink, FileText, Link2, Loader2, Paperclip, Trash2, UploadCloud } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { addWorkLogLink, deleteWorkLogAttachment } from "@/actions/worklog";
@@ -9,11 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { attachmentHref, formatBytes } from "@/components/work-log/attachment-utils";
+import { StepHeading } from "@/components/work-log/section-heading";
 import type { EditorAttachment } from "@/components/work-log/types";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
-/** Upload files (drag-and-drop or browse) and add links to a work log. */
+/**
+ * Files & links: upload (drop, browse, or paste a screenshot anywhere on the
+ * page outside a text box) and add links. A paste inside a text box still goes
+ * into that box — the Markdown editor uploads it inline.
+ */
 export function AttachmentsSection({ workLogId, initial, onCountChange }: { workLogId: string; initial: EditorAttachment[]; onCountChange?: (count: number) => void }) {
   const [items, setItems] = useState(initial);
   useEffect(() => onCountChange?.(items.length), [items.length, onCountChange]);
@@ -25,6 +30,22 @@ export function AttachmentsSection({ workLogId, initial, onCountChange }: { work
   const [addingLink, startAddLink] = useTransition();
   const [removingId, setRemovingId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const uploadRef = useRef<(list: File[]) => void>(() => {});
+  useEffect(() => { uploadRef.current = (list) => void upload(list); });
+
+  // Page-level paste: only when focus isn't in something editable.
+  useEffect(() => {
+    function onPaste(event: ClipboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      const files = Array.from(event.clipboardData?.files ?? []);
+      if (!files.length) return;
+      event.preventDefault();
+      uploadRef.current(files);
+    }
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, []);
 
   async function upload(list: FileList | File[]) {
     const files = Array.from(list);
@@ -71,11 +92,9 @@ export function AttachmentsSection({ workLogId, initial, onCountChange }: { work
   }
 
   return (
-    <section aria-labelledby="attachments-heading" className="wl-card flex flex-col gap-3 p-4 md:p-5">
-      <h2 id="attachments-heading" className="flex items-center gap-2 text-base font-semibold text-text">
-        Attachments &amp; links
-        {items.length > 0 ? <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold text-accent-text tabular-nums">{items.length}</span> : null}
-      </h2>
+    <section aria-labelledby="attachments-heading" className="wl-card">
+      <StepHeading id="attachments-heading" icon={<Paperclip className="size-3.5" />} title="Files & links" hint="Screenshots, PRs, docs. Optional. Paste a screenshot anywhere on this page (outside a text box) and it lands here." aside={items.length > 0 ? <span className="rounded-full bg-surface-3 px-2 py-0.5 text-xs font-semibold text-accent-text tabular-nums">{items.length}</span> : null} />
+      <div className="wl-step-body flex flex-col gap-3">
 
       {/* The whole drop zone is the browse button too. */}
       <button
@@ -86,13 +105,13 @@ export function AttachmentsSection({ workLogId, initial, onCountChange }: { work
         onDragLeave={() => setDragging(false)}
         onDrop={(event) => { event.preventDefault(); setDragging(false); void upload(event.dataTransfer.files); }}
         className={cn(
-          "flex cursor-pointer flex-col items-center gap-1.5 rounded-xl border-2 border-dashed px-4 py-5 text-center transition-colors duration-150 disabled:cursor-wait",
+          "flex cursor-pointer flex-col items-center gap-1 rounded-xl border-2 border-dashed px-4 py-4 text-center transition-colors duration-150 disabled:cursor-wait",
           dragging ? "border-primary bg-primary-subtle" : "border-border-strong/50 bg-surface hover:border-primary",
         )}
       >
         {uploading ? <Loader2 className="size-5 animate-spin text-accent-text" aria-hidden="true" /> : <UploadCloud className="size-5 text-accent-text" aria-hidden="true" />}
-        <span className="text-sm font-semibold text-text">{uploading ? "Uploading…" : "Drop files or browse"}</span>
-        <span className="text-xs text-text-muted">Screenshots, docs, PDFs · up to 10 MB</span>
+        <span className="text-sm font-semibold text-text">{uploading ? "Uploading…" : "Drop files, paste a screenshot, or browse"}</span>
+        <span className="text-xs text-text-muted">Up to 10 MB each</span>
       </button>
       <input ref={fileRef} type="file" multiple className="sr-only" id="attachment-files" tabIndex={-1} aria-hidden="true" onChange={(event) => event.target.files && void upload(event.target.files)} />
 
@@ -126,6 +145,7 @@ export function AttachmentsSection({ workLogId, initial, onCountChange }: { work
           ))}
         </ul>
       ) : null}
+      </div>
     </section>
   );
 }

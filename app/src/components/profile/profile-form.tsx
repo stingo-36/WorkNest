@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, CalendarRange, Contact, LibraryBig, Mail, MessageSquare, Tag, Tags, Ticket, UserRound, Users, type LucideIcon } from "lucide-react";
+import { Building2, CalendarRange, Contact, Inbox, LibraryBig, Mail, MessageSquare, Tag, Tags, Ticket, UserRound, Users, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { addDays, format } from "date-fns";
@@ -8,6 +8,7 @@ import { addDays, format } from "date-fns";
 import { updateProfile } from "@/actions/profile";
 import { cn } from "@/components/cn";
 import { AiSettingsCard, type AiSettingsView } from "@/components/profile/ai-settings";
+import { GmailSettingsCard, type GmailStatusView } from "@/components/profile/gmail-settings";
 import { PasswordSettings } from "@/components/profile/password-settings";
 import {
   ListCard,
@@ -59,6 +60,7 @@ const MENU = [
       { id: "account", label: "Account", Icon: UserRound },
       { id: "sprint", label: "Sprint calendar", Icon: CalendarRange },
       { id: "work-logs", label: "Work logs", Icon: Ticket },
+      { id: "gmail", label: "Gmail import", Icon: Inbox },
     ],
   },
   {
@@ -90,7 +92,7 @@ const SECTION_IDS: readonly string[] = MENU.flatMap((group) => group.items.map((
  *    bar that appears at the bottom once something changes;
  *  - dropdown lists and tags → each change saves on its own, immediately.
  */
-export function ProfileForm({ email, initial, lists, ai, initialSection }: { email: string; initial: ProfileValues; lists: ProfileLists; ai: AiSettingsView; /** `?section=` from the URL — validated here. */ initialSection?: string }) {
+export function ProfileForm({ email, initial, lists, ai, gmail, initialSection }: { email: string; initial: ProfileValues; lists: ProfileLists; ai: AiSettingsView; gmail: GmailStatusView; /** `?section=` from the URL — validated here. */ initialSection?: string }) {
   const router = useRouter();
   const [values, setValues] = useState(initial);
   const [error, setError] = useState<string>();
@@ -204,6 +206,9 @@ export function ProfileForm({ email, initial, lists, ai, initialSection }: { ema
               <AiSettingsCard initial={ai} />
             </div>
           ) : null}
+
+          {/* Saves on its own, like the AI card. */}
+          {section === "gmail" ? <GmailSettingsCard initial={gmail} resourceTypes={lists.resourceTypes.values} /> : null}
 
           {section === "sprint" ? (
             <SettingsRows title="Sprint calendar" description="How Work Logs group your days into sprints." Icon={CalendarRange}>

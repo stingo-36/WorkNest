@@ -21,7 +21,7 @@ import { resourceTypeKey } from "@/lib/resource-types";
 
 export const DEFAULT_LISTS = {
   FollowUpChannel: ["Slack", "Email", "Call", "Meeting", "Teams", "In person", "Other"],
-  ResourceType: ["Website", "App", "Link", "Tool", "Command", "Documentation", "Snippet", "Reference", "Learning", "Other"],
+  ResourceType: ["Website", "App", "Link", "Tool", "Command", "Documentation", "Snippet", "Reference", "Learning", "Drupal", "Other"],
   DefaultMeeting: ["ASU Sync-up", "Veritech Sync-up", "Client Sync-up"],
 } as const satisfies Partial<Record<UserListKind, readonly string[]>>;
 

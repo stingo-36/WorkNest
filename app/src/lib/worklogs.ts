@@ -488,8 +488,10 @@ export async function saveWorkLogSummaryRow(
     const titled = mayRetitle ? await titleWithOpenRouter(text, config) : null;
 
     const next = { summary: ai.text, summaryModel: ai.model, summaryGeneratedAt: new Date() };
-    await prisma.workLog.update({
-      where: { id: log.id },
+    // updateMany: the log can be deleted while the AI is still writing (it runs
+    // after the response); then there's simply nothing to save.
+    const saved = await prisma.workLog.updateMany({
+      where: { id: log.id, userId },
       data: {
         ...next,
         aiInputHash: hash,
@@ -497,6 +499,7 @@ export async function saveWorkLogSummaryRow(
         updatedAt: log.updatedAt,
       },
     });
+    if (saved.count === 0) return null;
     return { ok: true, ...next, title: titled?.ok ? titled.text : log.title };
   } finally {
     running.delete(log.id);

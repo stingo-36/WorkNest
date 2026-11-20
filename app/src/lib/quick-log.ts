@@ -14,7 +14,7 @@ import type {
 import { getOpenRouterConfig } from "@/lib/ai-settings";
 import { type AiFailure, aiFailureMessage, openRouterComplete } from "@/lib/ai-summary";
 import { createFollowUp, listFollowUpPeople } from "@/lib/follow-ups";
-import { addTicketWorkUpdate, findTicketsByKeyHint, listActiveTickets, upsertTicketForWorkLog } from "@/lib/tickets";
+import { addTicketWorkUpdate, findTicketsByKeyHint, upsertTicketForWorkLog } from "@/lib/tickets";
 import { getOrderedList } from "@/lib/user-lists";
 import { getUserSettings } from "@/lib/user-settings";
 import type { applyQuickLogSchema } from "@/lib/validation";
@@ -360,13 +360,10 @@ export async function workLogTemplate(userId: string, date: Date) {
     getOrderedList(userId, "DefaultMeeting"),
   ]);
   const meetings = log ? log.meetings.map((meeting) => meeting.name) : defaultMeetings;
-  const tickets = settings.ticketsEnabled
-    ? (await listActiveTickets(userId, 10)).filter((t) => t.status === "InProgress" || t.status === "SentToQA").slice(0, 6)
-    : [];
+  // No pre-listed tickets (2026-11-20): a list of every open ticket is mostly
+  // lines to delete. Type the keys you touched under "Tickets:"; they're matched as before.
   const blocks = meetings.map((name) => `${name}:\n- `);
-  if (settings.ticketsEnabled) {
-    blocks.push(["Tickets:", ...tickets.map((t) => `${t.ticketId} ${t.title}:\n- `)].join("\n"));
-  }
+  if (settings.ticketsEnabled) blocks.push("Tickets:\n- ");
   blocks.push("Work done:\n- ");
   return blocks.join("\n\n");
 }

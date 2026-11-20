@@ -8,7 +8,7 @@ import { logout } from "@/actions/auth";
 import { cn } from "@/components/cn";
 import { openAsk } from "@/components/ask/ask-widget";
 import { InstallAppMenuItem } from "@/components/pwa/install-app";
-import { useQuickLog } from "@/components/quick-log/quick-log";
+import { useQuickLog, type QuickLogOpen } from "@/components/quick-log/quick-log";
 import { Menu, MenuSeparator, menuItemClass } from "@/components/shell/menu";
 import { isActivePath, navFor, type NavItem } from "@/components/shell/nav-items";
 
@@ -111,11 +111,23 @@ function TabLink({ item, pathname }: { item: NavItem; pathname: string }) {
   );
 }
 
+/**
+ * Quick log opens on what fits the page you're on (2026-11-20): the Tracker's
+ * Follow-ups tab → Follow-ups, the rest of the Tracker → To-dos, anywhere else →
+ * a work log for today. Read at click time, so no search-params hook is needed.
+ */
+function quickLogFor(pathname: string): QuickLogOpen | undefined {
+  if (!pathname.startsWith("/tracker")) return undefined;
+  const view = new URLSearchParams(window.location.search).get("view");
+  return { kind: view === "followups" ? "followup" : "todo" };
+}
+
 /** The raised + in the middle of the phone tab bar. */
 function QuickLogTab() {
   const { open } = useQuickLog();
+  const pathname = usePathname();
   return (
-    <button type="button" onClick={() => open()} aria-label="Quick log" title="Quick log — paste your notes" className="app-tab app-tab-raise w-full">
+    <button type="button" onClick={() => open(quickLogFor(pathname))} aria-label="Quick log" title="Quick log — paste your notes" className="app-tab app-tab-raise w-full">
       <span className="app-tab-plus"><Plus aria-hidden="true" /></span>
     </button>
   );
@@ -180,8 +192,9 @@ function SideGroup({ label, items, pathname }: { label: string; items: NavItem[]
 
 function QuickLogSideButton() {
   const { open } = useQuickLog();
+  const pathname = usePathname();
   return (
-    <button type="button" onClick={() => open()} className="app-quicklog" title="Quick log — paste your notes">
+    <button type="button" onClick={() => open(quickLogFor(pathname))} className="app-quicklog" title="Quick log — paste your notes">
       <Zap aria-hidden="true" />
       Quick log
     </button>

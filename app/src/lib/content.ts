@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { resourceTypeKey } from "@/lib/resource-types";
 import {
   TaskPriority,
   TaskStatus,
@@ -216,6 +217,35 @@ export type ResourceInput = {
   content?: string;
   tags?: string[];
 };
+
+/**
+ * Moves every resource whose type reads as one of `from` onto `into` (same key
+ * = same type, so "Website" and "Websites" both move) and returns what moved,
+ * so the caller can offer Undo. The type list itself is the caller's job.
+ */
+export async function mergeResourceTypes(userId: string, from: string[], into: string) {
+  const fromKeys = new Set(from.map(resourceTypeKey).filter((key) => key !== resourceTypeKey(into)));
+  const rows = await prisma.resource.findMany({ where: { userId }, select: { id: true, type: true } });
+  const moves = rows.filter((row) => fromKeys.has(resourceTypeKey(row.type))).map((row) => ({ resourceId: row.id, type: row.type }));
+  if (moves.length) {
+    await prisma.resource.updateMany({ where: { userId, id: { in: moves.map((move) => move.resourceId) } }, data: { type: into } });
+  }
+  return { moves, fromKeys };
+}
+
+/** Undo for `mergeResourceTypes`: each resource back on its old type. */
+export async function restoreResourceTypes(userId: string, moves: Array<{ resourceId: string; type: string }>) {
+  await prisma.$transaction(moves.map((move) => prisma.resource.updateMany({ where: { id: move.resourceId, userId }, data: { type: move.type } })));
+}
+
+/** A resource of this user's with the same link (a trailing "/" ignored), for the Add form's duplicate check. */
+export async function findResourceByUrl(userId: string, url: string) {
+  const bare = url.trim().replace(/\/+$/, "");
+  return prisma.resource.findFirst({
+    where: { userId, url: { in: [bare, `${bare}/`] } },
+    select: { id: true, title: true, type: true },
+  });
+}
 
 export async function createResource(userId: string, input: ResourceInput) {
   return prisma.resource.create({

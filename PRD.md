@@ -4,7 +4,7 @@
 > changes scope, or is retired, update the matching section here (see
 > `AGENTS.md → Keeping the docs current`).
 >
-> Last synced with the codebase: **2026-11-17**
+> Last synced with the codebase: **2026-11-20**
 
 ---
 
@@ -58,11 +58,11 @@ placeholder page) · **Retired** (redirects).
 | Tickets | `/tickets` | Live · hidden when *Tickets* is off in Profile | Master-detail ticket manager — see §5.2. |
 | Tracker | `/tracker` | Live — **post-login landing page** | To-do · Follow-ups · Personal · Notes · Archived tabs (`?view=`), a plain header (2026-11-17: date · sprint day, greeting, three summary pills — overdue · follow-ups need you · people waiting on your reply — and underline tabs whose counts are only what needs you; search in the desktop top bar), Work to-dos as one white list card in two groups (**Needs you**: late, due today, then follow-ups that need you — first 6 + "Show N more", the just-added to-do always shown and highlighted, and a line when personal to-dos are due or late · **Coming up** by day, No date last) beside a **People** card (Waiting on you with Reply · You're waiting on with Nudge; both open the thread), Follow-ups laid out like Notes — a **New update** composer card (type dropdown — General / Waiting on / I told / They told me — title, optional rich first message, who/where, reminder or "said on" date, star) beside the follow-up list (Your turn · Nudge due · Waiting), rows open the entry dialog (2026-11-01); **Personal** is its own tab (2026-11-17; was an All / Work / Personal switch on To-do) showing sticky notes — see §5.3. |
 | Notes | `/notes`, `/notes/new`, `/notes/[id]`, `/notes/[id]/edit` | Live | Notebooks: note → sections → pages — see §5.4. |
-| Resources | `/resources` | Live | Typed personal library — see §5.5. |
+| Resources | `/resources`, `/resources/<type>` | Live | Typed personal library, one page per type; the Drupal type can fill itself from a Gmail label — see §5.5. |
 | Favourites | `/favourites` | Live | Everything starred in one place — see §5.6. |
 | Ask | top bar button (≥1024) / tab bar item (phones); full-height side drawer on desktop | Live | Chat that answers questions about your own records, with numbered links to the sources, looks things up across your logs and Tracker, and proposes Tracker changes (add, done, reopen, reschedule, update) you confirm with one click — see §5.13. |
 | Quick log | full-screen dialog (sidebar button, phone tab bar +, Work Logs header) | Live | Paste rough text → AI draft → review → apply, for a work log, to-dos or follow-ups — see §5.10. |
-| Profile | `/profile` (account menu) | Live | Name, sprint calendar, tickets on/off, AI summary key — see §5.7. |
+| Profile | `/profile` (account menu) | Live | Name, sprint calendar, tickets on/off, AI summary key, Gmail import — see §5.7. |
 | Achievements | `/achievements` (account menu) | Live | Certifications/courses/awards timeline with certificates — see §5.8. |
 | Reports | `/reports` (account menu) | Live | "5-15 Report" per sprint, ready to paste into a doc — see §5.9. |
 | Kaizen phone link | `/api/mobile/*` (no page) | Live | The owner's Kaizen mobile app signs in once and shows the Tracker (Work / Personal to-dos, follow-ups, notes), can add entries, tick them and edit sticky notes, and lists and adds Resources. Nothing else in WorkNest is reachable — see §5.14. |
@@ -110,36 +110,51 @@ update.*
   list (overdue / due today / created / done with dates, struck through when finished) and three
   numbers: tickets this sprint, days logged, days to backfill. `?day=` keeps the open day. Phones: the tiles scroll
   sideways in one row with short labels. Future days are inert.
-- **Editor (`/work-logs/[id]/edit`, redesigned 2026-10-08 as a document page):** an
-  action strip (prev/next log arrows, All work logs, day type, save status, View log),
-  then the log as **one white document** — large date, title field, and each section
-  as a chapter under a dark rule — with a right margin (xl+) holding an **On this page**
-  outline (jumps to sections, shows progress) and the day's to-dos. Sections:
-  1. **Meetings** — every new log starts with the user's **Default meetings** list
-     (Profile; built-in: *ASU Sync-up*, *Veritech Sync-up*, *Client Sync-up*).
-     Additional cards can be added and removed per log.
-     Notes are Markdown (TipTap WYSIWYG, saved as Markdown text).
-     **Minutes of meeting (MoM)** (2026-11-11): under each meeting's notes a *Minutes*
-     row links to full minutes kept in **Tracker → Notes**. *Add full minutes (MoM)*
+- **Editor (`/work-logs/[id]/edit`, the day page; redesigned 2026-11-18 as numbered steps):**
+  the sprint page is unchanged; opening a day shows a top bar (**Back to sprint**, ‹ › to
+  neighbouring logs, day type, View log), then **one white card** — the date ("Today" for
+  today), an optional title line (the AI fills an empty one), an "x of 3" progress count and
+  the save status — holding numbered steps separated by hairlines, then **Finish day**.
+  The day's to-dos sit in a small block under the card (the old "On this page" rail is gone).
+  Steps (a step's number turns into a tick when done):
+  1. **Meetings** — one row per meeting (name, a small notes box whose formatting toolbar
+     shows only while typing, **Minutes**, **Skip**). Every new log starts with the user's
+     **Default meetings** list (Profile; built-in: *ASU Sync-up*, *Veritech Sync-up*,
+     *Client Sync-up*). **Skip** removes that meeting from this day only (asks first if it
+     has notes) with **Undo** in the toast; **+ Add meeting** adds one. Done when every
+     meeting left has notes. Notes are Markdown (TipTap WYSIWYG, saved as Markdown text).
+     **Minutes of meeting (MoM)** (2026-11-11): a row's *Minutes* link opens the minutes
+     row, linking full minutes kept in **Tracker → Notes**. *Add full minutes (MoM)*
      opens a dialog: **Write new** (title, suggested "<meeting> — <date>", and the
      Tracker rich editor; saved as a Note tagged `#mom` and linked) or **Link existing**
      (search the Tracker notes, `#mom` first). Links open the note
      (`/tracker?open=<id>`); one MoM can be linked from several days; unlinking (×)
      keeps the note. The day's read page lists the links under each meeting. Meeting
      notes stay the short "decisions, actions" summary; the minutes are the full record.
-  2. **Tickets** (only when tickets are enabled) — type a key such as `ASU-1234`:
-     - exists for this user → attach it, show title, status, recent history;
-     - doesn't exist → create inline (key, title, project/site). No modal.
-     - Write *work done today* and set the status. This upserts **one**
-       `TicketWorkUpdate` for *(ticket, this log)*; the ticket's current status
-       follows it.
+  2. **Tickets you worked on** (only when tickets are enabled) — starts empty:
+     - **Your open tickets** chips (up to 6 not-Done tickets, most recent first) add a
+       ticket in one tap; or type a key or title in the search box and pick a match;
+     - a key that doesn't exist → create inline (title + starting status, **Create & add**). No modal;
+     - each ticket is a compact card: key, title, one-tap status (**In progress · QA ·
+       Done**, the other stages — Blocked, Ready for production, Released — under
+       **More**), × to remove, a one-line *what you did today*, and **Details** (project /
+       site, previous updates). This upserts **one** `TicketWorkUpdate` for
+       *(ticket, this log)*; the ticket's current status follows it. After adding, the
+       cursor goes to the new card's line.
      - Removing a ticket from a log deletes only that log's update row and recomputes
        the ticket's status from the newest surviving update.
-  3. **Work done** — a free Markdown daily summary, independent of tickets.
-  3a. **To-dos** (read-only, from the Tracker; editor and detail view) — to-dos
-     *completed that day* and to-dos *due by that day but not done by its end*
-     (overdue / due that day), in the browser's local day. Links to `/tracker`.
-  4. **Attachments** — upload files (≤10 MB each, ≤10 per upload) or add links.
+  3. **Anything else?** (was *Work done*; stored as `learningNotes`) — optional free
+     Markdown for whatever isn't on a ticket.
+  4. **Files & links** (optional, unnumbered) — drop files, browse, or **paste a screenshot
+     anywhere on the page outside a text box** (≤10 MB each, ≤10 per upload); add links.
+     A paste inside a text box still goes into that text, as before.
+  - **Finish day** waits for every autosave, then opens the day's read page
+    (`?finished=1`), which refreshes an out-of-date AI summary and offers Copy as text.
+    It needs at least one line (a meeting, a ticket, anything else or a file). Nothing
+    is stored as "finished".
+  - **To-dos** (read-only, from the Tracker; editor and detail view) — to-dos
+    *completed that day* and to-dos *due by that day but not done by its end*
+    (overdue / due that day), in the browser's local day. Links to `/tracker`.
 - **Autosave** is debounced, shows a save-status indicator, never toasts, and never
   creates duplicate rows.
 - **Detail (`/work-logs/[id]`, Ocean v2 2026-11-01):** "‹ All work logs" with ‹ › to
@@ -151,7 +166,8 @@ update.*
   card) — then **Meetings** and **Work done** side by side; a sticky right column holds the
   day's **To-dos**, **Attachments & links** and **Activity** (+ who).
 - **AI summary and title in the background (2026-10-09):** leaving a log's editor
-  (navigating away, closing or reloading the tab) refreshes the AI summary in the
+  (navigating away, closing or reloading the tab; not Finish day, which hands it to the
+  read page) refreshes the AI summary in the
   background — and the **title**, while it's still the default "Daily Work Log" or was
   written by the AI. It runs **only when the log's content changed** since the last run
   (a fingerprint of what the AI reads), so reopening and leaving a log costs nothing. A
@@ -379,7 +395,7 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
 
 - A personal library whose **types come from the user's list** (Profile; built-in:
   Website, App, Link, Documentation, Command, Snippet, Reference, Tool, Learning,
-  Other). Each type has an **icon**: the one picked in Profile, else one guessed from
+  Drupal, Other). Each type has an **icon**: the one picked in Profile, else one guessed from
   the name ("Github" → GitHub logo, "Commands" → terminal, "Vibe Coding" → sparkles…),
   else a bookmark. Icons render bare (no tile) in the dropdown and on cards. Each
   resource has a title, optional URL, **one Description** box, and tags; *Command* /
@@ -390,17 +406,46 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   URL, type or a **tag** (`#` ignored, spaces = dashes, so "vibe coding" finds
   `vibe-coding`) — and each resource can be **favourited**, **edited**
   (pencil on every card/row → the same form, prefilled) or deleted.
-- Layout (Ocean v2, 2026-11-02): a **deep-ocean hero** — "N resources", **Resources**,
-  the one-line description, a white **Add resource** button, a big search (⌘K; text and
-  `#tag`) and the **type chips** (*All* (default) then each type with counts; scroll
-  sideways on phones). Below, the list headed "ALL RESOURCES · N" (or the type) with a sort
-  menu (*Recently added* · *Recently updated* · *A–Z*): **Links & docs** as cards (1 / 2 /
-  3 across) — initials tile (five Ocean tones, fixed per title), title (opens the URL ↗) +
-  site in mono, the star, description (3 lines), mono tags, edit/delete on hover from md —
-  then **Commands & snippets** as dark code cards (title, kind, Copy, the code with a `$`
-  prompt for commands, description, tags, edit/delete/star). A right **rail** (stacked
-  under lg) holds **Tags** (mono chips with counts; a click shows All filtered by `#tag`,
-  again clears) and **Starred** (favourites, linking out).
+- Layout (2026-11-17, modelled on Notes; replaced the Ocean v2 hero + type chips):
+  **Resources** with today's date and counts (*resources · types · starred · new today*),
+  a search pill (⌘K; text and `#tag`) and **Add resource**. Below, one **row per type** —
+  a tile in the type's tone (eight Ocean tones, fixed per type name) with its icon, the
+  type name (+ "N new" for today's Gmail imports), its newest titles, item count and last
+  added — beside a **preview** of the picked type (≥ xl; 2026-11-20, was lg): tone band,
+  the Gmail line (*From Gmail · last email added N* · **Undo**) when Gmail fills it, its
+  newest items — each **Open ↗** (links) or **Copy** (commands / snippets) and ★ in one
+  tap — then **+ Add** (to that type) and **Open**. Below xl a row opens the type. The type
+  Gmail fills is listed first; the rest follow the Profile order.
+- **Search (2026-11-20)** lists the matching **resources themselves** (newest first,
+  across types) as rows — tile, title ↗, a type chip, the site or the command, one line of
+  description, tags, then Copy / Open, ★, edit, delete. Clearing it brings the type rows back.
+- **Add starts from what you paste (2026-11-20):** the first field is *Paste a link or a
+  command*. A link fills the **title** (a drupal.org project → its module name; otherwise
+  the site + last path part, no fetching) and a **type** guessed from the user's own list
+  (drupal.org → Drupal, docs sites → Documentation, courses → Learning, known tools → Tool,
+  else Link / Website); anything else is a Command (Snippet when it looks like code) and
+  asks what it does. Both guesses stop once the user changes them. A link already in the
+  library is refused (*That link is already in your library as …*; trailing "/" ignored;
+  web Add only — Gmail import has its own skip, the mobile API doesn't check). Edit keeps
+  the full form (type, title, URL, command/code, description, tags).
+- **Merge look-alike types (2026-11-20):** when two or more of Website / Link / Reference
+  hold items, a note under the type rows offers **Merge into Links** — it retypes those
+  resources and drops the merged types from the Profile list, with **Undo** in a 15-second
+  toast. **Keep separate** hides the note in that browser.
+- **Type page** `/resources/<type>` (the type's key, e.g. `/resources/drupal`): ‹ Resources,
+  a banner in the type's tone (*Resource type · N items*, **Add to <type>**), the Gmail
+  line when that type is the one Gmail fills (*Auto-import is on … Last checked … Last
+  email added N* · **Undo** · Settings), *All / New / Starred* filters with counts, a
+  search, then the cards: **link cards** (initials tile, title ↗ + site, star,
+  description, tags, edit/delete on hover; a Gmail import added today has a blue ring and
+  "New · from Gmail") or, for commands/snippets, **dark code cards** (Copy, `$` prompt).
+- **Gmail import → Drupal (2026-11-17):** with Gmail connected (§5.7), each email under
+  the chosen label (default *Drupal Daily*) is read once; every module in it (name, the
+  drupal.org project link, the "What does it do?" line) becomes a resource of the chosen
+  type (default *Drupal*), tagged `drupal`; *Module of the Day* is starred. Modules whose
+  URL is already in the library are skipped. Checks run after a Resources page loads, at
+  most every six hours, plus **Check now** in Profile. **Undo** removes everything the
+  latest email added; that email is never imported again.
   Types that read the same on screen (built-in *Website* shows as "Websites", like a
   custom *Websites*) are one type, and Profile refuses adding such a duplicate.
 - In the add/edit form, **Resource type** is a searchable dropdown (type "doc" →
@@ -431,6 +476,11 @@ two columns.
 - **Sprint calendar:** start date and length (1, 2, 3 or 4 weeks) with a live preview
   of the current sprint. Default: 14-day sprints anchored on 2 Sep 2026.
 - **Tickets on/off:** whether ticket tracking exists for this user (see §5.2).
+- **Gmail import** (its own section, 2026-11-17): **Connect Gmail** (Google consent,
+  read-only `gmail.readonly`; the refresh token is stored encrypted), then the label to
+  read and the resource type its modules go to, **Check now**, **Disconnect** (also
+  revokes the grant). Shows the connected address, last check and last error. Off with a
+  note when the server has no `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`.
 - **AI summaries** (a card under Account): the user's own **OpenRouter API key** (checked with OpenRouter on
   save, stored encrypted, never shown again — only its last 4 characters) and an
   optional model list (empty = free Gemma, then any free model). Saves on its own, not via the bar.
@@ -506,21 +556,28 @@ two columns.
   HTML with the doc's own styles (Arial 20/14/15/14/11pt, band `#e6f0fa`) plus a
   plain-text fallback, so a paste into Google Docs matches the existing reports.
 
-### 5.10 Quick log (added 2026-10-08)
+### 5.10 Quick log (added 2026-10-08; two steps since 2026-11-20)
 
-A dialog opened from the nav's ⚡ button (any page) or *Quick log* on the Work Logs
-header. Three steps:
+A popup opened from the nav's ⚡ **Quick log** button (phone: the dock's **+**) or **Paste
+notes instead** on a Work Logs day page. It opens on what fits where you are: the Tracker →
+**To-dos** (its Follow-ups tab → **Follow-ups**), a day page → **Work log for that day**,
+anywhere else → a work log for today. Two steps:
 
-1. **Choose** what to create: **Work log**, **To-dos** or **Follow-ups**.
-2. **Paste** rough text (Work log also picks the day — weekdays, today or earlier).
-   ⌘/Ctrl+Enter reads it. For a work log, **Use template** (shown while the box is
-   empty) fills in headings for that day's meeting cards (or Default meetings), the
-   user's open tickets (In Progress / Sent to QA, up to 6) and Work done — the user
-   types under each; headings left blank are ignored.
-3. **Review** what was read: every row has a tick box and an inline editor, and a
+1. **Paste.** Tabs at the top pick **Work log · To-dos · Follow-ups** (no separate Choose
+   screen). A work log also picks the day with chips: **Today · Yesterday · Older** (the six
+   weekdays before yesterday) — weekdays only, never the future; on a weekend Today/Yesterday
+   become Friday/Thursday. The box has a short light hint; **Show an example** reveals a full
+   example with **Use this example**. ⌘/Ctrl+Enter reads it. For a work log, **Use template**
+   (shown while the box is empty) fills in headings for that day's meeting cards (or Default
+   meetings), an empty *Tickets:* heading and Work done — the user types under each; headings
+   left blank are ignored.
+2. **Review** what was read: every row has a tick box and an inline editor, and a
    label — *New*, *Update / Notes added*, or *Check ticket / Optional / Who?* when it
    needs the user. **Nothing is saved until Apply.** Apply then opens the day's log
    (work log) or the Tracker tab (to-dos / follow-ups) with a toast.
+
+The popup is a normal centred size (`lg`) while pasting and widens (`xl`) for Review; on
+phones it's a full-screen sheet with the buttons at the bottom. The cursor starts in the box.
 
 How the text is read — the AI does the fuzzy part, code the exact part:
 - AI (OpenRouter, same key/models as summaries) splits the text into meetings,
