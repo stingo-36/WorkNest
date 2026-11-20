@@ -678,7 +678,11 @@ open their page, resources go to Resources).
   what it creates, or **before → after** for title/description/icon, and pages
   changed/new/removed for a document — with **Save changes** and **Revert**; nothing is
   saved until Save. A long pasted message shows its first lines with **Show all**.
-- **Can't yet:** delete anything; create or edit work logs, tickets or resources.
+- **Work logs through Quick log.** Notes for a day ("create a work log for 20 Nov: …")
+  come back as a **Work log** card with the day and the notes; **Open in Quick log**
+  opens Quick log on that day with the notes filled in, where they're read, reviewed and
+  applied as usual. Ask never saves a log itself, and can't change a saved one.
+- **Can't yet:** delete anything; create or edit tickets or resources.
 - **Your data only.** Every lookup is scoped to the signed-in user; the AI never sees
   record ids (numbers map to ids on the server).
 - Follow-ups use the last 6 turns, including what it proposed and whether you

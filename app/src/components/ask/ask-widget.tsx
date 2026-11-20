@@ -10,8 +10,9 @@ import { askWorkspace } from "@/actions/ask";
 import { addFollowUpUpdate, createFollowUp, rescheduleFollowUp, setFollowUpStatus } from "@/actions/follow-ups";
 import { importNotebook, saveNotebookDetails } from "@/actions/notes";
 import { NoteIcon } from "@/components/notes/NoteIcon";
+import { useQuickLog } from "@/components/quick-log/quick-log";
 import { toast } from "@/components/ui/toast";
-import type { AskProposal, AskSource } from "@/lib/ask";
+import type { AskProposal, AskSource, AskWorkLog } from "@/lib/ask";
 import { ASK_DOCUMENT_MAX, ASK_MESSAGE_MAX } from "@/lib/validation";
 
 /**
@@ -31,7 +32,7 @@ import { ASK_DOCUMENT_MAX, ASK_MESSAGE_MAX } from "@/lib/validation";
 /** Per proposal: waiting, being applied, applied (with the entry's id), skipped, or failed. */
 type DraftState = { status: "draft" | "adding" | "skipped" } | { status: "added"; id: string } | { status: "failed"; message: string };
 /** `documentText`: the pasted document this turn's notebook cards save (its own, or one from earlier). */
-type Turn = { question: string; answer?: string; sources?: AskSource[]; proposals?: AskProposal[]; drafts?: DraftState[]; hasDocument?: boolean; documentText?: string; error?: string };
+type Turn = { question: string; answer?: string; sources?: AskSource[]; proposals?: AskProposal[]; workLogs?: AskWorkLog[]; drafts?: DraftState[]; hasDocument?: boolean; documentText?: string; error?: string };
 type NotebookProposal = Extract<AskProposal, { action: "notebook" }>;
 
 const KIND_LABEL: Record<AskProposal["kind"], string> = { Task: "To-do", FollowUp: "Follow-up", Note: "Note", Notebook: "Notebook" };
@@ -120,6 +121,7 @@ export function openAsk() {
 
 export function AskWidget({ userId }: { userId: string }) {
   const router = useRouter();
+  const quickLog = useQuickLog();
   const [open, setOpen] = useState(false);
   const [turns, setTurns] = useState<Turn[]>(() => loadTurns(userId));
   const [draft, setDraft] = useState("");
@@ -181,6 +183,7 @@ export function AskWidget({ userId }: { userId: string }) {
               answer: result.data.answer,
               sources: result.data.sources,
               proposals: result.data.proposals,
+              workLogs: result.data.workLogs,
               drafts: result.data.proposals.map(() => ({ status: "draft" as const })),
               hasDocument: result.data.hasDocument,
               documentText: result.data.hasDocument ? question : attached,
@@ -268,7 +271,7 @@ export function AskWidget({ userId }: { userId: string }) {
             {turns.length === 0 ? (
               <div className="flex flex-col gap-3">
                 <p className="text-base text-text-muted">
-                  Ask about anything you&rsquo;ve recorded &mdash; who you told what, what&rsquo;s due, what&rsquo;s still open &mdash; or tell me to add a to-do, follow-up or note. Answers link to where they came from. Create or change notebooks, or paste a document to save it into one.
+                  Ask about anything you&rsquo;ve recorded &mdash; who you told what, what&rsquo;s due, what&rsquo;s still open &mdash; or tell me to add a to-do, follow-up or note, or give me your notes for a day&rsquo;s work log. Answers link to where they came from. Create or change notebooks, or paste a document to save it into one.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {SUGGESTIONS.map((suggestion) => (
@@ -294,6 +297,20 @@ export function AskWidget({ userId }: { userId: string }) {
                       <>
                         <Answer text={turn.answer} sources={turn.sources ?? []} onFollow={followSource} />
                         <div className="-mt-1 -ml-2"><CopyButton text={turn.answer} label="the answer" /></div>
+                        {turn.workLogs?.length ? (
+                          <ul aria-label="Work logs to review" className="flex flex-col gap-2">
+                            {turn.workLogs.map((log) => (
+                              <WorkLogCard
+                                key={log.date}
+                                log={log}
+                                onOpen={() => {
+                                  followSource();
+                                  quickLog.open({ kind: "worklog", date: log.date, text: log.text });
+                                }}
+                              />
+                            ))}
+                          </ul>
+                        ) : null}
                         {turn.proposals?.length ? (
                           <ul aria-label="Proposed Tracker changes" className="flex flex-col gap-2">
                             {turn.proposals.map((item, i) => (
@@ -430,6 +447,27 @@ function DraftCard({ item, state, onAdd, onSkip, onFollow }: { item: AskProposal
         )}
       </div>
       {state.status === "failed" ? <p role="alert" className="mt-1.5 text-sm text-danger">{state.message}</p> : null}
+    </li>
+  );
+}
+
+/** Work-log notes Ask picked out; Quick log reads them into the day's log, where they're reviewed and saved. */
+function WorkLogCard({ log, onOpen }: { log: AskWorkLog; onOpen: () => void }) {
+  return (
+    <li className="rounded-xl border border-border-strong bg-surface-2 px-3.5 py-3">
+      <p className="flex items-center gap-1.5 text-xs font-bold tracking-[0.06em] text-text-muted uppercase">
+        <NotebookPen className="size-3.5" aria-hidden="true" style={{ color: "inherit" }} />
+        Work log
+      </p>
+      <p className="mt-1 text-base font-semibold text-text">{format(parseISO(log.date), "EEEE d MMM")}</p>
+      <p className="mt-1 line-clamp-4 text-sm whitespace-pre-line text-text">{log.text}</p>
+      <p className="mt-1 text-sm text-text-muted">Quick log reads these into the day&rsquo;s log; you check them before anything is saved.</p>
+      <div className="mt-2.5">
+        <button type="button" onClick={onOpen} className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full bg-primary px-3.5 text-sm font-semibold text-primary-fg hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          <NotebookPen className="size-4" aria-hidden="true" style={{ color: "inherit" }} />
+          Open in Quick log
+        </button>
+      </div>
     </li>
   );
 }
