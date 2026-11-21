@@ -411,7 +411,7 @@ export function MarkdownEditor({
   return (
     <div className={cn(compact && "md-compact", "overflow-hidden rounded-xl border border-border-strong bg-surface transition-[border-color,box-shadow] duration-150 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20", className)}>
       {editor ? <Toolbar editor={editor} uploading={uploading} onPick={(kind) => (kind === "image" ? imageInput : fileInput).current?.click()} /> : <div className="h-11 border-b border-border" />}
-      <EditorContent editor={editor} className={cn("cursor-text bg-surface", compact ? "px-3 py-2" : "px-4 py-3")} onClick={() => editor?.chain().focus().run()} />
+      <EditorContent editor={editor} className={cn("cursor-text bg-surface px-4 py-3")} onClick={() => editor?.chain().focus().run()} />
       <input ref={imageInput} type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden onChange={(event) => { void upload(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
       <input ref={fileInput} type="file" multiple hidden onChange={(event) => { void upload(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
     </div>

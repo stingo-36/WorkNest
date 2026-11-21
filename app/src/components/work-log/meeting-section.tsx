@@ -48,7 +48,7 @@ function MeetingRow({
         value={meeting.notes}
         ariaLabel={`${meeting.name} notes`}
         placeholder="What was decided?"
-        minHeight="min-h-6"
+        minHeight="min-h-20"
         onChange={onChange}
         onBlur={() => flush()}
         className="min-w-0"

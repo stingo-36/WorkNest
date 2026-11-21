@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { EntryKind, FollowUpStatus } from "@/generated/prisma/enums";
 import { docFileIds, docToText, TODO_STATUS_NOTES } from "@/lib/rich-text";
@@ -60,6 +60,7 @@ const UPDATE_SELECT = {
   occurredAt: true,
   fromThem: true,
   doc: true,
+  editedAt: true,
   createdAt: true,
 } satisfies Prisma.FollowUpUpdateSelect;
 
@@ -122,11 +123,14 @@ export async function createFollowUp(userId: string, input: FollowUpInput) {
     data: {
       userId,
       kind: input.kind ?? EntryKind.FollowUp,
-      // A Task or a Note is yours; only a FollowUp is addressed to someone.
+      // A Task is yours; a FollowUp is addressed to someone, and a Note may name
+      // who it's with (Minutes of Meeting, 2026-11-21).
       person:
-        (input.kind ?? EntryKind.FollowUp) === EntryKind.FollowUp
-          ? (input.person?.trim() ?? null)
+        (input.kind ?? EntryKind.FollowUp) !== EntryKind.Task
+          ? (input.person?.trim() || null)
           : null,
+      // A note dated to another day (a MoM written up later) is "added" that day.
+      ...(input.kind === EntryKind.Note && input.occurredAt ? { createdAt: input.occurredAt } : {}),
       subject: input.subject.trim(),
       ticketKey: input.ticketKey?.trim() || null,
       dueDate: input.dueDate ?? null,
@@ -197,6 +201,31 @@ export async function addFollowUpUpdate(
   });
 
   return getFollowUp(userId, followUpId);
+}
+
+/**
+ * Rewrite one recorded message's text (owner's call, 2026-11-21 — the one
+ * exception to append-only follow-up history). Only the words change; who
+ * spoke, the channel and when stay as recorded, and `editedAt` marks it.
+ */
+export async function editFollowUpUpdate(
+  userId: string,
+  updateId: string,
+  input: { note: string; doc?: unknown },
+) {
+  const existing = await prisma.followUpUpdate.findFirst({
+    where: { id: updateId, userId },
+    select: { followUpId: true },
+  });
+  if (!existing) return null;
+
+  const fields = noteFields(input);
+  await prisma.followUpUpdate.update({
+    where: { id: updateId },
+    data: { note: fields.note, doc: fields.doc ?? Prisma.DbNull, editedAt: new Date() },
+  });
+  await linkFiles(userId, existing.followUpId, input.doc);
+  return getFollowUp(userId, existing.followUpId);
 }
 
 export async function setFollowUpStatus(
@@ -367,6 +396,16 @@ export async function setFollowUpAdded(userId: string, followUpId: string, creat
   const result = await prisma.followUp.updateMany({
     where: { id: followUpId, userId },
     data: { createdAt },
+  });
+  if (result.count === 0) return null;
+  return getFollowUp(userId, followUpId);
+}
+
+/** Who a note is with (Minutes of Meeting). Notes only; null clears it. */
+export async function setNotePerson(userId: string, followUpId: string, person: string | null) {
+  const result = await prisma.followUp.updateMany({
+    where: { id: followUpId, userId, kind: EntryKind.Note },
+    data: { person: person?.trim() || null },
   });
   if (result.count === 0) return null;
   return getFollowUp(userId, followUpId);

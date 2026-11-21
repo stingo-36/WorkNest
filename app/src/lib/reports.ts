@@ -228,6 +228,18 @@ export async function getSprintReport(userId: string, start: Date, end: Date) {
   };
 }
 
+/**
+ * Save the owner's edit of a sprint's report (2026-11-21). Only an AI report
+ * that exists can be edited — there is no hand-written report from scratch.
+ */
+export async function editSprintReport(userId: string, start: Date, content: string) {
+  const result = await prisma.sprintReport.updateMany({
+    where: { userId, sprintStart: storageDay(start), model: { not: null } },
+    data: { content: content.slice(0, MAX_REPORT_CHARS), editedAt: new Date() },
+  });
+  return result.count > 0;
+}
+
 export type SprintReportResult =
   | { ok: true; generatedAt: Date; model: string }
   | { ok: false; reason: AiFailure | "empty"; model?: string };
@@ -260,7 +272,7 @@ export async function generateSprintReport(
   const saved = await prisma.sprintReport.upsert({
     where: { userId_sprintStart: { userId, sprintStart } },
     create: { userId, sprintStart, content, model: ai.model },
-    update: { content, model: ai.model, generatedAt: new Date() },
+    update: { content, model: ai.model, generatedAt: new Date(), editedAt: null },
   });
   return { ok: true, generatedAt: saved.generatedAt, model: ai.model };
 }

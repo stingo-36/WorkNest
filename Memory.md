@@ -25,6 +25,41 @@
 
 ## Decisions
 
+- **2026-11-21 — Sprint reports can be edited.** Edit shows the stored Markdown beside a live
+  preview (the same `parseReport` the paper and copy use), not a rich editor — the Markdown
+  *is* the report format, so nothing is lost converting. `SprintReport.editedAt` marks it;
+  Regenerate confirms first and clears it. Staleness still compares log edits to
+  `generatedAt`, so an edit doesn't hide "logs changed since". *Rejected:* a structured
+  section/bullet form (more UI for the same result).
+
+- **2026-11-21 — Notes have a Type: Minutes of meeting or Other.** No new column: a MoM is a
+  Note tagged `mom` (same tag `lib/meeting-minutes.ts` gives work-log minutes), `person` holds
+  who it was with (notes may now carry `person`; `setNotePerson`), and the meeting date is the
+  note's `createdAt` (create sets it from the picked day; "Meeting date" in the window edits it
+  via `setFollowUpAdded`). A MoM's body is edited in place through `editFollowUpUpdate` — no
+  add-to-this-note form — because the owner edits minutes rather than appending to them.
+  *Rejected:* a `noteType` enum column (the tag already meant MoM and links stay consistent).
+- **Gotcha (2026-11-21):** `UpdateDoc` (read-only TipTap) reads `content` only at mount, so an
+  edited rich row kept showing the old text. It now re-sets content when the doc changes.
+
+- **2026-11-21 — Personal sticky notes get a Title and a Details field.** One field made a
+  pasted paragraph the sticky's bold title, clipped at 6 lines. The add bar now has a title
+  line plus a Details box under it; both are still stored in the one `subject` (title, newline,
+  details), so no schema change and `editPersonalTodo` edits the whole text as before. A sticky
+  shows its first line bold and the rest as body; a first line over 80 characters (older
+  one-field notes) reads as body. Grid is 2 → 3 columns (was up to 4). Supersedes the
+  2026-11-01 "no visible hint on the Personal add bar" choice: the Details box makes it taller.
+
+- **2026-11-21 — Follow-up messages can be edited; the rest of the record stays fixed.** The
+  owner asked to fix a message after saving it. `editFollowUpUpdate` rewrites `note`/`doc` only
+  and stamps `editedAt`, shown as "· edited" (hover for when) in the Conversation. `fromThem`,
+  `channel` and `occurredAt` never change, so Waiting/Replied, Time to ping and reports keep
+  their facts; there is still no delete. Reverses the "no edit path for `FollowUpUpdate`" rule
+  (AGENTS.md §4, Architecture.md invariant 4). *Rejected:* corrections as a further update
+  (clutters the thread); silent edits with no marker (hides that the record changed).
+- **2026-11-21 — "Waiting on" reminders start 2 working days out.** Defaulting to today put
+  every new follow-up straight into Needs you. Past reminder dates are blocked when adding.
+
 - **2026-11-21 — Ask hands work logs to Quick log instead of writing them.** Asked to "create a
   work log for 20 Nov", Ask used to refuse. It now calls `draft_work_log` and shows a card that
   opens Quick log on that day with the notes filled in. Quick log already reads notes into
@@ -1174,6 +1209,14 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-11-21 — Reports: Edit (Markdown + live preview), `editReport`, `SprintReport.editedAt` (migration `20261121130000_sprint_report_edited_at`), Regenerate confirms over edits — `components/reports/report-view.tsx`, `actions/reports.ts`, `lib/reports.ts`, `lib/validation.ts`, `app/(app)/reports/page.tsx`
+- 2026-11-21 — Notes: Type dropdown (Minutes of meeting / Other); MoM takes meeting date + With, auto title, Minutes edited in place; `setNotePerson`; `UpdateDoc` refreshes after an edit — `components/tracker/tracker-board.tsx`, `components/tracker/update-editor.tsx`, `lib/follow-ups.ts`, `actions/follow-ups.ts`, `lib/validation.ts`
+- 2026-11-21 — Personal to-dos: Title + Details fields; stickies show a bold title over body text, max 3 columns — `components/tracker/tracker-board.tsx`
+- 2026-11-21 — Add-resource popup shows Title, Type, Description and Tags from the start (they waited for a paste) — `components/resources/resource-cards.tsx`
+- 2026-11-21 — New "Waiting on" follow-up: reminder defaults to 2 working days out (was today, so it hit Needs you at once); past reminder dates blocked — `components/tracker/tracker-board.tsx`
+- 2026-11-21 — Follow-up conversation messages can be edited (text only; who/when/channel kept), marked "· edited" via new `FollowUpUpdate.editedAt` (migration `20261121120000_follow_up_update_edited_at`) — `lib/follow-ups.ts` `editFollowUpUpdate`, `actions/follow-ups.ts`, `lib/validation.ts`, `components/tracker/tracker-board.tsx`, `components/tracker/update-editor.tsx` (`initialContent`)
+- 2026-11-21 — Tracker add inputs set `autoComplete="off"` (Chrome showed past titles) — `components/tracker/tracker-board.tsx`
+- 2026-11-21 — Work-log edit page full width (dropped `max-w-4xl`), meeting/ticket note boxes taller, step bodies no left indent — `components/work-log/*`, `app/globals.css`
 - 2026-11-21 — Ask hands work-log notes to Quick log: `draft_work_log` tool → Work log card → Open in Quick log (day + notes filled in, reviewed there) — `lib/ask.ts`, `actions/ask.ts`, `components/ask/ask-widget.tsx`
 - 2026-11-21 — AI token budgets + `too_long`, bigger title/summary reply room, no "No …" filler in summaries, readable ticket statuses for Ask; Profile → AI section; confirming Gmail Undo; Tickets consistency (sentence case, empty tabs hidden, compact update) — `lib/ai-summary.ts`, `lib/ask.ts`, `lib/workflow-status.ts`, `components/profile/profile-form.tsx`, `components/resources/resource-cards.tsx`, `components/tickets/ticket-board.tsx`, `components/ui/ticket-status-badge.tsx`, `.env.example`
 - 2026-11-20 — Site-wide usability pass (9 pages, 1440 + 375, no overflow, no console errors); background AI summary no longer throws when the log was deleted mid-run (`updateMany`, returns null) — `lib/worklogs.ts`

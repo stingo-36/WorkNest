@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 
 import { aiFailureMessage } from "@/lib/ai-summary";
-import { generateSprintReport, resolveSprint } from "@/lib/reports";
-import { fail, ok, parseOrFail } from "@/lib/result";
+import { editSprintReport, generateSprintReport, resolveSprint } from "@/lib/reports";
+import { fail, notFound, ok, parseOrFail } from "@/lib/result";
 import { requireUser } from "@/lib/session";
 import { getUserSettings } from "@/lib/user-settings";
-import { generateReportSchema } from "@/lib/validation";
+import { editReportSchema, generateReportSchema } from "@/lib/validation";
 
 /** (Re)generate the "5-15 Report" for one sprint. Input: { sprint: "YYYY-MM-DD" } */
 export async function generateReport(input: unknown) {
@@ -27,4 +27,17 @@ export async function generateReport(input: unknown) {
   }
   revalidatePath("/reports");
   return ok({ generatedAt: result.generatedAt, model: result.model });
+}
+
+/** Save an edit of a sprint's report. Input: { sprint: "YYYY-MM-DD", content } (Markdown, the report's own format). */
+export async function editReport(input: unknown) {
+  const user = await requireUser();
+  const parsed = parseOrFail(editReportSchema, input);
+  if (!parsed.ok) return parsed;
+  const settings = await getUserSettings(user.id);
+  const sprint = resolveSprint(parsed.data.sprint, settings.sprint);
+  const saved = await editSprintReport(user.id, sprint.start, parsed.data.content);
+  if (!saved) return notFound("No report for this sprint — generate one first");
+  revalidatePath("/reports");
+  return ok({ editedAt: new Date().toISOString() });
 }

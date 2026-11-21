@@ -519,6 +519,16 @@ export const addFollowUpUpdateSchema = z
     }
   });
 
+export const editFollowUpUpdateSchema = z
+  .object({
+    updateId: idSchema,
+    note: z.string().trim().max(10_000),
+    doc: richDocSchema,
+  })
+  .superRefine((value, ctx) => {
+    if (!value.note && !value.doc) ctx.addIssue({ code: "custom", path: ["note"], message: "Write something first" });
+  });
+
 export const setFollowUpPinnedSchema = z.object({
   followUpId: idSchema,
   pinned: z.boolean(),
@@ -553,6 +563,11 @@ export const setFollowUpAddedSchema = z.object({
 });
 
 export const deleteFollowUpSchema = z.object({ followUpId: idSchema });
+
+export const setNotePersonSchema = z.object({
+  followUpId: idSchema,
+  person: z.string().trim().max(120).nullable(),
+});
 
 export const setFollowUpTagsSchema = z.object({
   followUpId: idSchema,
@@ -655,6 +670,11 @@ export const saveOpenRouterModelSchema = z.object({
 /** Reports: any day inside the sprint, "YYYY-MM-DD". */
 export const generateReportSchema = z.object({
   sprint: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a sprint"),
+});
+
+export const editReportSchema = z.object({
+  sprint: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a sprint"),
+  content: z.string().trim().min(1, "The report can't be empty — Regenerate to start over").max(15_000, "Keep the report under 15,000 characters"),
 });
 
 export const toggleResourceFavoriteSchema =z.object({ resourceId: idSchema, favorite: z.boolean() });

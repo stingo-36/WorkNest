@@ -186,7 +186,7 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `lib/quick-log.ts` | Quick log: `draftQuickLog` (AI → JSON read leniently with Zod, then matched to the user's tickets / meeting cards / people / channels; to-dos fall back to one per line without AI) `workLogTemplate` (headings: the day's meetings, an empty Tickets heading, Work done — no pre-listed tickets since 2026-11-20), and `applyQuickLog` (writes via `worklogs`/`tickets`/`follow-ups` lib functions; same-day re-apply appends) |
 | `lib/workflow-status.ts` | 5-stage workflow + legacy status normalisation |
 | `lib/meeting-minutes.ts` | minutes of meeting (MoM): `listMinutesCandidates` (the user's Tracker Notes, `mom`-tagged first), `linkMeetingMinutes` / `unlinkMeetingMinutes` (both ends checked against `userId`; unlink never deletes the note), `createMeetingMinutes` (a new Note tagged `mom` via `createFollowUp`, then linked) |
-| `lib/follow-ups.ts` | Tracker entries + append-only updates, pin, status, reschedule, tags, `editPersonalTodo` (rewrites a personal to-do's text only), `listTodosAroundDay` (work-log to-dos card) |
+| `lib/follow-ups.ts` | Tracker entries + append-only updates (text editable via `editFollowUpUpdate`), pin, status, reschedule, tags, `editPersonalTodo` (rewrites a personal to-do's text only), `listTodosAroundDay` (work-log to-dos card) |
 | `lib/note-store.ts`, `lib/notes.ts`, `lib/note-icons.ts`, `lib/note-colors.ts` | notebooks, trash/restore, icon search, accent colours |
 | `lib/note-import.ts` | a pasted document → notebook pages (`marked` lexer → TipTap JSON); the AI in `lib/ask.ts` decides where it goes. `splitMessage` (instruction vs document), `parseDocument` (`#` = the document's own title, `##` = a page, `###`+ headings inside the page), `documentOutline` (what the AI sees), `planDocumentSave` (pages new/changed/removed, `reshaped`) and `saveDocument` (new notebook with one section, or reshape notebook `noteId` to match: pages matched by title anywhere, ignoring case and a leading number; pages and sections not in the document are deleted by `updateNote`). Saved via `importNotebook` in `actions/notes.ts`; title/description/icon-only changes via `saveNotebookDetails` (`updateNoteDetails` in `lib/note-store.ts`); icons found by `findIcon` in `lib/note-icons.ts` |
 | `components/notes/smooth-scroll.ts`, `components/notes/doc-height.ts` | client: frame-by-frame smooth jump that follows a moving target and pauses lazy page mounting while in flight (`isJumping`, `NOTE_SCROLL_END`); estimated height for an unmounted page body. Used by the reader and the editor |
@@ -199,7 +199,7 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `lib/tag-colors.ts` | shared: `tagColor(tag)` — brand colour for known tech tags, else a stable hue (no network call) |
 | `lib/resource-types.ts` | shared (client + server): built-in type labels/plurals (`typeMeta`) and `resourceTypeKey` — types with the same on-screen name are one type |
 | `lib/user-lists.ts` | Profile-editable lists: `DEFAULT_LISTS`, ordered lists, project options/suggestions, tag usage + rename/delete (raw SQL, user-scoped) |
-| `lib/reports.ts` | sprint list, report data per sprint, AI-only "5-15 Report" (`generateSprintReport` → ok or failure reason; `normalizeReportBody` tolerates bold/other-level section headings and `*`/`•` bullets), staleness; model-less (old code-built) reports ignored |
+| `lib/reports.ts` | sprint list, report data per sprint, AI-only "5-15 Report" (`generateSprintReport` → ok or failure reason; `normalizeReportBody` tolerates bold/other-level section headings and `*`/`•` bullets), staleness; `editSprintReport` (owner edit → `editedAt`; regenerate clears it); model-less (old code-built) reports ignored |
 | `lib/achievements.ts` | achievements + certificate files (bytes only read by the download route) |
 | `lib/user-settings.ts` | profile settings (name, sprint config, `ticketsEnabled`), request-memoised |
 | `lib/admin.ts` | persisted-role admin guard, cross-account statistics, password reset, whole-workspace erasure and account deletion; destructive calls verify the target email |
@@ -219,13 +219,13 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `actions/admin.ts` | Admin-only password reset, whole-workspace record erasure and account deletion; Zod → `lib/admin.ts` → `/admin` revalidation |
 | `actions/worklog.ts` | open today/by date, get, adjacent, list, update, delete, meetings CRUD, meeting minutes (`listMeetingMinutesOptions`, `linkMeetingMinutes`, `createMeetingMinutes`, `unlinkMeetingMinutes`), learning notes, link attachments, delete attachment |
 | `actions/tickets.ts` | create standalone, find, upsert-for-work-log, save work update, detach, get, list, projects, active, update, append/delete history entry, delete ticket |
-| `actions/follow-ups.ts` | create, add update, pin, status, reschedule, `setFollowUpAdded` (re-date `createdAt`), `setFollowUpTags`, `editPersonalTodo`, `listTodosForDay`, delete, list, people |
+| `actions/follow-ups.ts` | create, add update, `editFollowUpUpdate` (text only), pin, status, reschedule, `setFollowUpAdded` (re-date `createdAt`), `setFollowUpTags`, `setNotePerson` (a note's "With"), `editPersonalTodo`, `listTodosForDay`, delete, list, people |
 | `actions/notes.ts` | create, update, delete (trash), restore, toggle favourite |
 | `actions/content.ts` | tasks, links, resources CRUD (create refuses a link already saved) + `toggleResourceFavorite`, `mergeResourceTypes` / `undoMergeResourceTypes` (retype + Profile type list) |
 | `actions/gmail.ts` | `syncGmailNow`, `saveGmailRule`, `disconnectGmail`, `undoGmailImport` |
 | `actions/profile.ts` | `updateProfile`, self-service `changePassword`, `saveAiKey`, `removeAiKey`, `saveAiModel` |
 | `actions/user-lists.ts` | Profile lists: set/reset ordered list, resource-type icon, add/remove project, add/rename/delete/delete-all tags |
-| `actions/reports.ts` | `generateReport` |
+| `actions/reports.ts` | `generateReport`, `editReport` (save the owner's edit of a saved report) |
 | `actions/ask.ts` | `askWorkspace` ({ question, history, today } → { answer, sources, proposals }; no writes — the chat applies a confirmed proposal via `createFollowUp` / `setFollowUpStatus` / `rescheduleFollowUp` / `addFollowUpUpdate`; AI failure → `AI_UNAVAILABLE`) |
 | `actions/quick-log.ts` | `getWorkLogTemplate`, `draftQuickLog` (no writes; AI failure → `AI_UNAVAILABLE`), `applyQuickLog` (re-validated draft; revalidates work logs, tickets, tracker) |
 | `components/reports/report-format.ts` | client-safe: parse report Markdown → title/sections/groups; `reportToHtml` (doc-styled clipboard HTML), `reportToText` |
@@ -264,14 +264,14 @@ User ─┬─ WorkLog ─┬─ Meeting ── MeetingMinutesLink ──► Fol
 | `Ticket` | `ticketId` = human key, **`@@unique([userId, ticketId])`**; `title`, `projectName?`, `status` |
 | `TicketWorkUpdate` | one per (ticket, work log): `description`, `status` snapshot. **Append-only history.** |
 | `TicketHistoryEntry` | `body`, `status` snapshot; written from `/tickets`; may be deleted |
-| `FollowUp` | `kind` (FollowUp/Task/Note — `Idea` folded into Note 2026-10-01), `tags String[]` (notes), `person?` (FollowUp only), `subject`, `ticketKey?` (free text, not FK), `status` Open/Done, `pinned`, `personal` (Task only — To-do → Personal sticky notes; their `subject` may hold line breaks, ≤1000 chars, others are one line ≤300; excluded from `listTrackerForRange`, `listTodosAroundDay` and the sprint report), `dueDate?` |
-| `FollowUpUpdate` | `note`, `doc Json?` (TipTap JSON from the rich editor; `note` is then its plain text, derived server-side), `channel` (free text from the user's list), `occurredAt`, `fromThem` (their reply vs. what you said — drives Waiting/Replied). **Never updated in place.** |
+| `FollowUp` | `kind` (FollowUp/Task/Note — `Idea` folded into Note 2026-10-01), `tags String[]` (notes), `person?` (FollowUp; also a Minutes-of-Meeting Note — "With"), `subject`, `ticketKey?` (free text, not FK), `status` Open/Done, `pinned`, `personal` (Task only — To-do → Personal sticky notes; their `subject` may hold line breaks, ≤1000 chars, others are one line ≤300; excluded from `listTrackerForRange`, `listTodosAroundDay` and the sprint report), `dueDate?` |
+| `FollowUpUpdate` | `note`, `doc Json?` (TipTap JSON from the rich editor; `note` is then its plain text, derived server-side), `channel` (free text from the user's list), `occurredAt`, `fromThem` (their reply vs. what you said — drives Waiting/Replied), `editedAt?` (set when the text is rewritten). **Only the text is ever updated in place** (`editFollowUpUpdate`). |
 | `FollowUpFile` | `userId`, `followUpId?` (set when the update that references it is saved), `name`, `mimeType`, `size`, `data Bytes` (≤4 MB). Uploaded while writing; deleted with the entry or account. |
 | `Note` / `NoteSection` / `NotePage` | icon (`iconName`, `iconLibrary` si/lu/fa6), `favorite`, `deletedAt` (trash); sections & pages ordered by `order`; page `content Json` |
 | `Resource` | `type` (free text from the user's list; was an enum), `url?`, `content`, `tags[]`, `favorite`, `source?` ("gmail"), `sourceMessageId?` (Undo key) |
 | `GmailConnection` | one per user (`userId` PK): `email`, sealed `refreshToken`, `label` (default "Drupal Daily"), `resourceType` (default "Drupal"), `lastSyncAt?`, `lastSyncError?` |
 | `GmailImport` | `(userId, messageId)` PK — every email read, `added`, `undone`; an email is never imported twice |
-| `SprintReport` | one per `(userId, sprintStart)` (`@db.Date`, UTC midnight like `WorkLog.date`); `content` (Markdown), `model?` (null = built), `generatedAt` |
+| `SprintReport` | one per `(userId, sprintStart)` (`@db.Date`, UTC midnight like `WorkLog.date`); `content` (Markdown), `model?` (null = built), `generatedAt`, `editedAt?` (owner edited the text; cleared on regenerate) |
 | `Achievement` | `title`, `type` (free text), `status` (`AchievementStatus` InProgress/Completed), `assignedBy?`, `startDate?`/`endDate?` `@db.Date`, `description` |
 | `AchievementFile` | `name`, `mimeType`, `size`, `data Bytes` (≤10 MB); `userId` denormalised for owner-only download. **`data` never selected in lists.** |
 | `Task`, `Link` | exist with actions; no UI yet |
@@ -296,9 +296,12 @@ writes), `TaskPriority`, `TaskStatus`, `FollowUpStatus`, `EntryKind`,
    same log → in-place (autosave-safe), different log → new row. No code path may
    update "the latest update" or blind-create.
 3. **Ticket status follows the newest update**; detaching recomputes it.
-4. **Tracker updates are append-only** — no edit/delete action exists for a
-   `FollowUpUpdate`; a first note is created as an update row, not a field. Whole-account
-   or whole-workspace erasure is the deliberate privacy/admin exception.
+4. **Tracker updates are append-only** — no delete action exists for a
+   `FollowUpUpdate`; a first note is created as an update row, not a field. The one edit
+   is `editFollowUpUpdate` (2026-11-21): text/doc only, stamps `editedAt` (shown as
+   "edited"); `fromThem`, `channel` and `occurredAt` never change, so Waiting/Replied and
+   reminders stay true. Whole-account or whole-workspace erasure is the deliberate
+   privacy/admin exception.
 5. **Dates:** `WorkLog.date` is UTC midnight (`toDateOnly`, `todayUtc`). Sprint maths
    and "today" in the Tracker use **local** calendar days (`lib/sprint.ts`; the board
    corrects to the browser clock after hydration via `useSyncExternalStore`).

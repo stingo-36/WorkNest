@@ -9,6 +9,7 @@ import {
   addFollowUpUpdateSchema,
   createFollowUpSchema,
   deleteFollowUpSchema,
+  editFollowUpUpdateSchema,
   editPersonalTodoSchema,
   rescheduleFollowUpSchema,
   setFollowUpAddedSchema,
@@ -16,6 +17,7 @@ import {
   setFollowUpPinnedSchema,
   setFollowUpStatusSchema,
   setFollowUpTagsSchema,
+  setNotePersonSchema,
   todosForDaySchema,
   trackerForRangeSchema,
 } from "@/lib/validation";
@@ -23,9 +25,8 @@ import {
 /**
  * Follow-ups server actions.
  *
- * Note what is missing: there is no `editFollowUpUpdate`. Recorded updates are
- * history and the app gives no way to rewrite them — correcting the record
- * means appending a correction, which is itself dated.
+ * `editFollowUpUpdate` rewrites a recorded message's text only; who spoke, the
+ * channel and the date stay as recorded.
  */
 
 export async function createFollowUp(input: unknown) {
@@ -49,6 +50,30 @@ export async function addFollowUpUpdate(input: unknown) {
 
   revalidatePath("/tracker");
   return ok(followUp);
+}
+
+export async function editFollowUpUpdate(input: unknown) {
+  const userId = await requireUserId();
+  const parsed = parseOrFail(editFollowUpUpdateSchema, input);
+  if (!parsed.ok) return parsed;
+
+  const { updateId, ...rest } = parsed.data;
+  const followUp = await followUps.editFollowUpUpdate(userId, updateId, rest);
+  if (!followUp) return notFound("Message not found");
+
+  revalidatePath("/tracker");
+  return ok(followUp);
+}
+
+/** Who a note is with (Minutes of Meeting). Input: { followUpId, person | null } */
+export async function setNotePerson(input: unknown) {
+  const userId = await requireUserId();
+  const parsed = parseOrFail(setNotePersonSchema, input);
+  if (!parsed.ok) return parsed;
+  const note = await followUps.setNotePerson(userId, parsed.data.followUpId, parsed.data.person);
+  if (!note) return notFound("Note not found");
+  revalidatePath("/tracker");
+  return ok(note);
 }
 
 /** Archive / restore. Input: { followUpId, archived } */

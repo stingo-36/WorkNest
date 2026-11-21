@@ -210,8 +210,11 @@ export type EditorValue = { doc: JSONContent | null; text: string; hasContent: b
  * `boxed`: its own bordered field (the entry dialog). Otherwise it fills the
  * card it sits in (the new-note composer). Remount with a new `key` to clear.
  */
-export function UpdateEditor({ id, label, placeholder, boxed = false, minHeight = "min-h-36", onChange, onSubmit }: {
+export function UpdateEditor({ id, label, placeholder, boxed = false, minHeight = "min-h-36", initialContent, autoFocus = false, onChange, onSubmit }: {
   id: string;
+  /** Starting content when editing something already saved (a TipTap doc). */
+  initialContent?: JSONContent;
+  autoFocus?: boolean;
   label: string;
   placeholder?: string;
   boxed?: boolean;
@@ -242,6 +245,8 @@ export function UpdateEditor({ id, label, placeholder, boxed = false, minHeight 
   const editor = useEditor({
     extensions: trackerExtensions(placeholder),
     immediatelyRender: false,
+    content: initialContent,
+    autofocus: autoFocus ? "end" : false,
     editorProps: {
       attributes: { id, "aria-label": label, "aria-multiline": "true", role: "textbox", class: cn("note-prose px-4 py-3 outline-none", minHeight) },
       handleKeyDown: (_view, event) => {
@@ -303,5 +308,10 @@ export function UpdateDoc({ doc, className }: { doc: unknown; className?: string
     immediatelyRender: false,
     editorProps: { attributes: { class: cn("note-prose", className) } },
   });
+  // `content` is read once at mount; an edited row (editFollowUpUpdate) brings a new doc.
+  const json = JSON.stringify(doc);
+  useEffect(() => {
+    if (editor && JSON.stringify(editor.getJSON()) !== json) editor.commands.setContent(JSON.parse(json) as JSONContent);
+  }, [editor, json]);
   return <EditorContent editor={editor} />;
 }

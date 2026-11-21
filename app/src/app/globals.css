@@ -375,7 +375,7 @@ html:not(.dark) body:has(.app-shell) { --c-bg: #ffffff; }
   font-size: var(--text-sm);
   color: var(--c-text-muted);
 }
-.wl-step-body { margin-left: 2.125rem; }
+.wl-step-body { margin-left: 0; }
 .wl-steps .wl-meetings + .wl-step-body { margin-top: 0.5rem; }
 .wl-progress { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600; color: var(--c-text-muted); }
 .wl-progress-bars { display: inline-flex; gap: 0.25rem; }
@@ -383,7 +383,7 @@ html:not(.dark) body:has(.app-shell) { --c-bg: #ffffff; }
 .wl-progress-bars i.is-on { background: var(--c-success); }
 
 /* Meetings: a row per meeting — name, a small notes box, Minutes / Skip. */
-.wl-meetings { display: grid; gap: 0.5rem; margin-left: 2.125rem; }
+.wl-meetings { display: grid; gap: 0.5rem; }
 .wl-meeting { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr) auto; align-items: start; gap: 0.625rem; }
 .wl-meeting-name { padding-top: 0.625rem; font-size: var(--text-sm); font-weight: 600; color: var(--c-text); overflow-wrap: anywhere; }
 .wl-meeting-acts { display: flex; align-items: center; gap: 0.25rem; padding-top: 0.25rem; }

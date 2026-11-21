@@ -386,7 +386,8 @@ model FollowUp {
   userId      String
   kind        EntryKind      @default(FollowUp)
   /// Who you are keeping in the loop, e.g. "Ashwini". Free text — no contacts
-  /// table. Required for a FollowUp; null for a Task or Note, which are yours.
+  /// table. Required for a FollowUp; on a Minutes-of-Meeting Note, who it was
+  /// with; null for a Task.
   person      String?
   subject     String
   /// Optional human ticket key ("ASU-1234"), not a FK: a follow-up often
@@ -442,6 +443,9 @@ model FollowUpUpdate {
   /// Rich text (TipTap JSON) when written in the editor; `note` then holds its
   /// plain text, which search, AI summaries and Work Logs keep reading.
   doc        Json?
+  /// Set when the text was rewritten after saving (shown as "edited"). Who
+  /// spoke, the channel and `occurredAt` never change. Null = as first written.
+  editedAt   DateTime?
   createdAt  DateTime        @default(now())
 
   followUp FollowUp @relation(fields: [followUpId], references: [id], onDelete: Cascade)
@@ -714,6 +718,8 @@ model SprintReport {
   /// OpenRouter model that wrote it; null = an older code-built report (not shown).
   model       String?
   generatedAt DateTime @default(now())
+  /// Set when the owner edited the text after AI wrote it; Regenerate clears it.
+  editedAt    DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

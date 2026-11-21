@@ -157,7 +157,7 @@ export function TicketWorkCard({
         value={draft.description}
         ariaLabel={`What you did on ${ticket.ticketKey} today`}
         placeholder={`What did you do on ${ticket.ticketKey} today?`}
-        minHeight="min-h-6"
+        minHeight="min-h-20"
         onChange={(description) => setDraft((current) => ({ ...current, description }))}
         onBlur={() => flush()}
       />
