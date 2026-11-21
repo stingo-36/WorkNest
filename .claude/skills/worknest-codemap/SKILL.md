@@ -64,7 +64,7 @@ Models: `Ticket`, `TicketWorkUpdate`, `TicketHistoryEntry`
 ### Tracker (landing page) — PRD §5.3 · DS "Tracker queue"
 Models: `FollowUp`, `FollowUpUpdate` (append-only), `FollowUpFile`
 - Route: `app/(app)/tracker/page.tsx`
-- Actions: `actions/follow-ups.ts` · Lib: `lib/follow-ups.ts`
+- Actions: `actions/follow-ups.ts` · Lib: `lib/follow-ups.ts`, `lib/follow-up-reminder.ts` (effective "time to ping" date: a reminder on/before your last message → 2 working days after it)
 - UI: `components/tracker/tracker-board.tsx` (1.9k lines — grep for the tab/dialog you need), `components/tracker/update-editor.tsx` (rich editor + renderer), `components/tracker/note-text.tsx` (legacy plain text)
 
 ### Notes — PRD §5.4 · DS "Notes F layout"

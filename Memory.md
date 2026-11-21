@@ -25,6 +25,19 @@
 
 ## Decisions
 
+- **2026-11-21 — An out-of-date reminder doesn't put a follow-up in Needs you.** A follow-up
+  added with a past reminder (13 Nov, message sent 21 Nov) showed "Time to ping" from day one.
+  Reads now use the effective reminder (`lib/follow-up-reminder.ts`): if the stored reminder is
+  on or before your last sent message, the ping is 2 working days after that message. Computed
+  at read time (Tracker list/get, Kaizen API, Ask) so no data migration and the hosted rows
+  fix themselves on deploy. *Rejected:* rewriting stored dates (touches history silently).
+
+- **2026-11-21 — The opened note is a one-column document.** Owner disliked the two-column
+  entry window for notes (an empty add box beside text crammed into a scrolling half).
+  `NoteBody` replaces it for `kind: Note` only: toolbar + collapsible Details + full-width text,
+  editors full width. To-dos and follow-ups keep `TrackedEntryBody` (facts left, history
+  right) — their history *is* the point there. `MinutesPanel` was removed.
+
 - **2026-11-21 — Sprint reports can be edited.** Edit shows the stored Markdown beside a live
   preview (the same `parseReport` the paper and copy use), not a rich editor — the Markdown
   *is* the report format, so nothing is lost converting. `SprintReport.editedAt` marks it;
@@ -1209,6 +1222,8 @@ is done on the real rendered app.
 
 `YYYY-MM-DD — what changed — key files`
 
+- 2026-11-21 — Follow-ups: reminder on/before your last message counts as 2 working days after it (no more Needs you for things you just sent) — `lib/follow-up-reminder.ts`, `lib/follow-ups.ts`, `lib/mobile-api.ts`, `lib/ask.ts`
+- 2026-11-21 — Note window redesigned as one column (`NoteBody`: toolbar, Details panel, full-width text, full-width Edit / Add to note); to-dos and follow-ups unchanged (`TrackedEntryBody`) — `components/tracker/tracker-board.tsx`
 - 2026-11-21 — Reports: Edit (Markdown + live preview), `editReport`, `SprintReport.editedAt` (migration `20261121130000_sprint_report_edited_at`), Regenerate confirms over edits — `components/reports/report-view.tsx`, `actions/reports.ts`, `lib/reports.ts`, `lib/validation.ts`, `app/(app)/reports/page.tsx`
 - 2026-11-21 — Notes: Type dropdown (Minutes of meeting / Other); MoM takes meeting date + With, auto title, Minutes edited in place; `setNotePerson`; `UpdateDoc` refreshes after an edit — `components/tracker/tracker-board.tsx`, `components/tracker/update-editor.tsx`, `lib/follow-ups.ts`, `actions/follow-ups.ts`, `lib/validation.ts`
 - 2026-11-21 — Personal to-dos: Title + Details fields; stickies show a bold title over body text, max 3 columns — `components/tracker/tracker-board.tsx`

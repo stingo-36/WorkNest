@@ -4,6 +4,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { FollowUpStatus } from "@/generated/prisma/enums";
 import { listResources } from "@/lib/content";
+import { withEffectiveDue } from "@/lib/follow-up-reminder";
 import { getFollowUp, listFollowUpPeople } from "@/lib/follow-ups";
 import { prisma } from "@/lib/prisma";
 import { isStatusNote } from "@/lib/rich-text";
@@ -110,7 +111,7 @@ export async function listMobileTracker(userId: string) {
     },
   });
 
-  return rows.map(({ updates, dueDate, completedAt, updatedAt, ...entry }) => {
+  return rows.map(withEffectiveDue).map(({ updates, dueDate, completedAt, updatedAt, ...entry }) => {
     // "Marked done" / "Reopened" rows are bookkeeping, not something you said.
     const last = updates.find((update) => !isStatusNote(update));
     return {

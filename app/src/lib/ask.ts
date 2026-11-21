@@ -5,6 +5,7 @@ import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { EntryKind } from "@/generated/prisma/enums";
 import { aiFailureMessage, type ChatMessage, openRouterChat, openRouterComplete, type ToolSpec } from "@/lib/ai-summary";
 import { DEFAULT_OPENROUTER_MODEL, getOpenRouterConfig } from "@/lib/ai-settings";
+import { withEffectiveDue } from "@/lib/follow-up-reminder";
 import { findIcon, toIconLabel, type IconLibrary } from "@/lib/note-icons";
 import { documentOutline, type ParsedDocument, parseDocument, planDocumentSave, splitMessage } from "@/lib/note-import";
 import { prisma } from "@/lib/prisma";
@@ -157,7 +158,7 @@ async function openTracker(userId: string, todayKey: string): Promise<{ candidat
     orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { updatedAt: "desc" }],
     take: MAX_OPEN_ENTRIES,
     select: ENTRY_SELECT,
-  });
+  }).then((rows) => rows.map(withEffectiveDue));
   const when = (entry: EntryRow) => {
     if (!entry.dueDate) return "no date";
     const diff = differenceInCalendarDays(parseISO(entry.dueDate.toISOString().slice(0, 10)), parseISO(todayKey));

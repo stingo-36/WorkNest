@@ -2210,6 +2210,13 @@ function EntryTitle({ entry }: { entry: TrackerEntry }) {
 
 /** Facts, date, actions, add-an-update and the history — the opened entry's dialog. */
 function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; tagSuggestions: string[]; onDeleted: () => void }) {
+  // Notes read as a document (2026-11-21), not the two-column facts + history layout.
+  if (entry.kind === "Note") return <NoteBody entry={entry} tagSuggestions={tagSuggestions} onDeleted={onDeleted} />;
+  return <TrackedEntryBody entry={entry} onDeleted={onDeleted} />;
+}
+
+/** A to-do or follow-up: facts, dates and actions on the left, the history on the right. */
+function TrackedEntryBody({ entry, onDeleted }: { entry: TrackerEntry; onDeleted: () => void }) {
   const { run, pending } = useRun();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isDone = entry.status === "Done";
@@ -2223,7 +2230,6 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
   const canArchive = kind !== "Note";
   const shelved = entry.archivedAt !== null;
 
-  const mom = isMom(entry);
   const facts: Array<{ label: string; value: React.ReactNode }> = [
     ...(entry.person && kind !== "Note" ? [{ label: "With", value: entry.person }] : []),
     ...(state ? [{ label: "Status", value: <span style={tone(FOLLOW_STATE[state].tone)} className="font-semibold text-[color-mix(in_srgb,var(--tone)_80%,var(--c-text))]">{FOLLOW_STATE[state].label}</span> }] : []),
@@ -2247,7 +2253,7 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
           ))}
         </dl> : null}
         <div className="min-w-0">
-          <label htmlFor={`added-${entry.id}`} className="block text-xs text-text-subtle">{mom ? "Meeting date" : "Added"}</label>
+          <label htmlFor={`added-${entry.id}`} className="block text-xs text-text-subtle">Added</label>
           <Input
             id={`added-${entry.id}`}
             type="date"
@@ -2279,8 +2285,6 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
         ) : null}
       </div>
 
-      {kind === "Note" ? <NoteTypeFields entry={entry} /> : null}
-      {kind === "Note" ? <NoteTagsEditor key={mom ? "mom" : "other"} entry={entry} suggestions={tagSuggestions} /> : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant={isDone ? "secondary" : "primary"} onClick={() => run(() => setFollowUpStatus({ followUpId: entry.id, status: isDone ? "Open" : "Done" }), doneToast)}>
@@ -2312,11 +2316,10 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
         </div>
       </div>
 
-      {/* A MoM is edited in place (right column), so it has no add-to-this-note form. */}
-      {mom ? null : <AddUpdateForm key={entry.updates.length} entry={entry} />}
+      <AddUpdateForm key={entry.updates.length} entry={entry} />
       </div>
 
-      {mom ? <MinutesPanel entry={entry} /> : <Timeline entry={entry} />}
+      <Timeline entry={entry} />
 
       <ConfirmationDialog
         open={confirmDelete}
@@ -2433,6 +2436,185 @@ function AddUpdateForm({ entry }: { entry: TrackerEntry }) {
   );
 }
 
+/**
+ * The opened note as one readable page (owner, 2026-11-21 — the two-column window
+ * left the text squeezed into a scrolling half beside an empty add box).
+ * A toolbar (summary · Details · Edit / Add · Archive · ★ · delete), an optional
+ * Details panel (type, date, with, tags), then the text full width. A MoM is one
+ * body edited in place; an Other note is its entries oldest-first, each with a
+ * pencil, and "Add to note" opens an editor at the end.
+ */
+function NoteBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; tagSuggestions: string[]; onDeleted: () => void }) {
+  const { run, pending } = useRun();
+  const mom = isMom(entry);
+  const isDone = entry.status === "Done";
+  const [details, setDetails] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  // Which entry is open in the editor: an update id, "new" (adding), or null (reading).
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState<EditorValue>({ doc: null, text: "", hasContent: false });
+  const entries = [...entry.updates].reverse();
+  const empty = entries.length === 0;
+  // One entry reads as plain text with Edit in the toolbar; several get a dated header and pencil each.
+  const single = entries.length === 1 ? entries[0] : null;
+  const tags = entry.tags.filter((tag) => !(mom && tag === MOM_TAG));
+
+  function addEntry() {
+    if (!draft.hasContent || pending) return;
+    run(
+      () => addFollowUpUpdate({ followUpId: entry.id, note: draft.text, doc: draft.doc, channel: "Other", fromThem: false }),
+      mom ? "Minutes saved" : "Added",
+      () => { setEditing(null); setDraft({ doc: null, text: "", hasContent: false }); },
+    );
+  }
+
+  const summary = [
+    mom ? "Minutes of meeting" : "Note",
+    ...(mom && entry.person ? [`With ${entry.person}`] : []),
+    format(parseISO(entry.createdAt), "EEE d MMM yyyy"),
+    ...(entry.archivedAt || isDone ? ["Archived"] : []),
+  ];
+
+  return (
+    <div className={cn("flex min-w-0 flex-col gap-5", pending && "opacity-60")}>
+      {/* Toolbar: what it is on the left, what you can do on the right. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border pb-4">
+        <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-text-muted">
+          {summary.map((part, index) => (
+            <span key={part} className={cn(index === 0 && "font-semibold text-text")}>{index > 0 ? <span aria-hidden="true" className="mr-2">·</span> : null}{part}</span>
+          ))}
+          {tags.map((tag) => <span key={tag} style={tagChipStyle(tag)} className={cn(tagChipClass, "rounded-md bg-[color-mix(in_srgb,var(--tag)_14%,transparent)] px-1.5 py-0.5")}>#{tag}</span>)}
+        </p>
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          <Button size="sm" variant="ghost" aria-expanded={details} aria-controls={`note-details-${entry.id}`} onClick={() => setDetails(!details)}>
+            Details<ChevronDown aria-hidden="true" className={cn("transition-transform duration-150", details && "rotate-180")} />
+          </Button>
+          {editing === null && single && !isStatusNote(single) ? (
+            <Button size="sm" variant="secondary" onClick={() => setEditing(single.id)}><Pencil aria-hidden="true" />Edit</Button>
+          ) : null}
+          {editing === null && !mom && !empty ? (
+            <Button size="sm" variant="secondary" onClick={() => setEditing("new")}><Plus aria-hidden="true" />Add to note</Button>
+          ) : null}
+          <Button size="sm" variant="secondary" onClick={() => run(() => setFollowUpStatus({ followUpId: entry.id, status: isDone ? "Open" : "Done" }), isDone ? "Restored" : "Archived")}>
+            {isDone ? <RotateCcw aria-hidden="true" /> : <Archive aria-hidden="true" />}
+            {isDone ? "Restore" : "Archive"}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            iconOnly
+            aria-pressed={entry.pinned}
+            aria-label={entry.pinned ? "Remove from favourites" : "Mark as favourite"}
+            title={entry.pinned ? "Remove from favourites" : "Mark as favourite"}
+            onClick={() => run(() => setFollowUpPinned({ followUpId: entry.id, pinned: !entry.pinned }), entry.pinned ? "Removed from favourites" : "Added to favourites")}
+          >
+            <Star aria-hidden="true" className={cn(entry.pinned && "fill-current text-warning")} />
+          </Button>
+          <Button size="sm" variant="ghost" iconOnly className="hover:text-danger" aria-label={`Delete ${entry.subject}`} title="Delete" onClick={() => setConfirmDelete(true)}>
+            <Trash2 aria-hidden="true" />
+          </Button>
+        </div>
+      </div>
+
+      {details ? (
+        <div id={`note-details-${entry.id}`} className="grid gap-4 rounded-xl border border-border bg-surface-2 p-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <NoteTypeFields entry={entry} />
+          <NoteDateField entry={entry} label={mom ? "Meeting date" : "Date"} />
+          <div className="md:col-span-2">
+            <NoteTagsEditor key={mom ? "mom" : "other"} entry={entry} suggestions={tagSuggestions} />
+          </div>
+        </div>
+      ) : null}
+
+      {/* The text, full width at a readable measure. */}
+      <div className="mx-auto flex w-full max-w-3xl min-w-0 flex-col">
+        {empty || editing === "new" ? (
+          <div className="flex flex-col gap-3">
+            {editing === "new" && !empty ? <hr className="border-border" /> : null}
+            <UpdateEditor
+              boxed
+              autoFocus
+              id={`note-add-${entry.id}`}
+              label={mom ? "Minutes" : empty ? "Write the note" : "Add to this note"}
+              placeholder={mom ? "Attendees, discussion, decisions, action items…" : "Write, or paste formatted text, images or files"}
+              minHeight="min-h-[40dvh]"
+              onChange={setDraft}
+              onSubmit={addEntry}
+            />
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <span className="mr-auto text-sm text-text-muted">⌘/Ctrl + Enter saves. Images and files up to 4 MB.</span>
+              {!empty ? <Button size="sm" variant="secondary" onClick={() => setEditing(null)} disabled={pending}>Cancel</Button> : null}
+              <Button size="sm" onClick={addEntry} loading={pending} disabled={!draft.hasContent}>{mom ? "Save minutes" : empty ? "Save" : "Add"}</Button>
+            </div>
+          </div>
+        ) : null}
+
+        {entries.map((update, index) => (
+          <section key={update.id} aria-label={`Entry ${index + 1}`} className={cn("group/entry min-w-0", index > 0 && "mt-6 border-t border-border pt-6")}>
+            {/* Several entries: each says when it was written and can be edited on its own. */}
+            {!single ? (
+              <div className="mb-2 flex items-center gap-2 text-xs text-text-subtle">
+                <time dateTime={update.occurredAt}>{format(parseISO(update.occurredAt), "EEE d MMM yyyy, HH:mm")}</time>
+                {update.editedAt ? <span>· edited</span> : null}
+                {editing !== update.id && !isStatusNote(update) ? (
+                  <button type="button" onClick={() => setEditing(update.id)} aria-label="Edit this entry" title="Edit" className="ml-auto grid size-8 cursor-pointer place-items-center rounded-full text-text-subtle transition-[color,background-color,opacity] duration-150 hover:bg-surface-2 hover:text-text md:opacity-0 md:group-hover/entry:opacity-100 md:focus-visible:opacity-100">
+                    <Pencil className="size-4" aria-hidden="true" />
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+            {editing === update.id ? (
+              <EditUpdateForm update={update} minHeight="min-h-[50dvh]" onDone={() => setEditing(null)} />
+            ) : update.doc ? (
+              <UpdateDoc doc={update.doc} className="text-md" />
+            ) : (
+              <FormattedNote text={update.note} className="text-md leading-7 text-text" />
+            )}
+            {single && update.editedAt && editing !== update.id ? <p className="mt-4 text-xs text-text-subtle">Edited {format(parseISO(update.editedAt), "EEE d MMM yyyy, HH:mm")}</p> : null}
+          </section>
+        ))}
+      </div>
+
+      <ConfirmationDialog
+        open={confirmDelete}
+        title={`Delete “${entry.subject}”?`}
+        description="This removes the note and everything in it. It can't be undone."
+        confirmLabel="Delete"
+        destructive
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={() => {
+          setConfirmDelete(false);
+          onDeleted();
+          run(() => deleteFollowUp({ followUpId: entry.id }), "Deleted");
+        }}
+      />
+    </div>
+  );
+}
+
+/** A note's date ("Added", or a MoM's "Meeting date"): moves the day, keeps the time. */
+function NoteDateField({ entry, label }: { entry: TrackerEntry; label: string }) {
+  const { run } = useRun();
+  return (
+    <Field label={label} htmlFor={`added-${entry.id}`}>
+      <Input
+        id={`added-${entry.id}`}
+        type="date"
+        value={localDay(entry.createdAt)}
+        max={todayIso()}
+        required
+        onChange={(event) => {
+          const day = event.target.value;
+          if (!day || day === localDay(entry.createdAt)) return;
+          const old = parseISO(entry.createdAt);
+          const next = parseISO(`${day}T${format(old, "HH:mm:ss")}`);
+          run(() => setFollowUpAdded({ followUpId: entry.id, createdAt: next.toISOString() }), "Date changed");
+        }}
+      />
+    </Field>
+  );
+}
+
 /** Type, and for a MoM who it was with. Switching type adds or drops the `mom` tag. */
 function NoteTypeFields({ entry }: { entry: TrackerEntry }) {
   const { run } = useRun();
@@ -2467,48 +2649,6 @@ function NoteTypeFields({ entry }: { entry: TrackerEntry }) {
         </div>
       ) : null}
     </div>
-  );
-}
-
-/**
- * A MoM's text, edited in place — no history of additions (owner, 2026-11-21).
- * One saved body: shown with Edit. None yet: an editor to write it. Older MoMs
- * with several rows show them all, each with its own pencil.
- */
-function MinutesPanel({ entry }: { entry: TrackerEntry }) {
-  const { run, pending } = useRun();
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<EditorValue>({ doc: null, text: "", hasContent: false });
-  if (entry.updates.length > 1) return <Timeline entry={entry} />;
-  const body = entry.updates[0];
-
-  function saveFirst() {
-    if (!draft.hasContent || pending) return;
-    run(() => addFollowUpUpdate({ followUpId: entry.id, note: draft.text, doc: draft.doc, channel: "Other", fromThem: false }), "Minutes saved");
-  }
-
-  return (
-    <section aria-label="Minutes" className="min-w-0 border-t border-border pt-5 md:border-t-0 md:border-l md:pt-0 md:pl-8">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-text">Minutes</h3>
-        {body && !editing ? (
-          <Button size="sm" variant="secondary" onClick={() => setEditing(true)}><Pencil aria-hidden="true" />Edit</Button>
-        ) : null}
-      </div>
-      {!body ? (
-        <div className="mt-3 flex flex-col gap-2">
-          <UpdateEditor boxed id={`minutes-${entry.id}`} label="Minutes" placeholder="Attendees, discussion, decisions, action items…" minHeight="min-h-72" onChange={setDraft} onSubmit={saveFirst} />
-          <div className="flex justify-end"><Button size="sm" onClick={saveFirst} loading={pending} disabled={!draft.hasContent}>Save minutes</Button></div>
-        </div>
-      ) : editing ? (
-        <EditUpdateForm update={body} minHeight="min-h-72" onDone={() => setEditing(false)} />
-      ) : (
-        <>
-          {body.doc ? <UpdateDoc doc={body.doc} className="mt-3 text-md" /> : <FormattedNote text={body.note} className="mt-3 text-md leading-6 text-text" />}
-          {body.editedAt ? <p className="mt-3 text-xs text-text-subtle">Edited {format(parseISO(body.editedAt), "EEE d MMM yyyy, HH:mm")}</p> : null}
-        </>
-      )}
-    </section>
   );
 }
 
