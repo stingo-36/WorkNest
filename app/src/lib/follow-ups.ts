@@ -3,6 +3,7 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { EntryKind, FollowUpStatus } from "@/generated/prisma/enums";
+import { withEffectiveDue } from "@/lib/follow-up-reminder";
 import { docFileIds, docToText, TODO_STATUS_NOTES } from "@/lib/rich-text";
 import { getPeopleList } from "@/lib/user-lists";
 
@@ -418,11 +419,13 @@ export async function deleteFollowUp(userId: string, followUpId: string) {
   return result.count > 0;
 }
 
+/** Reads apply the effective reminder (`lib/follow-up-reminder.ts`); writes store what was picked. */
 export async function getFollowUp(userId: string, followUpId: string) {
-  return prisma.followUp.findFirst({
+  const entry = await prisma.followUp.findFirst({
     where: { id: followUpId, userId },
     select: FOLLOW_UP_SELECT,
   });
+  return entry ? withEffectiveDue(entry) : null;
 }
 
 export async function listFollowUps(userId: string) {
@@ -432,7 +435,7 @@ export async function listFollowUps(userId: string) {
     // but a stable order keeps the lists from jumping between renders.
     orderBy: [{ dueDate: "asc" }, { updatedAt: "desc" }],
     select: FOLLOW_UP_SELECT,
-  });
+  }).then((rows) => rows.map(withEffectiveDue));
 }
 
 /** Who-field suggestions: people you have logged plus those saved in Profile → People. */

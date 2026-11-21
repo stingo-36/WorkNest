@@ -248,7 +248,7 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
 | Tab (`EntryKind`) | Tab badge | Add | Columns | Row actions |
 |---|---|---|---|---|
 | **To-do** (`Task`) | overdue/due-today to-dos + follow-ups that need you | title · due date · ★ | left **Today** (incl. follow-ups: nudge due / replied) + "✓ N completed today · Show"; right **Upcoming** by *tomorrow's date · Later this week · Next week · Later · No date* (to-dos + future nudges) | round tick (done / close / reopen) · ★; follow-ups: Mark nudged / Got it |
-| **Follow-ups** (`FollowUp`) | replies + pings due | **New follow-up** popup (2026-11-17): type · title · who + where (channel) · date | one list (2026-11-17): *Your turn* · *Time to ping* · *Waiting on them* + collapsed closed line | I pinged them · Done (= close); replied: Done |
+| **Follow-ups** (`FollowUp`) | replies + pings due | **New follow-up** popup (2026-11-17): type · title · who + where (channel) · date | one list (2026-11-17): *Your turn* · *Time to ping* · *Waiting on them* + collapsed closed line | I pinged them · Done (= close); replied: Done. **Time to ping** runs on the *effective* reminder (2026-11-21): a reminder dated on or before your last message is out of date, so the ping falls 2 working days after that message (`lib/follow-up-reminder.ts`; Tracker, Kaizen API and Ask) |
 | **Notes** (`Note`) | none (2026-11-17; was open notes) | **New note** button in the card header opens the composer in a popup: type (Minutes of meeting / Other) · title · body · formatting · tags · ★; a MoM also takes meeting date and who | one full-width **Notes** card (2026-11-11): count, search (beside New note from 1024px), tag filter chips (All + each tag), then **Pinned · This week · Earlier** (title, tag chips and "2 days ago" / "28 Oct" only — the text stays inside), collapsed archive at the bottom | ★ (Restore on archived) |
 
 - **Simpler To-do** (2026-11-17, phase 1 of the Tracker simplification, from the owner-approved
@@ -334,9 +334,14 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   inside the popup. A **Type** dropdown (2026-11-21) picks **Minutes of meeting** or **Other**.
   A MoM asks for the **Meeting date** (becomes the note's date) and **With** (who), fills an
   empty title as "Meeting with Ashwini on 4 Nov 2026" and is tagged `mom` (the tag work-log
-  meetings already use for linked minutes). Opened, a MoM shows Meeting date · Type · With and
-  its **Minutes** with **Edit** (rewritten in place, "Edited …" shown) — no *Add to this note*;
-  an Other note keeps its add-to-the-note history. Changing Type in the window converts a note
+  meetings already use for linked minutes). **The opened note reads as one page**
+  (2026-11-21; was two columns — facts + add box left, text squeezed right): a toolbar with a
+  summary (type · with · date · tags) and Details ▾ · Edit · Add to note · Archive · ★ · delete;
+  **Details** opens Type, With (MoM), Meeting date / Date and Tags; then the text full width at a
+  reading measure. One entry: **Edit** in the toolbar opens it in a full-width editor (Cancel /
+  Save). Several entries: oldest first, each with its date and a pencil. **Add to note** (Other
+  only) opens an editor at the end; a MoM has no Add — its minutes are edited in place; an empty
+  note opens straight into the editor. Changing Type in the window converts a note
   either way (adds/drops the `mom` tag); the `mom` tag is hidden from the Tags field. MoM rows
   show "With Ashwini · 4 Nov 2026". The Notes card has its own search and a **tag filter row** (All + every
   tag on open notes, most used first; brought back 2026-11-11); a tag chip on a row filters
