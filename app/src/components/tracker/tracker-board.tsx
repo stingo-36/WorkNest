@@ -23,10 +23,12 @@ import {
 import { createPortal } from "react-dom";
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { addDays, differenceInCalendarDays, endOfWeek, format, parseISO } from "date-fns";
+import { addBusinessDays, addDays, differenceInCalendarDays, endOfWeek, format, parseISO } from "date-fns";
 
 import {
   addFollowUpUpdate,
+  editFollowUpUpdate,
+  setNotePerson,
   createFollowUp,
   deleteFollowUp,
   editPersonalTodo,
@@ -49,6 +51,7 @@ import { TagInput } from "@/components/ui/tag-input";
 import { toast } from "@/components/ui/toast";
 import { FormattedNote } from "@/components/tracker/note-text";
 import { UpdateDoc, UpdateEditor, type EditorValue } from "@/components/tracker/update-editor";
+import type { JSONContent } from "@tiptap/core";
 import { isStatusNote, TODO_STATUS_NOTES } from "@/lib/rich-text";
 import { tagChipClass, tagChipStyle } from "@/components/ui/tag-chip";
 import type {
@@ -66,6 +69,8 @@ type TrackerUpdate = {
   fromThem: boolean;
   /** Rich text (TipTap JSON) when written in the editor; `note` is its plain text. */
   doc?: unknown;
+  /** When the text was rewritten after saving; null = as first written. */
+  editedAt?: string | null;
   createdAt: string;
 };
 
@@ -119,7 +124,22 @@ const entryLabel = (entry: TrackerEntry) => (entry.personal ? "Personal to-do" :
  * The user's lists from Profile, read deep in the tree (add forms, popups)
  * without threading props through every view.
  */
-const ListsContext = createContext<{ channels: string[]; noteTags: string[] }>({ channels: [], noteTags: [] });
+const ListsContext = createContext<{ channels: string[]; noteTags: string[]; people: string[] }>({ channels: [], noteTags: [], people: [] });
+
+/**
+ * Note types (2026-11-21): Minutes of Meeting or Other. A MoM is a Note tagged
+ * `mom` — the same tag work-log meetings already give their linked minutes
+ * (`lib/meeting-minutes.ts` MOM_TAG) — with who it was with and the meeting day.
+ * Its text is edited in place; Other notes keep the add-to-this-note history.
+ */
+const MOM_TAG = "mom";
+type NoteType = "mom" | "other";
+const NOTE_TYPES: Array<{ value: NoteType; label: string }> = [
+  { value: "mom", label: "Minutes of meeting" },
+  { value: "other", label: "Other" },
+];
+const isMom = (entry: TrackerEntry) => entry.kind === "Note" && entry.tags.includes(MOM_TAG);
+const momTitle = (person: string, day: string) => `Meeting with ${person} on ${format(parseISO(day), "d MMM yyyy")}`;
 
 /** The channel dropdown: the user's list, plus the current value if it's since been removed. */
 function ChannelSelect({ id, value, onChange, className }: { id: string; value: string; onChange: (value: string) => void; className?: string }) {
@@ -384,7 +404,7 @@ export function TrackerBoard({
     archived: 0,
   };
   const opened = entries.find((entry) => entry.id === openId) ?? null;
-  const lists = useMemo(() => ({ channels, noteTags: savedNoteTags }), [channels, savedNoteTags]);
+  const lists = useMemo(() => ({ channels, noteTags: savedNoteTags, people }), [channels, savedNoteTags, people]);
   const tagSuggestions = mergeTags(noteTags(byKind.Note).map(([tag]) => tag), savedNoteTags);
   const openEntry = (entry: TrackerEntry) => setOpenId(entry.id);
 
@@ -936,7 +956,7 @@ function onEnterSave(save: () => void) {
  * (each may open a small panel under the pill) and Add. Enter saves;
  * `multiline` (sticky notes) makes Shift+Enter a new line.
  */
-function AddPill({ label, inputId, placeholder, value, onChange, onSubmit, pending, error, tools, panel, multiline = false }: {
+function AddPill({ label, inputId, placeholder, value, onChange, onSubmit, pending, error, tools, panel, below, multiline = false }: {
   label: string;
   inputId: string;
   placeholder: string;
@@ -947,6 +967,8 @@ function AddPill({ label, inputId, placeholder, value, onChange, onSubmit, pendi
   error?: string;
   tools: React.ReactNode;
   panel: React.ReactNode;
+  /** A second field inside the pill, under the main row (Personal's Details). */
+  below?: React.ReactNode;
   multiline?: boolean;
 }) {
   const area = useRef<HTMLTextAreaElement>(null);
@@ -975,6 +997,7 @@ function AddPill({ label, inputId, placeholder, value, onChange, onSubmit, pendi
           ) : (
             <input
               id={inputId}
+              autoComplete="off"
               value={value}
               maxLength={300}
               placeholder={placeholder}
@@ -989,6 +1012,7 @@ function AddPill({ label, inputId, placeholder, value, onChange, onSubmit, pendi
           Add
         </button>
       </div>
+      {below}
       {panel}
       {/* Read out, not shown: a visible hint made the add bar taller on Personal (Ocean, 2026-11-01). */}
       {multiline ? <p id={`${inputId}-keys`} className="sr-only">Enter to add · Shift+Enter for a new line</p> : null}
@@ -1074,11 +1098,11 @@ function PillPanel({ label, onClose, children }: { label: string; onClose: () =>
 }
 
 /** Shared date panel for due / nudge dates. */
-function DatePanel({ id, label, hint, value, onChange, onClose }: { id: string; label: string; hint?: string; value: string; onChange: (value: string) => void; onClose: () => void }) {
+function DatePanel({ id, label, hint, value, min, onChange, onClose }: { id: string; label: string; hint?: string; value: string; min?: string; onChange: (value: string) => void; onClose: () => void }) {
   return (
     <PillPanel label={label} onClose={onClose}>
       <Field label={label} htmlFor={id} hint={hint}>
-        <Input id={id} type="date" value={value} onChange={(event) => onChange(event.target.value)} />
+        <Input id={id} type="date" value={value} min={min} onChange={(event) => onChange(event.target.value)} />
       </Field>
       {value ? <button type="button" onClick={() => onChange("")} className="w-fit cursor-pointer text-sm font-semibold text-accent-text hover:underline">Clear date</button> : null}
     </PillPanel>
@@ -1356,24 +1380,27 @@ function PeopleList({ title, people, empty, onOpen, onMore }: { title: string; p
 function AddTodo({ today, personal = false, onAdded }: { today: string; personal?: boolean; onAdded?: (id: string) => void }) {
   const startDate = personal ? "" : today;
   const [subject, setSubject] = useState("");
+  // Personal notes: a short title, then details (2026-11-21 — one field made the
+  // whole paragraph the sticky's bold title). Stored as one subject: title, newline, details.
+  const [details, setDetails] = useState("");
   const [date, setDate] = useState(startDate);
   const [pinned, setPinned] = useState(false);
   const [panel, setPanel] = useState(false);
-  const { create, pending, error, setError } = useCreate((id) => { setSubject(""); setDate(startDate); setPinned(false); setPanel(false); onAdded?.(id); });
+  const { create, pending, error, setError } = useCreate((id) => { setSubject(""); setDetails(""); setDate(startDate); setPinned(false); setPanel(false); onAdded?.(id); });
 
   function save() {
     if (pending) return;
     // The button is always live (a greyed CTA reads as broken); empty → point at the field.
     if (!subject.trim()) { setError("Write the to-do first"); document.getElementById("add-todo")?.focus(); return; }
-    create({ kind: "Task", subject: subject.trim().slice(0, personal ? 1000 : 300), dueDate: date || null, personal }, pinned);
+    const text = personal ? [subject.trim(), details.trim()].filter(Boolean).join("\n") : subject.trim();
+    create({ kind: "Task", subject: text.slice(0, personal ? 1000 : 300), dueDate: date || null, personal }, pinned);
   }
 
   return (
     <AddPill
       label={personal ? "Add a personal to-do" : "Add a to-do"}
       inputId="add-todo"
-      multiline={personal}
-      placeholder={personal ? "Jot a personal to-do…" : "Add a to-do…"}
+      placeholder={personal ? "Title — jot a personal to-do…" : "Add a to-do…"}
       value={subject}
       onChange={(value) => { setSubject(value); setError(undefined); }}
       onSubmit={save}
@@ -1386,6 +1413,22 @@ function AddTodo({ today, personal = false, onAdded }: { today: string; personal
         </>
       }
       panel={panel ? <DatePanel id="add-todo-date" label="Due date" value={date} onChange={setDate} onClose={() => setPanel(false)} /> : null}
+      below={personal ? (
+        <div className="border-t border-border px-4 py-2.5 md:pl-12">
+          <label htmlFor="add-todo-details" className="sr-only">Details (optional)</label>
+          <textarea
+            id="add-todo-details"
+            ref={(field) => fitHeight(field)}
+            rows={2}
+            value={details}
+            maxLength={900}
+            placeholder="Details (optional) — paths, links, steps…"
+            onChange={(event) => { setDetails(event.target.value); setError(undefined); fitHeight(event.target); }}
+            onKeyDown={onEnterSave(save)}
+            className="max-h-60 min-h-12 w-full resize-none bg-transparent text-md leading-relaxed text-text outline-none placeholder:text-text-subtle"
+          />
+        </div>
+      ) : null}
     />
   );
 }
@@ -1479,7 +1522,7 @@ function StickyBoard({ entries, today, needle, onOpen }: { entries: TrackerEntry
     <div className="flex min-w-0 flex-col gap-6">
       <Column title="Personal" count={open.length} aside="Just for you · kept out of Work Logs">
         {open.length ? (
-          <ol className="grid grid-cols-1 gap-6 pt-7 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <ol className="grid grid-cols-1 gap-6 pt-7 md:grid-cols-2 xl:grid-cols-3">
             {open.map((entry) => <StickyNote key={entry.id} entry={entry} today={today} onOpen={() => onOpen(entry)} />)}
           </ol>
         ) : (
@@ -1493,8 +1536,20 @@ function StickyBoard({ entries, today, needle, onOpen }: { entries: TrackerEntry
   );
 }
 
+/**
+ * A sticky's first line is its title; the rest is its body. A long single line
+ * (an old one-field note) reads as body text, not a giant bold heading.
+ */
+function splitSticky(subject: string) {
+  const [first, ...rest] = subject.split("\n");
+  const body = rest.join("\n").trim();
+  if (first.length > 80) return { title: "", body: subject.trim() };
+  return { title: first.trim(), body };
+}
+
 function StickyNote({ entry, today, onOpen }: { entry: TrackerEntry; today: string; onOpen: () => void }) {
   const due = stickyDue(entry, today);
+  const { title, body } = splitSticky(entry.subject);
   const [editing, setEditing] = useState(false);
   return (
     <li style={stickyLook(entry.id)} className="tk-sticky group flex min-h-44 min-w-0 flex-col gap-3 p-5">
@@ -1504,8 +1559,9 @@ function StickyNote({ entry, today, onOpen }: { entry: TrackerEntry; today: stri
         <>
           <div className="flex min-w-0 items-start gap-3">
             <DoneCircle entry={entry} />
-            <button type="button" onClick={onOpen} className="tk-row-title line-clamp-6 min-w-0 flex-1 cursor-pointer text-left whitespace-pre-line [overflow-wrap:anywhere] decoration-2 underline-offset-4 hover:underline">
-              {entry.subject}
+            <button type="button" onClick={onOpen} className="min-w-0 flex-1 cursor-pointer text-left decoration-2 underline-offset-4 hover:underline">
+              {title ? <span className="tk-row-title line-clamp-3 [overflow-wrap:anywhere]">{title}</span> : null}
+              {body ? <span className={cn("line-clamp-8 block text-md leading-relaxed whitespace-pre-line text-text-muted [overflow-wrap:anywhere]", title && "mt-1.5")}>{body}</span> : null}
             </button>
           </div>
           <LatestLine entry={entry} />
@@ -1647,6 +1703,15 @@ const FOLLOW_MODES = {
 type FollowMode = keyof typeof FOLLOW_MODES;
 
 /**
+ * The date a new follow-up starts with. Waiting: a reminder two working days
+ * out, so it doesn't land in Needs you the moment it's saved (it used to default
+ * to today, 2026-11-21). A chat: the day you talked, today.
+ */
+function defaultFollowDate(mode: FollowMode, today: string) {
+  return mode === "waiting" ? format(addBusinessDays(parseISO(today), 2), "yyyy-MM-dd") : today;
+}
+
+/**
  * Focus a popup's first field. The Modal is a native <dialog>: its showModal()
  * runs after the form mounts and moves focus to the Close button, overriding
  * autoFocus. The Modal's effect runs after this child's, so a zero-delay timeout
@@ -1679,7 +1744,7 @@ function AddFollowUp({ people, today, onSaved }: { people: string[]; today: stri
   useFocusInPopup("add-follow-up", Boolean(onSaved));
   const { create, pending, error, setError } = useCreate(() => {
     setSubject(""); setBody({ doc: null, text: "", hasContent: false }); setEditorKey((key) => key + 1);
-    setPerson(""); setDate(today); setPinned(false); setPanel(null); setTheySpokeLast(false);
+    setPerson(""); setDate(defaultFollowDate(mode, today)); setPinned(false); setPanel(null); setTheySpokeLast(false);
     onSaved?.();
   });
 
@@ -1688,6 +1753,7 @@ function AddFollowUp({ people, today, onSaved }: { people: string[]; today: stri
     if (!subject.trim()) { setError("Write what it is about first"); document.getElementById("add-follow-up")?.focus(); return; }
     if (!person.trim()) { setError(copy.who); setPanel("who"); return; }
     const waiting = mode === "waiting";
+    if (waiting && date && date < today) { setError("Pick a reminder date from today on"); setPanel("date"); return; }
     create(
       {
         kind: "FollowUp",
@@ -1715,7 +1781,7 @@ function AddFollowUp({ people, today, onSaved }: { people: string[]; today: stri
             type="button"
             role="radio"
             aria-checked={mode === key}
-            onClick={() => { setMode(key); setDate(today); setError(undefined); }}
+            onClick={() => { setMode(key); setDate(defaultFollowDate(key, today)); setError(undefined); }}
             className={cn(
               "inline-flex h-9 cursor-pointer items-center rounded-full px-4 text-sm font-semibold transition-colors duration-150",
               mode === key ? "bg-sidebar text-sidebar-fg" : "text-text-muted hover:text-text",
@@ -1729,6 +1795,7 @@ function AddFollowUp({ people, today, onSaved }: { people: string[]; today: stri
         <label htmlFor="add-follow-up" className="sr-only">{copy.subject}</label>
         <input
           id="add-follow-up"
+          autoComplete="off"
           value={subject}
           maxLength={300}
           placeholder={copy.subject}
@@ -1771,6 +1838,7 @@ function AddFollowUp({ people, today, onSaved }: { people: string[]; today: stri
           label={copy.date}
           hint={copy.dateHint}
           value={date}
+          min={mode === "waiting" ? today : undefined}
           onChange={setDate}
           onClose={() => setPanel(null)}
         />
@@ -1958,6 +2026,10 @@ function NoteQueue({ entries, suggestions, today, needle, onOpen }: { entries: T
 
 /** `onSaved` set = it lives in the New note popup: panels open in the flow (the popup body would clip a floating one). */
 function AddNote({ suggestions, today, onSaved }: { suggestions: string[]; today: string; onSaved?: () => void }) {
+  const { people } = useContext(ListsContext);
+  const [noteType, setNoteType] = useState<NoteType>("other");
+  const [person, setPerson] = useState("");
+  const mom = noteType === "mom";
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState<EditorValue>({ doc: null, text: "", hasContent: false });
   // Remounting the editor (new key) is how it clears after a save.
@@ -1969,22 +2041,27 @@ function AddNote({ suggestions, today, onSaved }: { suggestions: string[]; today
   useFocusInPopup("add-note", Boolean(onSaved));
   const { create, pending, error, setError } = useCreate(() => {
     setSubject(""); setBody({ doc: null, text: "", hasContent: false }); setEditorKey((key) => key + 1);
-    setDate(today); setTags([]); setPinned(false); setPanel(null);
+    setDate(today); setTags([]); setPinned(false); setPanel(null); setPerson("");
     onSaved?.();
   });
 
   function save() {
     if (pending) return;
-    if (!subject.trim()) { setError("Give the note a title"); document.getElementById("add-note")?.focus(); return; }
+    if (mom && !person.trim()) { setError("Who was the meeting with?"); document.getElementById("add-note-person")?.focus(); return; }
+    if (mom && !date) { setError("Pick the meeting date"); document.getElementById("add-note-day")?.focus(); return; }
+    // A MoM without a title gets "Meeting with Ashwini on 4 Nov 2026".
+    const title = subject.trim() || (mom ? momTitle(person.trim(), date) : "");
+    if (!title) { setError("Give the note a title"); document.getElementById("add-note")?.focus(); return; }
     create(
       {
         kind: "Note",
-        subject: subject.trim().slice(0, 300),
+        subject: title.slice(0, 300),
+        ...(mom ? { person: person.trim() } : {}),
         ...(body.hasContent ? { doc: body.doc, note: body.text } : {}),
         channel: "Other",
         // The note's date: now when it's today, else midday of the chosen day (no timezone drift).
         occurredAt: date && date !== today ? new Date(`${date}T12:00:00`).toISOString() : null,
-        tags,
+        tags: mom ? [MOM_TAG, ...tags.filter((tag) => tag !== MOM_TAG)] : tags,
       },
       pinned,
     );
@@ -1992,20 +2069,38 @@ function AddNote({ suggestions, today, onSaved }: { suggestions: string[]; today
 
   return (
     <form aria-label="Add a note" onSubmit={(event) => { event.preventDefault(); save(); }} className={cn("relative", onSaved && "tk-inline-panels")}>
+      <div className="mb-4 grid gap-4 md:grid-cols-[14rem_11rem_minmax(0,1fr)]">
+        <Field label="Type" htmlFor="add-note-type">
+          <Select id="add-note-type" value={noteType} onChange={(event) => { setNoteType(event.target.value as NoteType); setError(undefined); }}>
+            {NOTE_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+          </Select>
+        </Field>
+        {mom ? (
+          <>
+            <Field label="Meeting date" htmlFor="add-note-day" required>
+              <Input id="add-note-day" type="date" value={date} max={today} onChange={(event) => { setDate(event.target.value); setError(undefined); }} />
+            </Field>
+            <Field label="With" htmlFor="add-note-person" required>
+              <PersonAutocomplete id="add-note-person" value={person} options={people} onChange={(next) => { setPerson(next); setError(undefined); }} />
+            </Field>
+          </>
+        ) : null}
+      </div>
       <div className="tk-field flex flex-col rounded-2xl border border-border-strong bg-surface">
         <label htmlFor="add-note" className="sr-only">Note title</label>
         <input
           id="add-note"
+          autoComplete="off"
           value={subject}
           maxLength={300}
-          placeholder="Note title"
+          placeholder={mom ? (person.trim() && date ? momTitle(person.trim(), date) : "Title (optional) — filled in from who and when") : "Note title"}
           aria-invalid={error ? true : undefined}
           onChange={(event) => { setSubject(event.target.value); setError(undefined); }}
           className="min-w-0 border-b border-border bg-transparent px-5 pt-4 pb-3 text-lg font-semibold text-text outline-none placeholder:font-medium placeholder:text-text-muted"
         />
-        <UpdateEditor key={editorKey} id="add-note-body" label="Note" placeholder="Write the note… paste formatted text, images or files" minHeight="min-h-40" onChange={setBody} onSubmit={save} />
+        <UpdateEditor key={editorKey} id="add-note-body" label={mom ? "Minutes" : "Note"} placeholder={mom ? "Attendees, discussion, decisions, action items… paste formatted text, images or files" : "Write the note… paste formatted text, images or files"} minHeight="min-h-40" onChange={setBody} onSubmit={save} />
         <div className="flex flex-wrap items-center gap-1 border-t border-border py-1.5 pr-1.5 pl-2">
-          <DateTool label="Note date" value={date} today={today} expanded={panel === "date"} onClick={() => setPanel(panel === "date" ? null : "date")} />
+          {mom ? null : <DateTool label="Note date" value={date} today={today} expanded={panel === "date"} onClick={() => setPanel(panel === "date" ? null : "date")} />}
           <ToolButton label={tags.length ? `Tags: ${tags.join(", ")}` : "Add a tag"} expanded={panel === "tags"} onClick={() => setPanel(panel === "tags" ? null : "tags")} className={tags.length ? "text-text" : undefined}>
             <Hash className="size-5" strokeWidth={1.8} aria-hidden="true" />
             {tags.length ? <span className="max-w-48 truncate">{tags.map((tag) => `#${tag}`).join(" ")}</span> : null}
@@ -2046,6 +2141,7 @@ function NoteRow({ entry, today, onOpen, onTag }: { entry: TrackerEntry; today: 
               #{tag}
             </button>
           ))}
+          {isMom(entry) ? <span>{entry.person ? `With ${entry.person} · ` : ""}{format(parseISO(entry.createdAt), "d MMM yyyy")}</span> : null}
           <span suppressHydrationWarning>{archived ? `Archived ${noteWhen(entry.completedAt ?? entry.updatedAt, today)}` : noteWhen(entry.updatedAt, today)}</span>
         </div>
       </div>
@@ -2127,8 +2223,9 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
   const canArchive = kind !== "Note";
   const shelved = entry.archivedAt !== null;
 
+  const mom = isMom(entry);
   const facts: Array<{ label: string; value: React.ReactNode }> = [
-    ...(entry.person ? [{ label: "With", value: entry.person }] : []),
+    ...(entry.person && kind !== "Note" ? [{ label: "With", value: entry.person }] : []),
     ...(state ? [{ label: "Status", value: <span style={tone(FOLLOW_STATE[state].tone)} className="font-semibold text-[color-mix(in_srgb,var(--tone)_80%,var(--c-text))]">{FOLLOW_STATE[state].label}</span> }] : []),
     ...(kind === "Task" ? [{ label: "Status", value: isDone ? `Done${entry.completedAt ? ` · ${format(parseISO(entry.completedAt), "d MMM")}` : ""}` : "Open" }] : []),
     ...(entry.ticketKey ? [{ label: "Ticket", value: <span className="font-mono">{entry.ticketKey}</span> }] : []),
@@ -2150,7 +2247,7 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
           ))}
         </dl> : null}
         <div className="min-w-0">
-          <label htmlFor={`added-${entry.id}`} className="block text-xs text-text-subtle">Added</label>
+          <label htmlFor={`added-${entry.id}`} className="block text-xs text-text-subtle">{mom ? "Meeting date" : "Added"}</label>
           <Input
             id={`added-${entry.id}`}
             type="date"
@@ -2182,7 +2279,8 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
         ) : null}
       </div>
 
-      {kind === "Note" ? <NoteTagsEditor entry={entry} suggestions={tagSuggestions} /> : null}
+      {kind === "Note" ? <NoteTypeFields entry={entry} /> : null}
+      {kind === "Note" ? <NoteTagsEditor key={mom ? "mom" : "other"} entry={entry} suggestions={tagSuggestions} /> : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant={isDone ? "secondary" : "primary"} onClick={() => run(() => setFollowUpStatus({ followUpId: entry.id, status: isDone ? "Open" : "Done" }), doneToast)}>
@@ -2214,10 +2312,11 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
         </div>
       </div>
 
-      <AddUpdateForm key={entry.updates.length} entry={entry} />
+      {/* A MoM is edited in place (right column), so it has no add-to-this-note form. */}
+      {mom ? null : <AddUpdateForm key={entry.updates.length} entry={entry} />}
       </div>
 
-      <Timeline entry={entry} />
+      {mom ? <MinutesPanel entry={entry} /> : <Timeline entry={entry} />}
 
       <ConfirmationDialog
         open={confirmDelete}
@@ -2240,18 +2339,20 @@ function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; 
 /** Tags are labels, not history: edited in place, saved on every change. */
 function NoteTagsEditor({ entry, suggestions }: { entry: TrackerEntry; suggestions: string[] }) {
   const { run } = useRun();
+  // `mom` is the note's type (the Type dropdown), not a tag you edit here.
+  const keep = isMom(entry) ? [MOM_TAG] : [];
   // Local copy so chips update instantly; the server copy catches up on refresh.
-  const [tags, setTags] = useState(entry.tags);
+  const [tags, setTags] = useState(entry.tags.filter((tag) => !keep.includes(tag)));
   return (
     <Field label="Tags" htmlFor={`tags-${entry.id}`}>
       <TagInput
         id={`tags-${entry.id}`}
         value={tags}
-        suggestions={suggestions}
+        suggestions={suggestions.filter((tag) => !keep.includes(tag))}
         placeholder="Add a tag"
         onChange={(next) => {
           setTags(next);
-          run(() => setFollowUpTags({ followUpId: entry.id, tags: next }));
+          run(() => setFollowUpTags({ followUpId: entry.id, tags: [...keep, ...next.filter((tag) => !keep.includes(tag))] }));
         }}
       />
     </Field>
@@ -2260,7 +2361,7 @@ function NoteTagsEditor({ entry, suggestions }: { entry: TrackerEntry; suggestio
 
 /**
  * Appends to the record. A follow-up picks who spoke — you, or them — so the
- * board knows whether it's still waiting. Nothing here edits an earlier row.
+ * board knows whether it's still waiting. Earlier rows are edited in the Timeline.
  */
 function AddUpdateForm({ entry }: { entry: TrackerEntry }) {
   const { run, pending } = useRun();
@@ -2332,8 +2433,113 @@ function AddUpdateForm({ entry }: { entry: TrackerEntry }) {
   );
 }
 
+/** Type, and for a MoM who it was with. Switching type adds or drops the `mom` tag. */
+function NoteTypeFields({ entry }: { entry: TrackerEntry }) {
+  const { run } = useRun();
+  const { people } = useContext(ListsContext);
+  const mom = isMom(entry);
+  const [person, setPerson] = useState(entry.person ?? "");
+  function savePerson() {
+    const next = person.trim();
+    if (next === (entry.person ?? "")) return;
+    run(() => setNotePerson({ followUpId: entry.id, person: next || null }), next ? "Saved" : "Cleared");
+  }
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <Field label="Type" htmlFor={`type-${entry.id}`}>
+        <Select
+          id={`type-${entry.id}`}
+          value={mom ? "mom" : "other"}
+          onChange={(event) => {
+            const toMom = event.target.value === "mom";
+            const rest = entry.tags.filter((tag) => tag !== MOM_TAG);
+            run(() => setFollowUpTags({ followUpId: entry.id, tags: toMom ? [MOM_TAG, ...rest] : rest }), toMom ? "Now Minutes of meeting" : "Now Other");
+          }}
+        >
+          {NOTE_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+        </Select>
+      </Field>
+      {mom ? (
+        <div onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) savePerson(); }}>
+          <Field label="With" htmlFor={`with-${entry.id}`} hint="Saved when you leave the field.">
+            <PersonAutocomplete id={`with-${entry.id}`} value={person} options={people} onChange={setPerson} />
+          </Field>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * A MoM's text, edited in place — no history of additions (owner, 2026-11-21).
+ * One saved body: shown with Edit. None yet: an editor to write it. Older MoMs
+ * with several rows show them all, each with its own pencil.
+ */
+function MinutesPanel({ entry }: { entry: TrackerEntry }) {
+  const { run, pending } = useRun();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<EditorValue>({ doc: null, text: "", hasContent: false });
+  if (entry.updates.length > 1) return <Timeline entry={entry} />;
+  const body = entry.updates[0];
+
+  function saveFirst() {
+    if (!draft.hasContent || pending) return;
+    run(() => addFollowUpUpdate({ followUpId: entry.id, note: draft.text, doc: draft.doc, channel: "Other", fromThem: false }), "Minutes saved");
+  }
+
+  return (
+    <section aria-label="Minutes" className="min-w-0 border-t border-border pt-5 md:border-t-0 md:border-l md:pt-0 md:pl-8">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-text">Minutes</h3>
+        {body && !editing ? (
+          <Button size="sm" variant="secondary" onClick={() => setEditing(true)}><Pencil aria-hidden="true" />Edit</Button>
+        ) : null}
+      </div>
+      {!body ? (
+        <div className="mt-3 flex flex-col gap-2">
+          <UpdateEditor boxed id={`minutes-${entry.id}`} label="Minutes" placeholder="Attendees, discussion, decisions, action items…" minHeight="min-h-72" onChange={setDraft} onSubmit={saveFirst} />
+          <div className="flex justify-end"><Button size="sm" onClick={saveFirst} loading={pending} disabled={!draft.hasContent}>Save minutes</Button></div>
+        </div>
+      ) : editing ? (
+        <EditUpdateForm update={body} minHeight="min-h-72" onDone={() => setEditing(false)} />
+      ) : (
+        <>
+          {body.doc ? <UpdateDoc doc={body.doc} className="mt-3 text-md" /> : <FormattedNote text={body.note} className="mt-3 text-md leading-6 text-text" />}
+          {body.editedAt ? <p className="mt-3 text-xs text-text-subtle">Edited {format(parseISO(body.editedAt), "EEE d MMM yyyy, HH:mm")}</p> : null}
+        </>
+      )}
+    </section>
+  );
+}
+
+/** A plain-text message as a TipTap doc, so older rows open in the editor too. */
+function textToDoc(text: string): JSONContent {
+  return { type: "doc", content: text.split("\n").map((line) => ({ type: "paragraph", ...(line ? { content: [{ type: "text", text: line }] } : {}) })) };
+}
+
+/** Rewrite one message in place: the words only — who, when and where stay. */
+function EditUpdateForm({ update, minHeight = "min-h-24", onDone }: { update: TrackerEntry["updates"][number]; minHeight?: string; onDone: () => void }) {
+  const { run, pending } = useRun();
+  const initial = (update.doc as JSONContent | null) ?? textToDoc(update.note);
+  const [value, setValue] = useState<EditorValue>({ doc: initial, text: update.note, hasContent: true });
+  function save() {
+    if (!value.hasContent || pending) return;
+    run(() => editFollowUpUpdate({ updateId: update.id, note: value.text, ...(value.doc ? { doc: value.doc } : {}) }), "Message updated", onDone);
+  }
+  return (
+    <div className="mt-2 flex flex-col gap-2">
+      <UpdateEditor boxed autoFocus id={`edit-${update.id}`} label="Edit message" initialContent={initial} minHeight={minHeight} onChange={setValue} onSubmit={save} />
+      <div className="flex items-center justify-end gap-2">
+        <Button size="sm" variant="ghost" onClick={onDone} disabled={pending}>Cancel</Button>
+        <Button size="sm" onClick={save} loading={pending} disabled={!value.hasContent}>Save</Button>
+      </div>
+    </div>
+  );
+}
+
 function Timeline({ entry }: { entry: TrackerEntry }) {
   const isFollowUp = entry.kind === "FollowUp";
+  const [editingId, setEditingId] = useState<string | null>(null);
   const heading = isFollowUp ? "Conversation" : entry.kind === "Task" ? "Notes" : "Updates";
   return (
     <section aria-label={heading} className="min-w-0 border-t border-border pt-5 md:border-t-0 md:border-l md:pt-0 md:pl-8">
@@ -2354,17 +2560,31 @@ function Timeline({ entry }: { entry: TrackerEntry }) {
                   style={update.fromThem ? tone(FOLLOW_STATE.replied.tone) : undefined}
                   className={cn("relative mt-1.5 size-2.5 shrink-0 rounded-full", update.fromThem ? "bg-[var(--tone)]" : "bg-sidebar")}
                 />
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-xs text-text-muted">
                     {who ? <span className="font-semibold text-text">{who} · </span> : null}
                     <time dateTime={update.occurredAt}>{format(parseISO(update.occurredAt), "EEE d MMM yyyy, HH:mm")}</time>
                     {isFollowUp ? ` · ${update.channel}` : ""}
+                    {update.editedAt ? <span title={`Edited ${format(parseISO(update.editedAt), "EEE d MMM yyyy, HH:mm")}`}> · edited</span> : null}
+                    {!isStatusNote(update) && editingId !== update.id ? (
+                      <button
+                        type="button"
+                        onClick={() => setEditingId(update.id)}
+                        aria-label="Edit this message"
+                        title="Edit"
+                        className="ml-1.5 inline-grid size-7 cursor-pointer place-items-center rounded-full align-middle text-text-subtle transition-colors duration-150 hover:bg-surface-2 hover:text-text"
+                      >
+                        <Pencil className="size-3.5" aria-hidden="true" />
+                      </button>
+                    ) : null}
                   </p>
                   {isStatusNote(update) ? (
                     <p className={cn("mt-1 inline-flex items-center gap-1.5 text-sm font-semibold", update.note === TODO_STATUS_NOTES.done ? "text-status-completed-fg" : "text-text-muted")}>
                       {update.note === TODO_STATUS_NOTES.done ? <Check className="size-3.5" strokeWidth={3} aria-hidden="true" /> : <RotateCcw className="size-3.5" aria-hidden="true" />}
                       {update.note}
                     </p>
+                  ) : editingId === update.id ? (
+                    <EditUpdateForm update={update} onDone={() => setEditingId(null)} />
                   ) : update.doc ? (
                     <UpdateDoc doc={update.doc} className="mt-1 text-md" />
                   ) : update.note ? (

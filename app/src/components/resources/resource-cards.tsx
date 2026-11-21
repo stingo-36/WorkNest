@@ -146,28 +146,27 @@ export function ResourceComposer({ initialType, resource, knownTags, typeOptions
             className={cn("min-h-12 resize-y", sourceIsCode && "font-mono")}
           />
         </Field>
+        {/* Every field shows from the start (2026-11-21): waiting for a paste hid title, description and tags. */}
         {source.trim() ? (
-          <>
-            <p className="-mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-accent-text">
-              {sourceIsLink ? <ArrowUpRight className="size-4" aria-hidden="true" /> : <Clipboard className="size-4" aria-hidden="true" />}
-              {sourceIsLink ? "A link: it gets an Open button." : "A command or code: it gets a Copy button."}
-            </p>
+          <p className="-mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-accent-text">
+            {sourceIsLink ? <ArrowUpRight className="size-4" aria-hidden="true" /> : <Clipboard className="size-4" aria-hidden="true" />}
+            {sourceIsLink ? "A link: it gets an Open button." : "A command or code: it gets a Copy button."}
+          </p>
+        ) : null}
             <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_12rem]">
               <Field label="Title" htmlFor="resource-title" required hint={sourceIsLink && !titleTouched ? "Filled in from the link." : undefined}>
                 <Input id="resource-title" value={title} onChange={(event) => { setTitle(event.target.value); setTitleTouched(true); }} placeholder={sourceIsLink ? "Name" : "What does it do?"} />
               </Field>
-              <Field label="Type" htmlFor="resource-type" required hint={!typeTouched ? "Picked from what you pasted." : undefined}>
+              <Field label="Type" htmlFor="resource-type" required hint={source.trim() && !typeTouched ? "Picked from what you pasted." : undefined}>
                 <TypePicker id="resource-type" value={type} options={typeOptions} onChange={(next) => { setType(next); setTypeTouched(true); }} />
               </Field>
             </div>
             <Field label="Description" htmlFor="resource-description" hint="Optional.">
-              <MarkdownEditor id="resource-description" compact ariaLabel="Description" value={description} onChange={setDescription} placeholder="What is it for? When do you use it?" minHeight="min-h-14" />
+              <MarkdownEditor id="resource-description" compact ariaLabel="Description" value={description} onChange={setDescription} placeholder="What is it for? When do you use it?" minHeight="min-h-24" />
             </Field>
             <Field label="Tags" htmlFor="resource-tags" hint="Optional. Pick a saved tag, or type a new one and press Enter or comma.">
               <TagInput id="resource-tags" value={tags} onChange={setTags} suggestions={knownTags} />
             </Field>
-          </>
-        ) : null}
       </div>
       ) : (
       <div className="grid min-w-0 gap-4">

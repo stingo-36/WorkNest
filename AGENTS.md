@@ -82,7 +82,9 @@ App-only scripts: `npm --prefix app run <script>` — see `Architecture.md` §8.
   `requireAdmin()` first, and expose only the documented admin account-management
   surface. Destructive admin mutations require the target account email.
 - **History is append-only.** Never add an edit/delete path for `TicketWorkUpdate`
-  (except the existing same-log autosave upsert and detach) or `FollowUpUpdate`.
+  (except the existing same-log autosave upsert and detach) or `FollowUpUpdate`
+  (except `editFollowUpUpdate`, which rewrites a message's text only and stamps
+  `editedAt`; who spoke, channel and `occurredAt` never change, and there is no delete).
   Whole-account/whole-workspace erasure is the explicit privacy/admin exception.
 - **Only what exists.** Don't present Coming Soon or deferred features as live
   (homepage, nav, empty states). No invented users, logos or numbers.

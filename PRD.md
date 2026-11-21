@@ -249,7 +249,7 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
 |---|---|---|---|---|
 | **To-do** (`Task`) | overdue/due-today to-dos + follow-ups that need you | title · due date · ★ | left **Today** (incl. follow-ups: nudge due / replied) + "✓ N completed today · Show"; right **Upcoming** by *tomorrow's date · Later this week · Next week · Later · No date* (to-dos + future nudges) | round tick (done / close / reopen) · ★; follow-ups: Mark nudged / Got it |
 | **Follow-ups** (`FollowUp`) | replies + pings due | **New follow-up** popup (2026-11-17): type · title · who + where (channel) · date | one list (2026-11-17): *Your turn* · *Time to ping* · *Waiting on them* + collapsed closed line | I pinged them · Done (= close); replied: Done |
-| **Notes** (`Note`) | none (2026-11-17; was open notes) | **New note** button in the card header opens the composer in a popup: title · body · formatting · tags · ★ | one full-width **Notes** card (2026-11-11): count, search (beside New note from 1024px), tag filter chips (All + each tag), then **Pinned · This week · Earlier** (title, tag chips and "2 days ago" / "28 Oct" only — the text stays inside), collapsed archive at the bottom | ★ (Restore on archived) |
+| **Notes** (`Note`) | none (2026-11-17; was open notes) | **New note** button in the card header opens the composer in a popup: type (Minutes of meeting / Other) · title · body · formatting · tags · ★; a MoM also takes meeting date and who | one full-width **Notes** card (2026-11-11): count, search (beside New note from 1024px), tag filter chips (All + each tag), then **Pinned · This week · Earlier** (title, tag chips and "2 days ago" / "28 Oct" only — the text stays inside), collapsed archive at the bottom | ★ (Restore on archived) |
 
 - **Simpler To-do** (2026-11-17, phase 1 of the Tracker simplification, from the owner-approved
   clickable prototype): the four stat cards, sprint meter, Next up card and This week card are gone.
@@ -267,10 +267,12 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
 - **Work / Personal** (2026-10-21; **All** added 2026-11-14 — work and personal to-dos in one list; both replaced by the Personal tab 2026-11-17): the To-do tab had a toggle beside the tabs,
   **Work** selected every time the page opens. *Work* is the Today | Upcoming queue above.
   *Personal* is a wall of **sticky notes** (yellow/pink/green/blue/lilac paper, slight tilt;
-  1 → 2 → 3 → 4 columns at 375/768/1024/1440): tick, title (opens the dialog), last note,
-  date if any (amber when overdue/today), delete and ★. The add field there says "Jot a
-  personal to-do…" and starts with **no date**; **Enter adds, Shift+Enter starts a new line**
-  (the field grows; line breaks are kept on the note). Each sticky has **Edit** (pencil):
+  1 → 2 → 3 columns at 375/768/1280): tick, a bold **title** (the first line) over the
+  **details** as body text — both open the dialog; a first line over 80 characters shows as
+  body — then last note, date if any (amber when overdue/today), delete and ★. The add bar
+  there has a **Title** line ("Title — jot a personal to-do…") and a **Details (optional)**
+  box under it (2026-11-21), saved together as title + new line + details, and starts with
+  **no date**; Enter adds, Shift+Enter in Details starts a new line. Each sticky has **Edit** (pencil):
   the text becomes an in-place editor — Enter saves, Shift+Enter new line, Escape cancels.
   Only personal to-dos are editable this way; work to-dos stay one-line and as recorded.
   Done ones fold into "✓ N done · Show".
@@ -329,7 +331,14 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
 - A new note is written in a popup opened by **New note** (2026-11-11; was a composer card
   beside the list): title, the editor (saved as its first update), an optional **date**
   (defaults to today; sets the first update's date), tags and ★. Its tag / date panels open
-  inside the popup. The Notes card has its own search and a **tag filter row** (All + every
+  inside the popup. A **Type** dropdown (2026-11-21) picks **Minutes of meeting** or **Other**.
+  A MoM asks for the **Meeting date** (becomes the note's date) and **With** (who), fills an
+  empty title as "Meeting with Ashwini on 4 Nov 2026" and is tagged `mom` (the tag work-log
+  meetings already use for linked minutes). Opened, a MoM shows Meeting date · Type · With and
+  its **Minutes** with **Edit** (rewritten in place, "Edited …" shown) — no *Add to this note*;
+  an Other note keeps its add-to-the-note history. Changing Type in the window converts a note
+  either way (adds/drops the `mom` tag); the `mom` tag is hidden from the Tags field. MoM rows
+  show "With Ashwini · 4 Nov 2026". The Notes card has its own search and a **tag filter row** (All + every
   tag on open notes, most used first; brought back 2026-11-11); a tag chip on a row filters
   to that tag. Notes group into *Pinned* (starred), *This week* (changed in the last 7 days)
   and *Earlier*; each group's rows flow into 2 columns from 1024px and 3 from 1440px.
@@ -559,6 +568,10 @@ two columns.
   the reason is shown and nothing is saved (an existing report stays). No code-built
   report; older ones are hidden. Stored per sprint; *Regenerate* replaces it; a note
   appears when a log in the sprint changed after generation.
+- **Edit** (2026-11-21) opens the saved report's text (its Markdown: `##` section, `###`
+  ticket, `-` bullet) beside a live preview; **Save report** stores it (⌘/Ctrl+Enter) and the
+  footer adds "Edited …". The copy buttons copy the edited text. *Regenerate* on an edited
+  report asks first, since it replaces the edits. Only an existing AI report can be edited.
 - A copy bar on the report offers **Copy for Google Docs** (formatted) and **Copy as
   plain text**. The preview and the formatted copy follow the doc's layout: centred bold title with the
   date line, light-blue section bands, bold group titles, bullets. The clipboard gets

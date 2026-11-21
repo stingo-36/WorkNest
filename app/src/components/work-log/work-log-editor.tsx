@@ -205,7 +205,7 @@ export function WorkLogEditor({ workLog, relative, adjacent, ticketsEnabled, day
 
   return (
     <SaveStatusProvider>
-      <div className="work-logs-page work-log-edit-page wl-day mx-auto flex w-full max-w-4xl min-w-0 flex-col gap-4">
+      <div className="work-logs-page work-log-edit-page wl-day flex w-full min-w-0 flex-col gap-4">
         {/* Top bar (2026-11-18): back to the sprint, neighbouring days, day type, save state. */}
         <div role="group" aria-label="Log status" className="flex flex-wrap items-center gap-x-3 gap-y-2.5">
           <Link href="/work-logs" className="inline-flex h-11 items-center gap-1.5 rounded-full border border-border-strong bg-surface px-4 text-sm font-semibold text-text transition-colors duration-150 hover:bg-surface-2 md:h-10">

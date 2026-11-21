@@ -55,6 +55,7 @@ export default async function TrackerPage({
               updates: entry.updates.map((update) => ({
                 ...update,
                 occurredAt: update.occurredAt.toISOString(),
+                editedAt: update.editedAt?.toISOString() ?? null,
                 createdAt: update.createdAt.toISOString(),
               })),
             }))

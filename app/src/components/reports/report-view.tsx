@@ -1,20 +1,21 @@
 "use client";
 
 import { format } from "date-fns";
-import { Check, CircleAlert, Copy, FileText, RefreshCw } from "lucide-react";
+import { Check, CircleAlert, Copy, FileText, Pencil, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 
-import { generateReport } from "@/actions/reports";
+import { editReport, generateReport } from "@/actions/reports";
 import { PageHead } from "@/components/shell/page-head";
 import { cn } from "@/components/cn";
 import { Button } from "@/components/ui/button";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { toast } from "@/components/ui/toast";
 import { parseReport, reportToHtml, reportToText, type ParsedReport } from "@/components/reports/report-format";
 
 type SprintOption = { key: string; label: string; logCount: number; hasReport: boolean };
-type Report = { content: string; model: string | null; generatedAt: string };
+type Report = { content: string; model: string | null; generatedAt: string; editedAt: string | null };
 
 /**
  * /reports — a "5-15 Report" per sprint in the user's doc format, written on
@@ -29,8 +30,38 @@ export function ReportView({ sprintKey, sprints, report, stale, aiOn }: { sprint
   const [copied, setCopied] = useState<"doc" | "text" | null>(null);
   const parsed = useMemo(() => (report ? parseReport(report.content) : null), [report]);
   const selected = sprints.find((s) => s.key === sprintKey);
+  // Edit (2026-11-21): the report's Markdown beside a live preview; Save stores it.
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, startSaving] = useTransition();
+  const [confirmRegenerate, setConfirmRegenerate] = useState(false);
+  // Edit errors sit under the text box; the banner above is about generating.
+  const [editError, setEditError] = useState<string>();
+  const draftParsed = useMemo(() => (editing ? parseReport(draft) : null), [editing, draft]);
+
+  function startEdit() {
+    if (!report) return;
+    setDraft(report.content);
+    setEditError(undefined);
+    setEditing(true);
+  }
+
+  function saveEdit() {
+    if (!draft.trim()) { setEditError("The report can't be empty — Regenerate to start over."); return; }
+    if (draft === report?.content) { setEditing(false); return; }
+    startSaving(async () => {
+      const result = await editReport({ sprint: sprintKey, content: draft });
+      if (!result.ok) { setEditError(result.error.message); return; }
+      toast.success("Report saved");
+      setEditing(false);
+      router.refresh();
+    });
+  }
 
   function generate() {
+    // An edited report would lose the edits: ask first.
+    if (report?.editedAt && !confirmRegenerate) { setConfirmRegenerate(true); return; }
+    setConfirmRegenerate(false);
     setError(undefined);
     startTransition(async () => {
       const result = await generateReport({ sprint: sprintKey });
@@ -116,8 +147,16 @@ export function ReportView({ sprintKey, sprints, report, stale, aiOn }: { sprint
         <section aria-labelledby="report-heading" aria-busy={pending} className="flex min-w-0 flex-col items-center gap-4">
           <div className="flex w-full max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-border bg-surface/90 p-2 pl-4 shadow-card">
             <h2 id="report-heading" className="mr-auto text-sm font-semibold text-text">{selected ? `${selected.label} report` : "Report"}</h2>
-            {report ? (
+            {report && editing ? (
               <>
+                <Button size="sm" variant="secondary" onClick={() => { setEditing(false); setEditError(undefined); }} disabled={saving}>Cancel</Button>
+                <Button size="sm" onClick={saveEdit} loading={saving}><Check aria-hidden="true" />Save report</Button>
+              </>
+            ) : report ? (
+              <>
+                <Button size="sm" variant="secondary" onClick={startEdit} disabled={pending}>
+                  <Pencil aria-hidden="true" />Edit
+                </Button>
                 <Button size="sm" variant="secondary" onClick={() => void copy("text")} disabled={pending || !parsed}>
                   {copied === "text" ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
                   {copied === "text" ? "Copied" : "Copy as plain text"}
@@ -128,13 +167,41 @@ export function ReportView({ sprintKey, sprints, report, stale, aiOn }: { sprint
                 </Button>
               </>
             ) : null}
-            <Button size="sm" variant={report ? "secondary" : "primary"} onClick={generate} loading={pending} disabled={!aiOn || !selected?.logCount}>
+            {editing ? null : <Button size="sm" variant={report ? "secondary" : "primary"} onClick={generate} loading={pending} disabled={!aiOn || !selected?.logCount}>
               {!pending ? <RefreshCw aria-hidden="true" /> : null}
               {pending ? "Generating…" : report ? "Regenerate" : "Generate report"}
-            </Button>
+            </Button>}
           </div>
 
-          {report ? (
+          {report && editing ? (
+            <div className="grid w-full min-w-0 gap-4 xl:grid-cols-2">
+              <div className="flex min-w-0 flex-col gap-2">
+                <label htmlFor="report-markdown" className="text-sm font-semibold text-text">Report text</label>
+                <p id="report-markdown-hint" className="text-sm text-text-muted">
+                  <code>##</code> section · <code>###</code> ticket or group · <code>-</code> bullet · <code>**bold**</code>. The preview updates as you type.
+                </p>
+                <textarea
+                  id="report-markdown"
+                  autoFocus
+                  value={draft}
+                  maxLength={15000}
+                  aria-describedby="report-markdown-hint"
+                  aria-invalid={editError ? true : undefined}
+                  onChange={(event) => { setDraft(event.target.value); setEditError(undefined); }}
+                  onKeyDown={(event) => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); saveEdit(); } }}
+                  className="min-h-[70dvh] w-full resize-y rounded-lg border border-border-strong bg-surface p-4 font-mono text-sm leading-relaxed text-text shadow-card outline-none focus:border-primary focus:shadow-[var(--sh-focus)]"
+                />
+                {editError ? <p role="alert" className="text-sm font-semibold text-danger">{editError}</p> : null}
+                <p className="text-xs text-text-muted">⌘/Ctrl + Enter saves.</p>
+              </div>
+              <div className="flex min-w-0 flex-col gap-2">
+                <p className="text-sm font-semibold text-text" aria-hidden="true">Preview</p>
+                <div className="w-full rounded-lg border border-border bg-surface shadow-card">
+                  {draftParsed ? <ReportDocument report={draftParsed} /> : null}
+                </div>
+              </div>
+            </div>
+          ) : report ? (
             <>
               {stale ? <p className="w-full max-w-3xl text-sm font-semibold text-text">Logs in this sprint changed since this was generated — regenerate to include them.</p> : null}
               <div className="w-full max-w-3xl rounded-lg border border-border bg-surface shadow-card">
@@ -143,6 +210,7 @@ export function ReportView({ sprintKey, sprints, report, stale, aiOn }: { sprint
               <p className="w-full max-w-3xl text-xs text-text-muted" aria-live="polite">
                 AI report · {report.model} · Generated{" "}
                 <time dateTime={report.generatedAt}>{format(new Date(report.generatedAt), "d MMM yyyy, h:mm a")}</time>
+                {report.editedAt ? <> · Edited <time dateTime={report.editedAt}>{format(new Date(report.editedAt), "d MMM yyyy, h:mm a")}</time></> : null}
               </p>
             </>
           ) : (
@@ -162,6 +230,16 @@ export function ReportView({ sprintKey, sprints, report, stale, aiOn }: { sprint
           )}
         </section>
       </div>
+
+      <ConfirmationDialog
+        open={confirmRegenerate}
+        title="Regenerate this report?"
+        description="You edited this report. Regenerating writes it again from your work logs and your edits are lost."
+        confirmLabel="Regenerate"
+        destructive
+        onConfirm={generate}
+        onCancel={() => setConfirmRegenerate(false)}
+      />
     </div>
   );
 }
