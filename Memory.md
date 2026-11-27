@@ -27,6 +27,8 @@
 
 - **2026-11-28 — Opened Personal to-dos use the Note dialog layout.** Split the stored subject into title and body using the same rules as sticky cards. The toolbar holds status, dates and actions, with Details collapsed. Show the existing timeline in the reading column, and open the composer there via Add a note. The toolbar’s Edit action saves title and details via `editPersonalTodo`.
 
+- **2026-11-28 — Gmail imports Drupal Module Watch.** The issues already arrive under the Drupal Daily label. Read the current digest’s module cards and keep support for the older digest. Retry zero-result Module Watch issues once within the normal 14-day window, keeping successful and undone imports.
+
 - **2026-11-27 — Tracker split into one file per tab; Ping and create-with-star are single
   server writes; one shared "open" rule.** Steps 2–4 of the Tracker clean-up (step 1 = `lib/tracker-rules.ts`).
   (2) `tracker-board.tsx` (2,821 lines) became a frame + `tabs/*` + `entry-dialog` + `rows` + `kit`,
@@ -1275,6 +1277,7 @@ is done on the real rendered app.
 - 2026-11-28 — Drupal Resources uses a single list with added dates, visible Open buttons and Gmail highlights — `components/resources/{resource-type-view,resource-cards}.tsx`, `app/globals.css`
 - 2026-11-28 — Added inline title and details editing to the Personal to-do dialog — `components/tracker/entry-dialog.tsx`
 - 2026-11-28 — Personal to-do dialog shows task text, note editor and timeline in one column — `components/tracker/{entry-dialog,kit,tabs/personal}.tsx`
+- 2026-11-28 — Added Drupal Module Watch parsing and a one-time retry for recent zero-result imports — `lib/drupal-digest.ts`, `lib/gmail.ts`, `components/profile/gmail-settings.tsx`, migration `retry_module_watch_imports`
 - 2026-11-27 — Tracker split into `components/tracker/{tracker-board,kit,rows,entry-dialog}.tsx` + `tabs/*.tsx` (dead `Summary` removed); `pingFollowUp` + `createFollowUp({ pinned })` replace two-call sequences on the board and the phone; `OPEN_ON_LISTS` used by Tracker reads, Work Logs, sprint report, Ask, Kaizen and Favourites — `components/tracker/*`, `lib/follow-ups.ts`, `actions/follow-ups.ts`, `lib/validation.ts`, `lib/ask.ts`, `lib/reports.ts`, `lib/mobile-api.ts`, `app/api/mobile/tracker/route.ts`, `app/(app)/favourites/page.tsx`
 - 2026-11-27 — New `lib/tracker-rules.ts` (`readEntry`, `spokeLast`, `tabOf`, `nextReminder`, effective Reminder); board, Ask, Kaizen API and follow-up reads use it; `lib/follow-up-reminder.ts` removed; Ask links now open Personal / Archived entries on their own tab — `lib/tracker-rules.ts`, `components/tracker/tracker-board.tsx`, `lib/ask.ts`, `lib/mobile-api.ts`, `lib/follow-ups.ts`
 - 2026-11-27 — Added `GLOSSARY.md` (domain language, via the `domain-modeling` skill) and linked it from AGENTS §1/§2 and the README; ran `improve-codebase-architecture` (report in the OS temp dir, not the repo); code map line counts fixed — `GLOSSARY.md`, `AGENTS.md`, `README.md`, `.claude/skills/worknest-codemap/SKILL.md`

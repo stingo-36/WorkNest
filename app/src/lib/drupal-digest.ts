@@ -1,6 +1,6 @@
 /**
- * Reads a "Drupal Daily" email (Module Discovery & Release Updates) and returns
- * the modules in it. Pure — no I/O — so lib/gmail.ts and scripts can share it.
+ * Extracts Drupal project resources from Drupal Module Watch and the older
+ * Module Discovery & Release Updates digest. Pure — no I/O.
  *
  * The email is HTML. It's flattened to one line per block, with links kept as
  * `[text](url)`, then read by its fixed labels: a module is the line just above
@@ -60,7 +60,35 @@ function projectUrl(line: string): string | null {
   return bare ? `https://www.drupal.org/project/${bare[1].toLowerCase()}` : null;
 }
 
-export function parseDrupalDigest(html: string): DigestModule[] {
+function parseModuleWatch(html: string): DigestModule[] {
+  const modules = new Map<string, DigestModule>();
+  const cards = html.matchAll(/<h3\b[^>]*>([\s\S]*?)<\/h3\s*>([\s\S]*?)(?=<(?:h[1-3]|hr)\b|$)/gi);
+
+  for (const [, heading, body] of cards) {
+    const title = plain(htmlToLines(heading).join(" "))
+      .replace(/\s+[—–-]\s+v?\d+\.\d.*$/i, "")
+      .replace(/\s+\((?:stable|alpha|beta|rc|release candidate)\)$/i, "");
+    const lines = htmlToLines(body);
+    const linkIndex = lines.findIndex((line) => /^view on drupal\.org\b/i.test(plain(line)));
+    const url = linkIndex >= 0 ? projectUrl(lines[linkIndex]) : null;
+    if (!title || !url || modules.has(url)) continue;
+
+    const beforeLink = lines.slice(0, linkIndex);
+    const releaseNotesIndex = beforeLink.findIndex((line) => /^what['’]s new\?/i.test(plain(line)));
+    const intro = releaseNotesIndex < 0 ? beforeLink : beforeLink.slice(0, releaseNotesIndex);
+    const descriptionIndex = intro.findIndex((line) => /^what does it do\?/i.test(plain(line)));
+    // When there's no description label, the body starts with the release metadata.
+    const description = plain(intro.slice(descriptionIndex < 0 ? 1 : descriptionIndex).join(" "))
+      .replace(/^what does it do\?\s*/i, "");
+    modules.set(url, { title, url, description, moduleOfTheDay: false });
+  }
+
+  return [...modules.values()];
+}
+
+export function parseDrupalDigest(html: string, subject = ""): DigestModule[] {
+  if (/^Drupal Module Watch\b/i.test(subject.trim())) return parseModuleWatch(html);
+
   const lines = htmlToLines(html);
   const modules: DigestModule[] = [];
 
