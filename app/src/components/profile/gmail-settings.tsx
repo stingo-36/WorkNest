@@ -94,7 +94,7 @@ export function GmailSettingsCard({ initial, resourceTypes }: { initial: GmailSt
         </p>
       ) : !connected ? (
         <div className="flex flex-col items-start gap-3">
-          <p className="text-md text-text-muted">Connect the Gmail account that receives your Drupal Daily email.</p>
+          <p className="text-md text-text-muted">Connect the Gmail account that receives Drupal Module Watch. The default Gmail label is Drupal Daily.</p>
           {/* A plain link: the route redirects to Google, then back here. */}
           <a href="/api/gmail/connect" className="inline-flex h-11 items-center gap-2 rounded-full bg-sidebar px-5 text-base font-semibold text-sidebar-fg transition-colors duration-150 hover:bg-sidebar-3">
             <Inbox className="size-4" aria-hidden="true" />

@@ -155,7 +155,7 @@ export async function syncGmail(userId: string, { onlyIfStale = false } = {}): P
     for (const id of ids.filter((messageId) => !seen.has(messageId)).reverse()) {
       const message = await gmailGet<GmailMessage>(accessToken!, `/messages/${id}?format=full`);
       const subject = message.payload?.headers?.find((header) => header.name.toLowerCase() === "subject")?.value ?? "";
-      const modules = parseDrupalDigest(messageBody(message.payload));
+      const modules = parseDrupalDigest(messageBody(message.payload), subject);
       const existing = new Set(
         (await prisma.resource.findMany({ where: { userId, url: { in: modules.map((module) => module.url) } }, select: { url: true } })).map((row) => row.url),
       );
