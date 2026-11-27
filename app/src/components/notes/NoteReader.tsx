@@ -10,6 +10,7 @@ import { cn } from "@/components/cn";
 import { NoteViewer } from "@/components/notes/NoteViewer";
 import { isJumping, NOTE_SCROLL_END, smoothScrollTo } from "@/components/notes/smooth-scroll";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
 export type ReaderPage = { id: string; title: string; content: unknown };
 export type ReaderSection = { id: string; title: string; pages: ReaderPage[] };
@@ -226,16 +227,14 @@ export function NoteReader({
             {section.pages.length === 0 ? (
               <p className="border-b-2 border-border-strong py-8 text-sm text-text-muted">No pages in this section.</p>
             ) : (
-              section.pages.map((page, index) => {
+              section.pages.map((page) => {
                 // Only what is plausibly on screen at load mounts its editor eagerly.
                 const eager = pageNumber++ < 2;
                 return (
                   <article key={page.id} id={pageAnchor(page.id)} aria-labelledby={`${pageAnchor(page.id)}-title`} className="border-b-2 border-border-strong py-8 md:py-12">
-                    <h3 id={`${pageAnchor(page.id)}-title`} className="mb-5 flex items-baseline gap-3 text-2xl font-semibold tracking-[-0.02em] text-balance text-text md:text-3xl">
-                      <span aria-hidden="true" className="shrink-0 font-medium text-text-subtle tabular-nums">
-                        {sectionIndex + 1}.{index + 1}
-                      </span>
-                      <span className="min-w-0">{page.title}</span>
+                    {/* No "1.1"-style numbers (owner, 2026-11-25): the title alone. */}
+                    <h3 id={`${pageAnchor(page.id)}-title`} className="mb-5 text-2xl font-semibold tracking-[-0.02em] text-balance text-text md:text-3xl">
+                      {page.title}
                     </h3>
                     <NoteViewer content={page.content} priority={eager} />
                   </article>
@@ -343,6 +342,8 @@ export function NoteReader({
 }
 
 function NoteActions({ note, compact }: { note: { id: string; title: string; favorite: boolean }; compact?: boolean }) {
+  const [confirmTrash, setConfirmTrash] = useState(false);
+  const trashForm = useRef<HTMLFormElement>(null);
   return (
     <div className="flex items-center gap-1.5">
       {/* Forms, not links: favouriting and trashing are writes. */}
@@ -366,12 +367,24 @@ function NoteActions({ note, compact }: { note: { id: string; title: string; fav
         <Pencil aria-hidden="true" />
         Edit
       </Link>
-      <form action={deleteNote} className={cn(!compact && "ml-auto")}>
+      <form ref={trashForm} action={deleteNote} className={cn(!compact && "ml-auto")}>
         <input type="hidden" name="id" value={note.id} />
-        <Button type="submit" size="sm" variant="ghost" iconOnly className="text-danger hover:bg-danger-subtle hover:text-danger" aria-label={`Move ${note.title} to trash`} title="Move to trash">
+        <Button type="button" onClick={() => setConfirmTrash(true)} size="sm" variant="ghost" iconOnly className="text-danger hover:bg-danger-subtle hover:text-danger" aria-label={`Move ${note.title} to trash`} title="Move to trash">
           <Trash2 aria-hidden="true" />
         </Button>
       </form>
+      <ConfirmationDialog
+        open={confirmTrash}
+        title={`Move “${note.title}” to trash?`}
+        description="It leaves your notes list. There is no trash view in the app yet to restore it from."
+        confirmLabel="Move to trash"
+        destructive
+        onCancel={() => setConfirmTrash(false)}
+        onConfirm={() => {
+          setConfirmTrash(false);
+          trashForm.current?.requestSubmit();
+        }}
+      />
     </div>
   );
 }

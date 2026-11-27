@@ -14,6 +14,7 @@ import {
 
 import type { NoteFormState } from "@/actions/notes";
 import { Field } from "@/components/notes/note-field";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { Input } from "@/components/ui/input";
 import { EMPTY_NOTE_DOC } from "@/components/notes/editor-extensions";
 import { NoteIconPicker } from "@/components/notes/NoteIconPicker";
@@ -94,9 +95,16 @@ export function NoteForm({
       ? fromDefaults(defaults)
       : seedSections(base),
   );
-  const [collapsed, setCollapsed] = useState<string[]>([]);
+  // A saved note opens with every section and page folded (owner, 2026-11-25):
+  // you pick what to edit from the outline or a header. A new note's single
+  // empty section/page stays open — there is nothing to pick from yet.
+  const [collapsed, setCollapsed] = useState<string[]>(() =>
+    defaults?.sections.length ? defaults.sections.map((section) => section.id) : [],
+  );
   /** Page ids whose editor is folded away (header still shows). */
-  const [collapsedPages, setCollapsedPages] = useState<string[]>([]);
+  const [collapsedPages, setCollapsedPages] = useState<string[]>(() =>
+    defaults?.sections.flatMap((section) => section.pages.map((page) => page.id)) ?? [],
+  );
   /**
    * Client validation runs the very same Zod schema as the action, so its
    * error keys already line up with `state.errors`. When it has an opinion it
@@ -173,6 +181,50 @@ export function NoteForm({
   const reduceMotion = useReducedMotion() ?? false;
   /** The sticky save bar — a revealed section/page lands just below it. */
   const barRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Where the stuck save bar ends, for the editors' sticky toolbars to sit
+  // under. Its height changes as it wraps, and its `top` per breakpoint.
+  useEffect(() => {
+    const bar = barRef.current;
+    const form = formRef.current;
+    if (!bar || !form) return;
+    const publish = () => {
+      const top = parseFloat(getComputedStyle(bar).top) || 0;
+      form.style.setProperty("--note-bar-bottom", `${Math.max(0, top + bar.offsetHeight)}px`);
+    };
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(bar);
+    window.addEventListener("resize", publish);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", publish);
+    };
+  }, []);
+
+  /** Section or page waiting on "Delete?" — removal is never one click. */
+  const [pendingRemoval, setPendingRemoval] = useState<
+    | { kind: "section"; sectionId: string; title: string; pages: number }
+    | { kind: "page"; sectionId: string; pageId: string; title: string }
+    | null
+  >(null);
+
+  const confirmRemoval = () => {
+    if (!pendingRemoval) return;
+    if (pendingRemoval.kind === "section") {
+      setSections((rows) => rows.filter((row) => row.id !== pendingRemoval.sectionId));
+    } else {
+      setSections((rows) =>
+        rows.map((row) =>
+          row.id === pendingRemoval.sectionId
+            ? { ...row, pages: row.pages.filter((page) => page.id !== pendingRemoval.pageId) }
+            : row,
+        ),
+      );
+    }
+    setPendingRemoval(null);
+  };
 
   /** Scroll a section/page into view once React has rendered (and unfolded) it. */
   const reveal = (elementId: string) =>
@@ -270,7 +322,7 @@ export function NoteForm({
   };
 
   return (
-    <form action={formAction} onSubmit={handleSubmit}>
+    <form ref={formRef} action={formAction} onSubmit={handleSubmit}>
       <input type="hidden" name="notes" value={serialised} />
       {defaults?.id ? (
         <input type="hidden" name="id" value={defaults.id} />
@@ -406,9 +458,20 @@ export function NoteForm({
                 onChange={(next) => updateSection(section.id, next)}
                 onDuplicate={() => duplicateSection(index)}
                 onRemove={() =>
-                  setSections((rows) =>
-                    rows.filter((row) => row.id !== section.id),
-                  )
+                  setPendingRemoval({
+                    kind: "section",
+                    sectionId: section.id,
+                    title: section.title.trim() || `Section ${index + 1}`,
+                    pages: section.pages.length,
+                  })
+                }
+                onRemovePage={(page, pageIndex) =>
+                  setPendingRemoval({
+                    kind: "page",
+                    sectionId: section.id,
+                    pageId: page.id,
+                    title: page.title.trim() || `Page ${pageIndex + 1}`,
+                  })
                 }
                 onAddPage={() => addPage(section)}
                 onMovePage={movePage}
@@ -441,6 +504,20 @@ export function NoteForm({
 
       <NoteOutline sections={sections} collapsed={collapsed} onJump={jumpTo} />
       </div>
+
+      <ConfirmationDialog
+        open={pendingRemoval !== null}
+        title={pendingRemoval ? `Delete “${pendingRemoval.title}”?` : "Delete?"}
+        description={
+          pendingRemoval?.kind === "section"
+            ? `This removes the section and its ${pendingRemoval.pages} page${pendingRemoval.pages === 1 ? "" : "s"} from the note when you save.`
+            : "This removes the page from the note when you save."
+        }
+        confirmLabel="Delete"
+        destructive
+        onCancel={() => setPendingRemoval(null)}
+        onConfirm={confirmRemoval}
+      />
     </form>
   );
 }
@@ -470,14 +547,13 @@ function NoteOutline({ sections, collapsed, onJump }: { sections: SectionDraft[]
               {collapsed.includes(section.id) ? <span className="text-2xs text-text-subtle">folded</span> : null}
             </button>
             <ol className="ml-4 mt-1 flex flex-col border-l border-border pl-2">
-              {section.pages.map((page, pageIndex) => (
+              {section.pages.map((page) => (
                 <li key={page.id}>
                   <button
                     type="button"
                     onClick={() => onJump(section.id, page.id)}
                     className={cn("flex w-full cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm transition-colors hover:bg-surface-2", page.title.trim() ? "text-text-muted hover:text-text" : "text-text-subtle")}
                   >
-                    <span className="shrink-0 text-2xs tabular-nums text-text-subtle">{pageIndex + 1}.</span>
                     <span className="truncate">{page.title.trim() || "Untitled page"}</span>
                   </button>
                 </li>

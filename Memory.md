@@ -4,7 +4,7 @@
 > (with the *why*), gotchas that cost time before, and a changelog. Newest first in
 > every section. Update rules are in `AGENTS.md` §2.
 >
-> Last synced with the codebase: **2026-11-21**
+> Last synced with the codebase: **2026-11-25**
 
 ---
 
@@ -24,6 +24,21 @@
   take ~4.5 MB — lower the limit or move files to Vercel Blob (free, hard-capped).
 
 ## Decisions
+
+- **2026-11-25 — A Tracker note is one document, edited in place, with revisions.** The
+  owner wanted a normal Edit, not the dated-entries layout, but with history kept. Edits
+  still go through `editFollowUpUpdate` (the one sanctioned rewrite), which now copies the
+  old text into `FollowUpUpdateRevision` first — nothing is lost, history stays append-only.
+  *Add to note* was retired; the few older notes with appended parts keep them below the
+  main text (merging would mean deleting update rows, which the house rules forbid).
+- **2026-11-25 — Modals animate out before unmounting.** Callers render `{x ? <Modal/> : null}`,
+  so closing cut the fade off. `Modal` now plays `[data-closing]` then calls `onClose` (×,
+  Escape, backdrop); programmatic closes (after save/delete) are still instant. The page
+  lock also sets `scrollbar-gutter: stable` so the page doesn't shift as it opens.
+- **2026-11-25 — Notes editor: folded by default, sticky toolbar, confirmed deletes; no
+  page numbers; coloured h1/h3 bands; tighter bullets.** Section/page cards use
+  `overflow-clip`, not `overflow-hidden` — hidden makes a scroll container and the sticky
+  toolbar stopped sticking (gotcha). `NoteForm` publishes `--note-bar-bottom` for it.
 
 - **2026-11-21 — An out-of-date reminder doesn't put a follow-up in Needs you.** A follow-up
   added with a past reminder (13 Nov, message sent 21 Nov) showed "Time to ping" from day one.
@@ -1220,6 +1235,7 @@ is done on the real rendered app.
 
 ## Changelog
 
+- 2026-11-25 — Tracker notes: one document with Edit, each save keeps a revision (`FollowUpUpdateRevision`, migration `20261125152131_follow_up_update_revisions`, `listUpdateRevisions`), Add to note retired; Modal close animation + no scrollbar shift; Notes: sticky editor toolbar, sections/pages folded on open, delete/trash confirmations, no 1.1 numbering, h1/h3 bands, tighter bullets — `components/tracker/tracker-board.tsx`, `components/ui/modal.tsx`, `lib/follow-ups.ts`, `actions/follow-ups.ts`, `lib/validation.ts`, `app/(app)/tracker/page.tsx`, `prisma/schema.prisma`, `components/notes/{NoteForm,SectionEditor,PageEditor,RichTextEditor,NoteReader}.tsx`, `app/globals.css`
 `YYYY-MM-DD — what changed — key files`
 
 - 2026-11-21 — Follow-ups: reminder on/before your last message counts as 2 working days after it (no more Needs you for things you just sent) — `lib/follow-up-reminder.ts`, `lib/follow-ups.ts`, `lib/mobile-api.ts`, `lib/ask.ts`

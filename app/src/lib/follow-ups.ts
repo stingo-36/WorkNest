@@ -63,6 +63,8 @@ const UPDATE_SELECT = {
   doc: true,
   editedAt: true,
   createdAt: true,
+  // How many earlier versions an edit has kept; the versions load on demand.
+  _count: { select: { revisions: true } },
 } satisfies Prisma.FollowUpUpdateSelect;
 
 /** Rich text in, plain text alongside: the doc is stored, `note` is what everything else reads. */
@@ -216,17 +218,44 @@ export async function editFollowUpUpdate(
 ) {
   const existing = await prisma.followUpUpdate.findFirst({
     where: { id: updateId, userId },
-    select: { followUpId: true },
+    select: { followUpId: true, note: true, doc: true },
   });
   if (!existing) return null;
 
   const fields = noteFields(input);
-  await prisma.followUpUpdate.update({
-    where: { id: updateId },
-    data: { note: fields.note, doc: fields.doc ?? Prisma.DbNull, editedAt: new Date() },
-  });
+  // An edit that changes nothing keeps no revision and no "edited" mark.
+  if (fields.note === existing.note && JSON.stringify(fields.doc ?? null) === JSON.stringify(existing.doc ?? null)) {
+    return getFollowUp(userId, existing.followUpId);
+  }
+  // The text as it stood goes into the revision history first, in the same
+  // transaction, so an edit can never lose what it replaced.
+  await prisma.$transaction([
+    prisma.followUpUpdateRevision.create({
+      data: {
+        updateId,
+        userId,
+        note: existing.note,
+        doc: existing.doc === null ? Prisma.DbNull : (existing.doc as Prisma.InputJsonValue),
+      },
+    }),
+    prisma.followUpUpdate.update({
+      where: { id: updateId },
+      data: { note: fields.note, doc: fields.doc ?? Prisma.DbNull, editedAt: new Date() },
+    }),
+  ]);
   await linkFiles(userId, existing.followUpId, input.doc);
   return getFollowUp(userId, existing.followUpId);
+}
+
+/** Earlier versions of one message/note entry, newest first (the owner's only). */
+export async function listUpdateRevisions(userId: string, updateId: string) {
+  const owned = await prisma.followUpUpdate.findFirst({ where: { id: updateId, userId }, select: { id: true } });
+  if (!owned) return null;
+  return prisma.followUpUpdateRevision.findMany({
+    where: { updateId, userId },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, note: true, doc: true, createdAt: true },
+  });
 }
 
 export async function setFollowUpStatus(

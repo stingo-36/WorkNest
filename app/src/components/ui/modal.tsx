@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 import { cn } from "@/components/cn";
 import { Button } from "@/components/ui/button";
@@ -36,16 +36,55 @@ export function Modal({
   const ref = useRef<HTMLDialogElement>(null);
   const pressedBackdrop = useRef(false);
   const titleId = useId();
+  /**
+   * Playing the close animation. Most callers unmount the Modal the moment
+   * `onClose` fires, which used to cut it off mid-frame (it vanished instead of
+   * easing out, 2026-11-25) — so the user's own closes (×, Escape, backdrop)
+   * animate first and call `onClose` once the dialog has faded.
+   */
+  const [closing, setClosing] = useState(false);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  const requestClose = useCallback(() => {
+    const el = ref.current;
+    if (!el || closing) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      onCloseRef.current();
+      return;
+    }
+    setClosing(true);
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      el.removeEventListener("transitionend", onEnd);
+      setClosing(false);
+      onCloseRef.current();
+    };
+    const onEnd = (event: TransitionEvent) => {
+      if (event.target === el && event.propertyName === "opacity") finish();
+    };
+    el.addEventListener("transitionend", onEnd);
+    // the floor, should no transition run (or its end event get lost)
+    window.setTimeout(finish, 320);
+  }, [closing]);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     if (open && !el.open) el.showModal();
     if (!open && el.open) el.close();
-    // The page behind shouldn't scroll while the popup is up.
-    document.documentElement.style.overflow = open ? "hidden" : "";
+    // The page behind shouldn't scroll while the popup is up — and keeping the
+    // scrollbar's gutter stops the page shifting sideways as it opens/closes.
+    const root = document.documentElement.style;
+    root.overflow = open ? "hidden" : "";
+    root.scrollbarGutter = open ? "stable" : "";
     return () => {
-      document.documentElement.style.overflow = "";
+      root.overflow = "";
+      root.scrollbarGutter = "";
     };
   }, [open]);
 
@@ -53,11 +92,12 @@ export function Modal({
     <dialog
       ref={ref}
       aria-labelledby={titleId}
+      data-closing={closing ? "" : undefined}
       onCancel={(event) => {
         // Escape. A nested dialog's cancel is its own business.
         if (event.target !== ref.current) return;
         event.preventDefault();
-        onClose();
+        requestClose();
       }}
       onPointerDown={(event) => {
         pressedBackdrop.current = event.target === ref.current;
@@ -68,7 +108,7 @@ export function Modal({
         // click to their common ancestor — the dialog — e.g. pressing a MUI
         // Select and releasing on a menu option (menus portal into the dialog).
         // So it only counts if the press started on the backdrop too.
-        if (event.target === ref.current && pressedBackdrop.current) onClose();
+        if (event.target === ref.current && pressedBackdrop.current) requestClose();
         pressedBackdrop.current = false;
       }}
       className={cn(
@@ -87,7 +127,7 @@ export function Modal({
                 {title}
               </h2>
             </div>
-            <Button variant="ghost" size="sm" iconOnly aria-label="Close" onClick={onClose} className="-mr-1.5 shrink-0">
+            <Button variant="ghost" size="sm" iconOnly aria-label="Close" onClick={requestClose} className="-mr-1.5 shrink-0">
               <X aria-hidden="true" />
             </Button>
           </header>

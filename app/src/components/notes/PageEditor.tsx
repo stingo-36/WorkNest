@@ -72,7 +72,8 @@ export function PageEditor({
       dragListener={false}
       dragControls={controls}
       id={`note-page-${page.id}`}
-      className="min-w-0 scroll-mt-48 overflow-hidden rounded-xl border border-border bg-surface shadow-xs"
+      // overflow-clip, not hidden: hidden would trap the editor's sticky toolbar
+      className="min-w-0 scroll-mt-48 overflow-clip rounded-xl border border-border bg-surface shadow-xs"
     >
       {/* Page header: lighter than the section's, title inline. */}
       <div className={cn("flex min-w-0 flex-wrap items-center gap-2 px-2.5 py-2 md:flex-nowrap md:px-3", !collapsed && "border-b border-border")}>

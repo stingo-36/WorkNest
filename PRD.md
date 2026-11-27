@@ -4,7 +4,7 @@
 > changes scope, or is retired, update the matching section here (see
 > `AGENTS.md → Keeping the docs current`).
 >
-> Last synced with the codebase: **2026-11-21**
+> Last synced with the codebase: **2026-11-25**
 
 ---
 
@@ -336,12 +336,13 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   empty title as "Meeting with Ashwini on 4 Nov 2026" and is tagged `mom` (the tag work-log
   meetings already use for linked minutes). **The opened note reads as one page**
   (2026-11-21; was two columns — facts + add box left, text squeezed right): a toolbar with a
-  summary (type · with · date · tags) and Details ▾ · Edit · Add to note · Archive · ★ · delete;
+  summary (type · with · date · tags) and Details ▾ · Edit · Archive · ★ · delete;
   **Details** opens Type, With (MoM), Meeting date / Date and Tags; then the text full width at a
-  reading measure. One entry: **Edit** in the toolbar opens it in a full-width editor (Cancel /
-  Save). Several entries: oldest first, each with its date and a pencil. **Add to note** (Other
-  only) opens an editor at the end; a MoM has no Add — its minutes are edited in place; an empty
-  note opens straight into the editor. Changing Type in the window converts a note
+  reading measure. **A note is one document** (2026-11-25): **Edit** opens its text in a
+  full-width editor (Cancel / Save) and every save keeps the version it replaced — under the
+  text, "Edited … · N revisions ▾" lists each earlier version (read-only, newest first).
+  *Add to note* was retired; older notes that had text appended show those parts below the
+  main text, each with its date and pencil. An empty note opens straight into the editor. Changing Type in the window converts a note
   either way (adds/drops the `mom` tag); the `mom` tag is hidden from the Tags field. MoM rows
   show "With Ashwini · 4 Nov 2026". The Notes card has its own search and a **tag filter row** (All + every
   tag on open notes, most used first; brought back 2026-11-11); a tag chip on a row filters
@@ -401,12 +402,16 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   measured from scroll position each frame; clicking a topic smooth-scrolls to land
   under the bar — the scroll follows the heading frame by frame and pages it flies
   past wait to load until it lands, so there is no snap at the end (2026-10-04).
-  Level-2 headings inside a page show as tinted bands, so each block of a topic
-  (e.g. Definition, Example) is easy to spot. From lg it is a **two-column
+  Headings inside a page show as coloured bands (level 1 navy, level 2 blue, level 3
+  green; 2026-11-25), so each block of a topic (e.g. Definition, Example) is easy to
+  spot. Page titles carry no "1.1"-style numbers (2026-11-25). From lg it is a **two-column
   docs layout**: contents on the left (current section a slate pill, current page sky)
   and the reading column at full width (the right "On this page" rail was removed
   2026-11-02 so notes read wider).
-- **Editing a note:** the *At a glance* outline beside the editor is capped to the
+- **Editing a note:** a saved note opens with every section and page folded (a new
+  note's first page stays open); the formatting toolbar sticks under the save bar while
+  you scroll a long page; deleting a section or page asks first (as does trashing a note
+  from the reader). The *At a glance* outline beside the editor is capped to the
   screen and scrolls on its own; clicking a section/page there smooth-scrolls to it.
   A page's editor mounts only when it comes near the screen (long notebooks stay
   smooth to scroll).

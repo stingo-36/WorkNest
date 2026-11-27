@@ -11,6 +11,7 @@ import {
   deleteFollowUpSchema,
   editFollowUpUpdateSchema,
   editPersonalTodoSchema,
+  listUpdateRevisionsSchema,
   rescheduleFollowUpSchema,
   setFollowUpAddedSchema,
   setFollowUpArchivedSchema,
@@ -26,7 +27,8 @@ import {
  * Follow-ups server actions.
  *
  * `editFollowUpUpdate` rewrites a recorded message's text only; who spoke, the
- * channel and the date stay as recorded.
+ * channel and the date stay as recorded, and the text it replaced is kept as a
+ * revision (`listUpdateRevisions`).
  */
 
 export async function createFollowUp(input: unknown) {
@@ -63,6 +65,16 @@ export async function editFollowUpUpdate(input: unknown) {
 
   revalidatePath("/tracker");
   return ok(followUp);
+}
+
+/** The versions an entry had before it was edited. Input: { updateId } */
+export async function listUpdateRevisions(input: unknown) {
+  const userId = await requireUserId();
+  const parsed = parseOrFail(listUpdateRevisionsSchema, input);
+  if (!parsed.ok) return parsed;
+  const revisions = await followUps.listUpdateRevisions(userId, parsed.data.updateId);
+  if (!revisions) return notFound("Entry not found");
+  return ok(revisions.map((revision) => ({ ...revision, createdAt: revision.createdAt.toISOString() })));
 }
 
 /** Who a note is with (Minutes of Meeting). Input: { followUpId, person | null } */

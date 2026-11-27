@@ -5,7 +5,7 @@
 > and `app/src/app/(auth)/auth-motion.css` (login / register). This file explains the system and the rules. If you change a token,
 > update the table here in the same change.
 >
-> Last synced with the codebase: **2026-11-20**
+> Last synced with the codebase: **2026-11-25**
 
 ---
 
@@ -343,11 +343,11 @@ own headings always sit below the reader's titles. Weight 600 throughout.
 | Role | Size | Source |
 |---|---|---|
 | Section title (reader h2) | 24 → 30 (`text-3xl md:text-4xl`) | `NoteReader` |
-| Topic / page title (reader h3, number inline) | 20 → 24 (`text-2xl md:text-3xl`) | `NoteReader` |
-| In-page h1 | 18 (`--text-xl`) | `.note-prose` |
+| Topic / page title (reader h3, no number since 2026-11-25) | 20 → 24 (`text-2xl md:text-3xl`) | `NoteReader` |
+| In-page h1 | 18 (`--text-xl`), 700, on a solid band with a 4px left rule (2026-11-25): `--c-sidebar-fg` text on `--c-sidebar`, `--c-primary` rule | `.note-prose [data-level="1"]` |
 | In-page h2 | 16 (`--text-lg`), 700, on a tinted band with a 3px left rule — one colour for every block: `--c-status-progress-fg` text, `-bg` band, `--c-status-progress` rule (per-block colours dropped 2026-10-04) | `.note-prose [data-level="2"]` |
-| In-page h3 / h4 | 15 (`--text-md`), bold; level 3 is 700 with a `--c-border-strong` line underneath (sub-topic inside a block). Topics in the reader are separated by a 2px `--c-border-strong` rule; `.note-prose hr` matches | `.note-prose` |
-| Body | 15 (`--text-md`), line-height 1.75 | `.note-prose` |
+| In-page h3 / h4 | 15 (`--text-md`), bold; level 3 is 700 on a green band with a 2px left rule (2026-11-25; was an underline): `--c-status-completed-fg` text, `-bg` band, `--c-status-completed` rule. Topics in the reader are separated by a 2px `--c-border-strong` rule; `.note-prose hr` matches | `.note-prose` |
+| Body | 15 (`--text-md`), line-height 1.75; list items 1.55 with a 0.08em gap (2026-11-25) | `.note-prose` |
 | Tables | 14 (`--text-base`) | `.note-prose` |
 | Code block | 13 (`--text-sm`), `--font-mono`, line-height 1.7 | `.note-prose pre` |
 | Inline code | 0.875em, `--font-mono`, no ligatures (0.9em/600 inside headings) | `.note-prose code` |

@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronRight,
   Hash,
+  History,
   MessageSquareReply,
   Plus,
   RotateCcw,
@@ -28,6 +29,7 @@ import { addBusinessDays, addDays, differenceInCalendarDays, endOfWeek, format, 
 import {
   addFollowUpUpdate,
   editFollowUpUpdate,
+  listUpdateRevisions,
   setNotePerson,
   createFollowUp,
   deleteFollowUp,
@@ -71,6 +73,8 @@ type TrackerUpdate = {
   doc?: unknown;
   /** When the text was rewritten after saving; null = as first written. */
   editedAt?: string | null;
+  /** Earlier versions kept by edits (loaded on demand by `listUpdateRevisions`). */
+  revisionCount?: number;
   createdAt: string;
 };
 
@@ -2450,21 +2454,24 @@ function NoteBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; t
   const isDone = entry.status === "Done";
   const [details, setDetails] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  // Which entry is open in the editor: an update id, "new" (adding), or null (reading).
+  // Which entry is open in the editor: an update id, or null (reading).
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<EditorValue>({ doc: null, text: "", hasContent: false });
   const entries = [...entry.updates].reverse();
   const empty = entries.length === 0;
-  // One entry reads as plain text with Edit in the toolbar; several get a dated header and pencil each.
-  const single = entries.length === 1 ? entries[0] : null;
+  // A note is ONE document (owner, 2026-11-25): its first entry, edited in place
+  // with every earlier version kept as a revision. Older notes that had text
+  // appended ("Add to note", retired) show those extra entries below it.
+  const main = entries[0] ?? null;
+  const appended = entries.slice(1);
   const tags = entry.tags.filter((tag) => !(mom && tag === MOM_TAG));
 
   function addEntry() {
     if (!draft.hasContent || pending) return;
     run(
       () => addFollowUpUpdate({ followUpId: entry.id, note: draft.text, doc: draft.doc, channel: "Other", fromThem: false }),
-      mom ? "Minutes saved" : "Added",
-      () => { setEditing(null); setDraft({ doc: null, text: "", hasContent: false }); },
+      mom ? "Minutes saved" : "Saved",
+      () => setDraft({ doc: null, text: "", hasContent: false }),
     );
   }
 
@@ -2489,11 +2496,8 @@ function NoteBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; t
           <Button size="sm" variant="ghost" aria-expanded={details} aria-controls={`note-details-${entry.id}`} onClick={() => setDetails(!details)}>
             Details<ChevronDown aria-hidden="true" className={cn("transition-transform duration-150", details && "rotate-180")} />
           </Button>
-          {editing === null && single && !isStatusNote(single) ? (
-            <Button size="sm" variant="secondary" onClick={() => setEditing(single.id)}><Pencil aria-hidden="true" />Edit</Button>
-          ) : null}
-          {editing === null && !mom && !empty ? (
-            <Button size="sm" variant="secondary" onClick={() => setEditing("new")}><Plus aria-hidden="true" />Add to note</Button>
+          {editing === null && main && !isStatusNote(main) ? (
+            <Button size="sm" variant="secondary" onClick={() => setEditing(main.id)}><Pencil aria-hidden="true" />Edit</Button>
           ) : null}
           <Button size="sm" variant="secondary" onClick={() => run(() => setFollowUpStatus({ followUpId: entry.id, status: isDone ? "Open" : "Done" }), isDone ? "Restored" : "Archived")}>
             {isDone ? <RotateCcw aria-hidden="true" /> : <Archive aria-hidden="true" />}
@@ -2528,14 +2532,13 @@ function NoteBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; t
 
       {/* The text, full width at a readable measure. */}
       <div className="mx-auto flex w-full max-w-3xl min-w-0 flex-col">
-        {empty || editing === "new" ? (
+        {empty ? (
           <div className="flex flex-col gap-3">
-            {editing === "new" && !empty ? <hr className="border-border" /> : null}
             <UpdateEditor
               boxed
               autoFocus
               id={`note-add-${entry.id}`}
-              label={mom ? "Minutes" : empty ? "Write the note" : "Add to this note"}
+              label={mom ? "Minutes" : "Write the note"}
               placeholder={mom ? "Attendees, discussion, decisions, action items…" : "Write, or paste formatted text, images or files"}
               minHeight="min-h-[40dvh]"
               onChange={setDraft}
@@ -2543,34 +2546,30 @@ function NoteBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; t
             />
             <div className="flex flex-wrap items-center justify-end gap-2">
               <span className="mr-auto text-sm text-text-muted">⌘/Ctrl + Enter saves. Images and files up to 4 MB.</span>
-              {!empty ? <Button size="sm" variant="secondary" onClick={() => setEditing(null)} disabled={pending}>Cancel</Button> : null}
-              <Button size="sm" onClick={addEntry} loading={pending} disabled={!draft.hasContent}>{mom ? "Save minutes" : empty ? "Save" : "Add"}</Button>
+              <Button size="sm" onClick={addEntry} loading={pending} disabled={!draft.hasContent}>{mom ? "Save minutes" : "Save"}</Button>
             </div>
           </div>
         ) : null}
 
-        {entries.map((update, index) => (
-          <section key={update.id} aria-label={`Entry ${index + 1}`} className={cn("group/entry min-w-0", index > 0 && "mt-6 border-t border-border pt-6")}>
-            {/* Several entries: each says when it was written and can be edited on its own. */}
-            {!single ? (
-              <div className="mb-2 flex items-center gap-2 text-xs text-text-subtle">
-                <time dateTime={update.occurredAt}>{format(parseISO(update.occurredAt), "EEE d MMM yyyy, HH:mm")}</time>
-                {update.editedAt ? <span>· edited</span> : null}
-                {editing !== update.id && !isStatusNote(update) ? (
-                  <button type="button" onClick={() => setEditing(update.id)} aria-label="Edit this entry" title="Edit" className="ml-auto grid size-8 cursor-pointer place-items-center rounded-full text-text-subtle transition-[color,background-color,opacity] duration-150 hover:bg-surface-2 hover:text-text md:opacity-0 md:group-hover/entry:opacity-100 md:focus-visible:opacity-100">
-                    <Pencil className="size-4" aria-hidden="true" />
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
-            {editing === update.id ? (
-              <EditUpdateForm update={update} minHeight="min-h-[50dvh]" onDone={() => setEditing(null)} />
-            ) : update.doc ? (
-              <UpdateDoc doc={update.doc} className="text-md" />
-            ) : (
-              <FormattedNote text={update.note} className="text-md leading-7 text-text" />
-            )}
-            {single && update.editedAt && editing !== update.id ? <p className="mt-4 text-xs text-text-subtle">Edited {format(parseISO(update.editedAt), "EEE d MMM yyyy, HH:mm")}</p> : null}
+        {main ? (
+          <section aria-label="Note" className="min-w-0">
+            <NoteEntryText update={main} editing={editing === main.id} onDone={() => setEditing(null)} />
+            {editing !== main.id ? <RevisionHistory update={main} /> : null}
+          </section>
+        ) : null}
+
+        {appended.map((update) => (
+          <section key={update.id} aria-label={`Added ${format(parseISO(update.occurredAt), "d MMM yyyy")}`} className="group/entry mt-6 min-w-0 border-t border-border pt-6">
+            <div className="mb-2 flex items-center gap-2 text-xs text-text-subtle">
+              <span>Added <time dateTime={update.occurredAt}>{format(parseISO(update.occurredAt), "EEE d MMM yyyy, HH:mm")}</time></span>
+              {editing !== update.id && !isStatusNote(update) ? (
+                <button type="button" onClick={() => setEditing(update.id)} aria-label="Edit this part" title="Edit" className="ml-auto grid size-8 cursor-pointer place-items-center rounded-full text-text-subtle transition-colors duration-150 hover:bg-surface-2 hover:text-text">
+                  <Pencil className="size-4" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+            <NoteEntryText update={update} editing={editing === update.id} onDone={() => setEditing(null)} />
+            {editing !== update.id ? <RevisionHistory update={update} /> : null}
           </section>
         ))}
       </div>
@@ -2588,6 +2587,85 @@ function NoteBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; t
           run(() => deleteFollowUp({ followUpId: entry.id }), "Deleted");
         }}
       />
+    </div>
+  );
+}
+
+/** One entry of a note: its text, or the editor when it's being edited. */
+function NoteEntryText({ update, editing, onDone }: { update: TrackerEntry["updates"][number]; editing: boolean; onDone: () => void }) {
+  if (editing) return <EditUpdateForm update={update} minHeight="min-h-[50dvh]" onDone={onDone} />;
+  return update.doc ? <UpdateDoc doc={update.doc} className="text-md" /> : <FormattedNote text={update.note} className="text-md leading-7 text-text" />;
+}
+
+type Revision = { id: string; note: string; doc: unknown; createdAt: string };
+
+/**
+ * "Edited … · N revisions": every version an edit replaced, newest first,
+ * fetched only when opened. Read-only — history is never rewritten.
+ */
+function RevisionHistory({ update }: { update: TrackerEntry["updates"][number] }) {
+  const count = update.revisionCount ?? 0;
+  const [open, setOpen] = useState(false);
+  // Cached with the count it was loaded at: a later edit adds a revision, and a
+  // stale list is simply ignored (and refetched on the next open).
+  const [loaded, setLoaded] = useState<{ count: number; list: Revision[] } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, startLoading] = useTransition();
+  const listId = `revisions-${update.id}`;
+  const revisions = loaded && loaded.count === count ? loaded.list : null;
+
+  function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (!next || revisions !== null) return;
+    startLoading(async () => {
+      const result = await listUpdateRevisions({ updateId: update.id });
+      if (result.ok) {
+        setLoaded({ count, list: result.data });
+        setError(null);
+      } else setError(result.error.message);
+    });
+  }
+
+  if (!update.editedAt && count === 0) return null;
+
+  return (
+    <div className="mt-5 border-t border-border pt-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-subtle">
+        {update.editedAt ? <span>Edited {format(parseISO(update.editedAt), "EEE d MMM yyyy, HH:mm")}</span> : null}
+        {count > 0 ? (
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={listId}
+            onClick={toggle}
+            className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-full px-2 font-medium text-text-muted transition-colors duration-150 hover:bg-surface-2 hover:text-text"
+          >
+            <History className="size-3.5" aria-hidden="true" />
+            {count} revision{count === 1 ? "" : "s"}
+            <ChevronDown className={cn("size-3.5 transition-transform duration-150", open && "rotate-180")} aria-hidden="true" />
+          </button>
+        ) : null}
+      </div>
+
+      {open ? (
+        <div id={listId} className="mt-3 flex flex-col gap-3">
+          {loading && revisions === null ? <p className="text-sm text-text-muted">Loading revisions…</p> : null}
+          {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
+          {revisions?.map((revision, index) => (
+            <details key={revision.id} className="group/rev rounded-xl border border-border bg-surface-2">
+              <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm text-text-muted hover:text-text">
+                <ChevronRight className="size-4 shrink-0 transition-transform duration-150 group-open/rev:rotate-90" aria-hidden="true" />
+                <span className="font-medium text-text">Version {count - index}</span>
+                <span>· replaced {format(parseISO(revision.createdAt), "EEE d MMM yyyy, HH:mm")}</span>
+              </summary>
+              <div className="border-t border-border bg-surface px-4 py-3">
+                {revision.doc ? <UpdateDoc doc={revision.doc} className="text-md" /> : <FormattedNote text={revision.note} className="text-md leading-7 text-text" />}
+              </div>
+            </details>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -31,6 +31,7 @@ export function SectionEditor({
   onChange,
   onDuplicate,
   onRemove,
+  onRemovePage,
   onAddPage,
   onMovePage,
   collapsedPages,
@@ -49,6 +50,8 @@ export function SectionEditor({
   onChange: (next: SectionDraft) => void;
   onDuplicate: () => void;
   onRemove: () => void;
+  /** asks before a page goes — the parent owns the confirmation */
+  onRemovePage: (page: PageDraft, pageIndex: number) => void;
   onAddPage: () => void;
   onMovePage: (pageId: string, targetSectionId: string) => void;
   /** page ids whose editors are folded */
@@ -74,7 +77,7 @@ export function SectionEditor({
       dragListener={false}
       dragControls={controls}
       id={`note-section-${section.id}`}
-      className="wl-card min-w-0 scroll-mt-48 overflow-hidden [&:not(:first-child)]:mt-6"
+      className="wl-card min-w-0 scroll-mt-48 overflow-clip [&:not(:first-child)]:mt-6"
     >
       {/* Section header: tinted bar, the title lives right in it. */}
       <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-border bg-card-tint px-3 py-3 md:flex-nowrap md:px-4">
@@ -152,7 +155,7 @@ export function SectionEditor({
               duration: reduceMotion ? 0 : 0.24,
               ease: [0.22, 1, 0.36, 1],
             }}
-            className="min-w-0 overflow-hidden"
+            className="min-w-0 overflow-clip"
           >
             {/* Pages are white cards on the section's light tint. */}
             <div className="min-w-0 bg-surface-2 p-3 md:p-4">
@@ -192,9 +195,7 @@ export function SectionEditor({
                       next.splice(pageIndex + 1, 0, copy);
                       setPages(next);
                     }}
-                    onRemove={() =>
-                      setPages(section.pages.filter((row) => row.id !== page.id))
-                    }
+                    onRemove={() => onRemovePage(page, pageIndex)}
                     onMoveToSection={(targetId) => onMovePage(page.id, targetId)}
                   />
                 ))}
