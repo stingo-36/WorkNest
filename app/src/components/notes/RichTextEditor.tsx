@@ -327,7 +327,9 @@ function Toolbar({ editor }: { editor: Editor }) {
       aria-label="Formatting"
       aria-orientation="horizontal"
       className={cn(
-        "sticky top-0 z-20 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1",
+        // Sticks just under the note's save bar (NoteForm publishes where it
+        // ends as --note-bar-bottom) so the tools stay in reach on a long page.
+        "sticky top-[var(--note-bar-bottom,0px)] z-20 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1",
         "rounded-t-[13px] border-b border-border-strong bg-surface/95 px-1.5 py-1.5 backdrop-blur",
         "md:px-2 md:py-2",
       )}

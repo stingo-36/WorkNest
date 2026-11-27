@@ -4,7 +4,7 @@
 > delete a module, route, model or script, update the relevant section in the same
 > change.
 >
-> Last synced with the codebase: **2026-11-21**
+> Last synced with the codebase: **2026-11-25**
 
 ---
 
@@ -187,7 +187,7 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `lib/workflow-status.ts` | 5-stage workflow + legacy status normalisation |
 | `lib/meeting-minutes.ts` | minutes of meeting (MoM): `listMinutesCandidates` (the user's Tracker Notes, `mom`-tagged first), `linkMeetingMinutes` / `unlinkMeetingMinutes` (both ends checked against `userId`; unlink never deletes the note), `createMeetingMinutes` (a new Note tagged `mom` via `createFollowUp`, then linked) |
 | `lib/follow-up-reminder.ts` | `effectiveDueDate` / `withEffectiveDue`: read-time reminder for a follow-up — on/before your last message → 2 working days after it; stored date untouched. Applied by `lib/follow-ups.ts` (list/get), `lib/mobile-api.ts`, `lib/ask.ts` |
-| `lib/follow-ups.ts` | Tracker entries + append-only updates (text editable via `editFollowUpUpdate`), pin, status, reschedule, tags, `editPersonalTodo` (rewrites a personal to-do's text only), `listTodosAroundDay` (work-log to-dos card) |
+| `lib/follow-ups.ts` | Tracker entries + append-only updates (text editable via `editFollowUpUpdate`, old text kept as revisions — `listUpdateRevisions`), pin, status, reschedule, tags, `editPersonalTodo` (rewrites a personal to-do's text only), `listTodosAroundDay` (work-log to-dos card) |
 | `lib/note-store.ts`, `lib/notes.ts`, `lib/note-icons.ts`, `lib/note-colors.ts` | notebooks, trash/restore, icon search, accent colours |
 | `lib/note-import.ts` | a pasted document → notebook pages (`marked` lexer → TipTap JSON); the AI in `lib/ask.ts` decides where it goes. `splitMessage` (instruction vs document), `parseDocument` (`#` = the document's own title, `##` = a page, `###`+ headings inside the page), `documentOutline` (what the AI sees), `planDocumentSave` (pages new/changed/removed, `reshaped`) and `saveDocument` (new notebook with one section, or reshape notebook `noteId` to match: pages matched by title anywhere, ignoring case and a leading number; pages and sections not in the document are deleted by `updateNote`). Saved via `importNotebook` in `actions/notes.ts`; title/description/icon-only changes via `saveNotebookDetails` (`updateNoteDetails` in `lib/note-store.ts`); icons found by `findIcon` in `lib/note-icons.ts` |
 | `components/notes/smooth-scroll.ts`, `components/notes/doc-height.ts` | client: frame-by-frame smooth jump that follows a moving target and pauses lazy page mounting while in flight (`isJumping`, `NOTE_SCROLL_END`); estimated height for an unmounted page body. Used by the reader and the editor |
@@ -220,7 +220,7 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `actions/admin.ts` | Admin-only password reset, whole-workspace record erasure and account deletion; Zod → `lib/admin.ts` → `/admin` revalidation |
 | `actions/worklog.ts` | open today/by date, get, adjacent, list, update, delete, meetings CRUD, meeting minutes (`listMeetingMinutesOptions`, `linkMeetingMinutes`, `createMeetingMinutes`, `unlinkMeetingMinutes`), learning notes, link attachments, delete attachment |
 | `actions/tickets.ts` | create standalone, find, upsert-for-work-log, save work update, detach, get, list, projects, active, update, append/delete history entry, delete ticket |
-| `actions/follow-ups.ts` | create, add update, `editFollowUpUpdate` (text only), pin, status, reschedule, `setFollowUpAdded` (re-date `createdAt`), `setFollowUpTags`, `setNotePerson` (a note's "With"), `editPersonalTodo`, `listTodosForDay`, delete, list, people |
+| `actions/follow-ups.ts` | create, add update, `editFollowUpUpdate` (text only), `listUpdateRevisions`, pin, status, reschedule, `setFollowUpAdded` (re-date `createdAt`), `setFollowUpTags`, `setNotePerson` (a note's "With"), `editPersonalTodo`, `listTodosForDay`, delete, list, people |
 | `actions/notes.ts` | create, update, delete (trash), restore, toggle favourite |
 | `actions/content.ts` | tasks, links, resources CRUD (create refuses a link already saved) + `toggleResourceFavorite`, `mergeResourceTypes` / `undoMergeResourceTypes` (retype + Profile type list) |
 | `actions/gmail.ts` | `syncGmailNow`, `saveGmailRule`, `disconnectGmail`, `undoGmailImport` |
@@ -267,6 +267,7 @@ User ─┬─ WorkLog ─┬─ Meeting ── MeetingMinutesLink ──► Fol
 | `TicketHistoryEntry` | `body`, `status` snapshot; written from `/tickets`; may be deleted |
 | `FollowUp` | `kind` (FollowUp/Task/Note — `Idea` folded into Note 2026-10-01), `tags String[]` (notes), `person?` (FollowUp; also a Minutes-of-Meeting Note — "With"), `subject`, `ticketKey?` (free text, not FK), `status` Open/Done, `pinned`, `personal` (Task only — To-do → Personal sticky notes; their `subject` may hold line breaks, ≤1000 chars, others are one line ≤300; excluded from `listTrackerForRange`, `listTodosAroundDay` and the sprint report), `dueDate?` |
 | `FollowUpUpdate` | `note`, `doc Json?` (TipTap JSON from the rich editor; `note` is then its plain text, derived server-side), `channel` (free text from the user's list), `occurredAt`, `fromThem` (their reply vs. what you said — drives Waiting/Replied), `editedAt?` (set when the text is rewritten). **Only the text is ever updated in place** (`editFollowUpUpdate`). |
+| `FollowUpUpdateRevision` | `updateId` → `FollowUpUpdate`, `userId`, `note`, `doc Json?`, `createdAt` (when it was replaced). The text an edit replaced — written in the same transaction as `editFollowUpUpdate`; append-only, cascades with its update. Read on demand by `listUpdateRevisions`. Added 2026-11-25 |
 | `FollowUpFile` | `userId`, `followUpId?` (set when the update that references it is saved), `name`, `mimeType`, `size`, `data Bytes` (≤4 MB). Uploaded while writing; deleted with the entry or account. |
 | `Note` / `NoteSection` / `NotePage` | icon (`iconName`, `iconLibrary` si/lu/fa6), `favorite`, `deletedAt` (trash); sections & pages ordered by `order`; page `content Json` |
 | `Resource` | `type` (free text from the user's list; was an enum), `url?`, `content`, `tags[]`, `favorite`, `source?` ("gmail"), `sourceMessageId?` (Undo key) |
@@ -300,7 +301,7 @@ writes), `TaskPriority`, `TaskStatus`, `FollowUpStatus`, `EntryKind`,
 4. **Tracker updates are append-only** — no delete action exists for a
    `FollowUpUpdate`; a first note is created as an update row, not a field. The one edit
    is `editFollowUpUpdate` (2026-11-21): text/doc only, stamps `editedAt` (shown as
-   "edited"); `fromThem`, `channel` and `occurredAt` never change, so Waiting/Replied and
+   "edited") and first copies the old text into `FollowUpUpdateRevision` (2026-11-25); `fromThem`, `channel` and `occurredAt` never change, so Waiting/Replied and
    reminders stay true. Whole-account or whole-workspace erasure is the deliberate
    privacy/admin exception.
 5. **Dates:** `WorkLog.date` is UTC midnight (`toDateOnly`, `todayUtc`). Sprint maths

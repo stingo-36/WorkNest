@@ -529,6 +529,8 @@ export const editFollowUpUpdateSchema = z
     if (!value.note && !value.doc) ctx.addIssue({ code: "custom", path: ["note"], message: "Write something first" });
   });
 
+export const listUpdateRevisionsSchema = z.object({ updateId: idSchema });
+
 export const setFollowUpPinnedSchema = z.object({
   followUpId: idSchema,
   pinned: z.boolean(),

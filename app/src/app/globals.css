@@ -1363,12 +1363,29 @@ html:not(.dark) body:has(.app-shell) { --c-bg: #ffffff; }
   margin-top: 2.25em;
 }
 
-/* Level 3 marks a sub-topic inside a block: darker and bolder than body text. */
+/* Levels 1 and 3 get the same band as level 2 (owner, 2026-11-25), each in
+   its own colour so the three levels still read apart: 1 = solid navy (the
+   sidebar's ink; the primary tint was too close to level 2's blue), 2 = blue
+   (above), 3 = green, a lighter rule for a sub-topic. */
+.note-prose [data-level="1"] {
+  color: var(--c-sidebar-fg);
+  font-weight: 700;
+  background-color: var(--c-sidebar);
+  border-left: 4px solid var(--c-primary);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: 0.4em 0.8em;
+}
+.note-prose > * + [data-level="1"] {
+  margin-top: 2.5em;
+}
+
 .note-prose [data-level="3"] {
   font-weight: 700;
-  color: var(--c-text);
-  padding-bottom: 0.2em;
-  border-bottom: 1px solid var(--c-border-strong);
+  color: var(--c-status-completed-fg);
+  background-color: var(--c-status-completed-bg);
+  border-left: 2px solid var(--c-status-completed);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: 0.25em 0.7em;
 }
 
 /* inline ------------------------------------------------------------------ */
@@ -1436,8 +1453,15 @@ html:not(.dark) body:has(.app-shell) { --c-bg: #ffffff; }
   list-style: circle;
 }
 
+/* Bullets sit close together (owner, 2026-11-25): the prose's 1.75 leading
+   plus a gap per item made a list read as separate paragraphs. */
 .note-prose li {
-  margin-top: 0.28em;
+  margin-top: 0.08em;
+  line-height: 1.55;
+}
+
+.note-prose li > :where(ul, ol) {
+  margin-top: 0.08em;
 }
 
 .note-prose li p {
@@ -1782,6 +1806,9 @@ dialog.t-modal[open]::backdrop {
   dialog.t-modal[open] { opacity: 0; transform: scale(var(--scale-large)); }
   dialog.t-modal[open]::backdrop { opacity: 0; }
 }
+/* Modal close (Modal's requestClose): the same move in reverse, then unmount. */
+dialog.t-modal[open][data-closing] { opacity: 0; transform: scale(var(--scale-large)); pointer-events: none; }
+dialog.t-modal[open][data-closing]::backdrop { opacity: 0; }
 
 /* Mobile section sheet (panel reveal, short distance). */
 .t-sheet {
