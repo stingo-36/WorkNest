@@ -5,7 +5,7 @@ import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { EntryKind } from "@/generated/prisma/enums";
 import { aiFailureMessage, type ChatMessage, openRouterChat, openRouterComplete, type ToolSpec } from "@/lib/ai-summary";
 import { DEFAULT_OPENROUTER_MODEL, getOpenRouterConfig } from "@/lib/ai-settings";
-import { withEffectiveDue } from "@/lib/follow-up-reminder";
+import { spokeLast, tabOf, withEffectiveDue } from "@/lib/tracker-rules";
 import { findIcon, toIconLabel, type IconLibrary } from "@/lib/note-icons";
 import { documentOutline, type ParsedDocument, parseDocument, planDocumentSave, splitMessage } from "@/lib/note-import";
 import { prisma } from "@/lib/prisma";
@@ -89,10 +89,10 @@ const contains = (value: string) => ({ contains: value, mode: "insensitive" as c
 const day = (date: Date) => format(date, "d MMM yyyy");
 
 const ENTRY_SELECT = {
-  id: true, kind: true, subject: true, person: true, ticketKey: true, status: true, dueDate: true, completedAt: true, createdAt: true, updatedAt: true, tags: true, personal: true,
+  id: true, kind: true, subject: true, person: true, ticketKey: true, status: true, dueDate: true, completedAt: true, archivedAt: true, createdAt: true, updatedAt: true, tags: true, personal: true,
   updates: { orderBy: { occurredAt: "desc" as const }, take: 8, select: { note: true, occurredAt: true, fromThem: true, channel: true } },
 };
-type EntryRow = { id: string; kind: EntryKind; subject: string; person: string | null; ticketKey: string | null; status: string; dueDate: Date | null; completedAt: Date | null; createdAt: Date; updatedAt: Date; tags: string[]; personal: boolean; updates: Array<{ note: string; occurredAt: Date; fromThem: boolean; channel: string }> };
+type EntryRow = { id: string; kind: EntryKind; subject: string; person: string | null; ticketKey: string | null; status: string; dueDate: Date | null; completedAt: Date | null; archivedAt: Date | null; createdAt: Date; updatedAt: Date; tags: string[]; personal: boolean; updates: Array<{ note: string; occurredAt: Date; fromThem: boolean; channel: string }> };
 
 /** "21 Oct 2026 (in 2 days)" — said in words, so the AI never has to do date maths. */
 function dueText(dueDate: Date, open: boolean, todayKey: string) {
@@ -108,7 +108,7 @@ function dueText(dueDate: Date, open: boolean, todayKey: string) {
 function entryCandidate(entry: EntryRow, todayKey: string, maxUpdates: number): Candidate {
   const kind = entry.kind === EntryKind.FollowUp ? "Follow-up" : entry.kind === EntryKind.Task ? "To-do" : "Note";
   const open = entry.status === "Open";
-  const waiting = entry.kind === EntryKind.FollowUp && open ? (entry.updates[0]?.fromThem ? " — they replied, your move" : " — waiting on them") : "";
+  const waiting = entry.kind === EntryKind.FollowUp && open ? (spokeLast(entry) === "them" ? " — they replied, your move" : " — waiting on them") : "";
   const facts = [
     entry.person ? `Person: ${entry.person}` : "",
     entry.ticketKey ? `Ticket: ${entry.ticketKey}` : "",
@@ -123,7 +123,7 @@ function entryCandidate(entry: EntryRow, todayKey: string, maxUpdates: number): 
     kind,
     title: entry.kind === EntryKind.FollowUp && entry.person ? `${entry.person} · ${entry.subject}` : entry.subject,
     date: day(entry.updates[0]?.occurredAt ?? entry.createdAt),
-    href: `/tracker?view=${entry.kind === EntryKind.FollowUp ? "followups" : entry.kind === EntryKind.Note ? "notes" : "todo"}&open=${entry.id}`,
+    href: `/tracker?view=${tabOf(entry)}&open=${entry.id}`,
     text: [entry.subject, facts.join(" · "), updates.length ? `History (newest first):\n${updates.join("\n")}` : ""].filter(Boolean).join("\n"),
     at: entry.updatedAt,
     entry: { id: entry.id, kind: entry.kind, open, due: entry.dueDate ? entry.dueDate.toISOString().slice(0, 10) : null },
@@ -171,7 +171,7 @@ async function openTracker(userId: string, todayKey: string): Promise<{ candidat
   };
   const todos = entries.filter((e) => e.kind === EntryKind.Task);
   const follows = entries.filter((e) => e.kind === EntryKind.FollowUp);
-  const replied = follows.filter((e) => e.updates[0]?.fromThem).length;
+  const replied = follows.filter((e) => spokeLast(e) === "them").length;
   const counts = [
     `Open to-dos: ${todos.length} (${tally(todos)})`,
     `Open follow-ups: ${follows.length} (${tally(follows)}; ${replied} replied — your move, ${follows.length - replied} waiting on them)`,

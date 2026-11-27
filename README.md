@@ -152,6 +152,7 @@ Never commit `.env` files or real credentials; this repository is public.
 | [AGENTS.md](AGENTS.md) | How to work on the code (humans and AI agents) |
 | [Memory.md](Memory.md) | Decisions made and why, known gotchas |
 | [skills.md](skills.md) | Step-by-step recipes for common changes |
+| [GLOSSARY.md](GLOSSARY.md) | The words WorkNest uses for things, and which to avoid |
 
 ---
 

@@ -29,6 +29,7 @@ Don't re-scan the repo, and don't read every doc end to end (they're ~3,700 line
 | `Design-System.md` | How it looks: palettes, tokens, type, components, rules |
 | `Memory.md` | Decisions already made (and why), gotchas, recent changes |
 | `skills.md` | Step-by-step recipes for recurring tasks in this codebase |
+| `GLOSSARY.md` | The domain words (Tracker entry, Follow-up, Message, Needs you…) and which synonyms to avoid. Name new code and UI copy with these |
 
 If a doc or the map turns out to be wrong, fix it as part of your task.
 
@@ -54,6 +55,7 @@ finish while the map has drifted or code changed with no doc change.
 | Make a choice someone could later second-guess, reverse an earlier decision, or discover a gotcha | `Memory.md` → Decisions (newest first) / Gotchas |
 | Finish any task | `Memory.md` → Changelog: one line, `YYYY-MM-DD — what changed — key files` |
 | Establish a new repeatable procedure, or change an existing one | `skills.md` |
+| Introduce, rename or sharpen a domain term | `GLOSSARY.md` (domain words only, no implementation) |
 | Change how agents should work, or add/remove a skill or agent | `AGENTS.md`, `skills.md` §13, the matching `.claude/skills/worknest-*` / `.claude/agents/worknest-*` file |
 
 Also bump the **"Last synced"** date at the top of each file you touch. Keep edits

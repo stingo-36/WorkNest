@@ -40,7 +40,7 @@ Docs: **PRD** = `PRD.md`, **Arch** = `Architecture.md`, **DS** = `Design-System.
 | Tags / types | `lib/tag-colors.ts`, `lib/resource-types.ts`, `components/ui/tag-icon.tsx`, `components/ui/tag-chip.tsx`, `components/ui/tag-input.tsx` | DS §8 |
 | Schema | `app/prisma/schema.prisma`, `app/prisma/migrations/` | Arch §5 |
 | Root layouts | `app/layout.tsx` (fonts, local-dev ribbon), `app/(app)/layout.tsx` (auth + shell), `app/(auth)/layout.tsx`, `app/(marketing)/layout.tsx`, `app/not-found.tsx`, `components/providers.tsx` | Arch §3 |
-| Tokens & global CSS | `app/globals.css` (tokens + `.wl-*` recipes, 1.9k lines — grep, don't read whole), `app/brand-art.css` | DS §2, §8 |
+| Tokens & global CSS | `app/globals.css` (tokens + `.wl-*` recipes, 2.9k lines — grep, don't read whole), `app/brand-art.css` | DS §2, §8 |
 
 ## Features
 
@@ -64,8 +64,8 @@ Models: `Ticket`, `TicketWorkUpdate`, `TicketHistoryEntry`
 ### Tracker (landing page) — PRD §5.3 · DS "Tracker queue"
 Models: `FollowUp`, `FollowUpUpdate` (append-only), `FollowUpFile`
 - Route: `app/(app)/tracker/page.tsx`
-- Actions: `actions/follow-ups.ts` · Lib: `lib/follow-ups.ts`, `lib/follow-up-reminder.ts` (effective "time to ping" date: a reminder on/before your last message → 2 working days after it)
-- UI: `components/tracker/tracker-board.tsx` (1.9k lines — grep for the tab/dialog you need), `components/tracker/update-editor.tsx` (rich editor + renderer), `components/tracker/note-text.tsx` (legacy plain text)
+- Actions: `actions/follow-ups.ts` · Lib: `lib/follow-ups.ts`, `lib/tracker-rules.ts` (every Tracker state rule — `readEntry`: follow state, Needs you, effective Reminder, archived, tab — shared by the board, Ask, the Kaizen API and `lib/follow-ups.ts`)
+- UI: `components/tracker/tracker-board.tsx` (2.8k lines — grep for the tab/dialog you need), `components/tracker/update-editor.tsx` (rich editor + renderer), `components/tracker/note-text.tsx` (legacy plain text)
 
 ### Notes — PRD §5.4 · DS "Notes F layout"
 Models: `Note` → `NoteSection` → `NotePage` (TipTap JSON)

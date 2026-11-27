@@ -3,7 +3,7 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { EntryKind, FollowUpStatus } from "@/generated/prisma/enums";
-import { withEffectiveDue } from "@/lib/follow-up-reminder";
+import { withEffectiveDue } from "@/lib/tracker-rules";
 import { docFileIds, docToText, TODO_STATUS_NOTES } from "@/lib/rich-text";
 import { getPeopleList } from "@/lib/user-lists";
 
@@ -448,7 +448,7 @@ export async function deleteFollowUp(userId: string, followUpId: string) {
   return result.count > 0;
 }
 
-/** Reads apply the effective reminder (`lib/follow-up-reminder.ts`); writes store what was picked. */
+/** Reads apply the effective reminder (`lib/tracker-rules.ts`); writes store what was picked. */
 export async function getFollowUp(userId: string, followUpId: string) {
   const entry = await prisma.followUp.findFirst({
     where: { id: followUpId, userId },

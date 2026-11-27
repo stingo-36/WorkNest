@@ -25,6 +25,16 @@
 
 ## Decisions
 
+- **2026-11-27 — Tracker state rules live in one module, `lib/tracker-rules.ts`.** The architecture
+  review found "who spoke last", Needs you, the effective Reminder and "which tab" copied across the
+  board, Ask and the Kaizen API, already drifting (Ask's links didn't know Personal / Archived). Now
+  `readEntry(entry, today)` answers all of it, pure and shared by client and server; it replaced
+  `lib/follow-up-reminder.ts`. Step 1 of the Tracker split (next: one file per tab). Checked by
+  comparing old and new rules on 20,000 generated entries in three timezones (0 differences) and on
+  the running app. Kept as-is on purpose: Work Logs' day card asks "who spoke last *that day*", a
+  different question, so `lib/day-tracker.ts` / `sprint-deck.tsx` still read that day's update.
+  Ask's "waiting on them" still includes Time to ping (open question for the owner).
+
 - **2026-11-27 — Matt Pocock's skills installed as general tools; WorkNest's rules win.** All
   39 from `mattpocock/skills` are in `.claude/skills/`, pinned in `skills-lock.json`. They assume
   things WorkNest doesn't have (a test suite for `tdd`, an issue tracker for `to-spec`/`to-tickets`),
@@ -1244,6 +1254,8 @@ is done on the real rendered app.
 
 ## Changelog
 
+- 2026-11-27 — New `lib/tracker-rules.ts` (`readEntry`, `spokeLast`, `tabOf`, `nextReminder`, effective Reminder); board, Ask, Kaizen API and follow-up reads use it; `lib/follow-up-reminder.ts` removed; Ask links now open Personal / Archived entries on their own tab — `lib/tracker-rules.ts`, `components/tracker/tracker-board.tsx`, `lib/ask.ts`, `lib/mobile-api.ts`, `lib/follow-ups.ts`
+- 2026-11-27 — Added `GLOSSARY.md` (domain language, via the `domain-modeling` skill) and linked it from AGENTS §1/§2 and the README; ran `improve-codebase-architecture` (report in the OS temp dir, not the repo); code map line counts fixed — `GLOSSARY.md`, `AGENTS.md`, `README.md`, `.claude/skills/worknest-codemap/SKILL.md`
 - 2026-11-27 — Installed Matt Pocock's skills; brought the agent docs up to date: follow-up edits now keep revisions (AGENTS §4, worknest-backend skill + agent, reviewer agent), AI rule names the Groq backup, line counts, `/reports` no longer listed as Coming soon, older seeds and `PageHead` in recipes, README features (Ask, Quick log, Gmail import, Kaizen) and env vars, Architecture migration range — `AGENTS.md`, `skills.md`, `README.md`, `Architecture.md`, `.claude/skills/worknest-{backend,ui,codemap}/SKILL.md`, `.claude/agents/worknest-{backend,reviewer}.md`, `skills-lock.json`
 - 2026-11-25 — Tracker notes: one document with Edit, each save keeps a revision (`FollowUpUpdateRevision`, migration `20261125152131_follow_up_update_revisions`, `listUpdateRevisions`), Add to note retired; Modal close animation + no scrollbar shift; Notes: sticky editor toolbar, sections/pages folded on open, delete/trash confirmations, no 1.1 numbering, h1/h3 bands, tighter bullets — `components/tracker/tracker-board.tsx`, `components/ui/modal.tsx`, `lib/follow-ups.ts`, `actions/follow-ups.ts`, `lib/validation.ts`, `app/(app)/tracker/page.tsx`, `prisma/schema.prisma`, `components/notes/{NoteForm,SectionEditor,PageEditor,RichTextEditor,NoteReader}.tsx`, `app/globals.css`
 `YYYY-MM-DD — what changed — key files`

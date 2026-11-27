@@ -4,7 +4,7 @@
 > delete a module, route, model or script, update the relevant section in the same
 > change.
 >
-> Last synced with the codebase: **2026-11-25**
+> Last synced with the codebase: **2026-11-27**
 
 ---
 
@@ -186,7 +186,7 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `lib/quick-log.ts` | Quick log: `draftQuickLog` (AI → JSON read leniently with Zod, then matched to the user's tickets / meeting cards / people / channels; to-dos fall back to one per line without AI) `workLogTemplate` (headings: the day's meetings, an empty Tickets heading, Work done — no pre-listed tickets since 2026-11-20), and `applyQuickLog` (writes via `worklogs`/`tickets`/`follow-ups` lib functions; same-day re-apply appends) |
 | `lib/workflow-status.ts` | 5-stage workflow + legacy status normalisation |
 | `lib/meeting-minutes.ts` | minutes of meeting (MoM): `listMinutesCandidates` (the user's Tracker Notes, `mom`-tagged first), `linkMeetingMinutes` / `unlinkMeetingMinutes` (both ends checked against `userId`; unlink never deletes the note), `createMeetingMinutes` (a new Note tagged `mom` via `createFollowUp`, then linked) |
-| `lib/follow-up-reminder.ts` | `effectiveDueDate` / `withEffectiveDue`: read-time reminder for a follow-up — on/before your last message → 2 working days after it; stored date untouched. Applied by `lib/follow-ups.ts` (list/get), `lib/mobile-api.ts`, `lib/ask.ts` |
+| `lib/tracker-rules.ts` | Every Tracker state rule in one pure module, shared by client and server (2026-11-27; replaced `lib/follow-up-reminder.ts`). `readEntry(entry, today)` → open, follow state (Your turn / Time to ping / Waiting on them / Closed), who spoke last, Needs you, needed-since day, effective Reminder, archived, tab. Also `spokeLast`, `isArchived`, `neededSince`, `tabOf`, `reminderOf`, `nextReminder` (+2 working days) and the read-time reminder `effectiveDueDate` / `withEffectiveDue` (on/before your last message → 2 working days after it; stored date untouched; idempotent). Used by `components/tracker/tracker-board.tsx`, `lib/follow-ups.ts` (list/get), `lib/mobile-api.ts`, `lib/ask.ts` |
 | `lib/follow-ups.ts` | Tracker entries + append-only updates (text editable via `editFollowUpUpdate`, old text kept as revisions — `listUpdateRevisions`), pin, status, reschedule, tags, `editPersonalTodo` (rewrites a personal to-do's text only), `listTodosAroundDay` (work-log to-dos card) |
 | `lib/note-store.ts`, `lib/notes.ts`, `lib/note-icons.ts`, `lib/note-colors.ts` | notebooks, trash/restore, icon search, accent colours |
 | `lib/note-import.ts` | a pasted document → notebook pages (`marked` lexer → TipTap JSON); the AI in `lib/ask.ts` decides where it goes. `splitMessage` (instruction vs document), `parseDocument` (`#` = the document's own title, `##` = a page, `###`+ headings inside the page), `documentOutline` (what the AI sees), `planDocumentSave` (pages new/changed/removed, `reshaped`) and `saveDocument` (new notebook with one section, or reshape notebook `noteId` to match: pages matched by title anywhere, ignoring case and a leading number; pages and sections not in the document are deleted by `updateNote`). Saved via `importNotebook` in `actions/notes.ts`; title/description/icon-only changes via `saveNotebookDetails` (`updateNoteDetails` in `lib/note-store.ts`); icons found by `findIcon` in `lib/note-icons.ts` |

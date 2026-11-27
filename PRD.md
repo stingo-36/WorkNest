@@ -4,7 +4,7 @@
 > changes scope, or is retired, update the matching section here (see
 > `AGENTS.md → Keeping the docs current`).
 >
-> Last synced with the codebase: **2026-11-25**
+> Last synced with the codebase: **2026-11-27**
 
 ---
 
@@ -248,7 +248,7 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
 | Tab (`EntryKind`) | Tab badge | Add | Columns | Row actions |
 |---|---|---|---|---|
 | **To-do** (`Task`) | overdue/due-today to-dos + follow-ups that need you | title · due date · ★ | left **Today** (incl. follow-ups: nudge due / replied) + "✓ N completed today · Show"; right **Upcoming** by *tomorrow's date · Later this week · Next week · Later · No date* (to-dos + future nudges) | round tick (done / close / reopen) · ★; follow-ups: Mark nudged / Got it |
-| **Follow-ups** (`FollowUp`) | replies + pings due | **New follow-up** popup (2026-11-17): type · title · who + where (channel) · date | one list (2026-11-17): *Your turn* · *Time to ping* · *Waiting on them* + collapsed closed line | I pinged them · Done (= close); replied: Done. **Time to ping** runs on the *effective* reminder (2026-11-21): a reminder dated on or before your last message is out of date, so the ping falls 2 working days after that message (`lib/follow-up-reminder.ts`; Tracker, Kaizen API and Ask) |
+| **Follow-ups** (`FollowUp`) | replies + pings due | **New follow-up** popup (2026-11-17): type · title · who + where (channel) · date | one list (2026-11-17): *Your turn* · *Time to ping* · *Waiting on them* + collapsed closed line | I pinged them · Done (= close); replied: Done. **Time to ping** runs on the *effective* reminder (2026-11-21): a reminder dated on or before your last message is out of date, so the ping falls 2 working days after that message (`lib/tracker-rules.ts`; Tracker, Kaizen API and Ask) |
 | **Notes** (`Note`) | none (2026-11-17; was open notes) | **New note** button in the card header opens the composer in a popup: type (Minutes of meeting / Other) · title · body · formatting · tags · ★; a MoM also takes meeting date and who | one full-width **Notes** card (2026-11-11): count, search (beside New note from 1024px), tag filter chips (All + each tag), then **Pinned · This week · Earlier** (title, tag chips and "2 days ago" / "28 Oct" only — the text stays inside), collapsed archive at the bottom | ★ (Restore on archived) |
 
 - **Simpler To-do** (2026-11-17, phase 1 of the Tracker simplification, from the owner-approved

@@ -4,7 +4,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { FollowUpStatus } from "@/generated/prisma/enums";
 import { listResources } from "@/lib/content";
-import { withEffectiveDue } from "@/lib/follow-up-reminder";
+import { withEffectiveDue } from "@/lib/tracker-rules";
 import { getFollowUp, listFollowUpPeople } from "@/lib/follow-ups";
 import { prisma } from "@/lib/prisma";
 import { isStatusNote } from "@/lib/rich-text";

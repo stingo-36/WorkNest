@@ -24,7 +24,7 @@ import {
 import { createPortal } from "react-dom";
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { addBusinessDays, addDays, differenceInCalendarDays, endOfWeek, format, parseISO } from "date-fns";
+import { addDays, differenceInCalendarDays, endOfWeek, format, parseISO } from "date-fns";
 
 import {
   addFollowUpUpdate,
@@ -55,6 +55,7 @@ import { FormattedNote } from "@/components/tracker/note-text";
 import { UpdateDoc, UpdateEditor, type EditorValue } from "@/components/tracker/update-editor";
 import type { JSONContent } from "@tiptap/core";
 import { isStatusNote, TODO_STATUS_NOTES } from "@/lib/rich-text";
+import { isArchived, neededSince as neededSinceOf, nextReminder, readEntry, spokeLast, tabOf } from "@/lib/tracker-rules";
 import { tagChipClass, tagChipStyle } from "@/components/ui/tag-chip";
 import type {
   EntryKind,
@@ -283,12 +284,13 @@ function useRun() {
 
 // --- follow-up state ---------------------------------------------------------
 
+/** The board's three looks for a follow-up; Time to ping shows as "waiting" with its date. */
 type FollowState = "replied" | "waiting" | "closed";
 
-/** Derived from the record, never stored: whoever spoke last decides it. */
+/** Derived from the record, never stored — the rule lives in `lib/tracker-rules.ts`. */
 function followStateOf(entry: TrackerEntry): FollowState {
   if (entry.status === "Done") return "closed";
-  return entry.updates[0]?.fromThem ? "replied" : "waiting";
+  return spokeLast(entry) === "them" ? "replied" : "waiting";
 }
 
 const FOLLOW_STATE: Record<FollowState, { label: string; tone: string }> = {
@@ -300,27 +302,13 @@ const FOLLOW_STATE: Record<FollowState, { label: string; tone: string }> = {
 // --- what needs you ------------------------------------------------------------
 
 const isOpen = (entry: TrackerEntry) => entry.status !== "Done";
-/** Shown on the Archived tab: put away with Archive, or a note archived the old way (Done). */
-const isArchived = (entry: TrackerEntry) => entry.archivedAt !== null || (entry.kind === "Note" && entry.status === "Done");
 const byArchived = (a: TrackerEntry, b: TrackerEntry) => (b.archivedAt ?? b.completedAt ?? b.updatedAt).localeCompare(a.archivedAt ?? a.completedAt ?? a.updatedAt);
 
-/**
- * The amber "needs you" set: to-dos overdue or due today, follow-ups where they
- * replied (your turn) or whose nudge date has come. Notes never need you.
- */
-function needsYou(entry: TrackerEntry, today: string) {
-  if (!isOpen(entry)) return false;
-  if (entry.kind === "Task") return Boolean(entry.dueDate && entry.dueDate <= today);
-  if (entry.kind !== "FollowUp") return false;
-  const state = followStateOf(entry);
-  return state === "replied" || Boolean(entry.dueDate && entry.dueDate <= today);
-}
+/** The amber "needs you" set (GLOSSARY: Needs you) — see `readEntry` in `lib/tracker-rules.ts`. */
+const needsYou = (entry: TrackerEntry, today: string) => readEntry(entry, today).needsYou;
 
-/** The day something started needing you: the reply's day, else the due/nudge date. */
-function neededSince(entry: TrackerEntry) {
-  if (entry.kind === "FollowUp" && followStateOf(entry) === "replied") return entry.updates[0]!.occurredAt.slice(0, 10);
-  return entry.dueDate ?? "";
-}
+/** The day something started needing you, for longest-waiting-first sorting ("" when undated). */
+const neededSince = (entry: TrackerEntry) => neededSinceOf(entry) ?? "";
 
 const important = (a: TrackerEntry, b: TrackerEntry) => Number(b.pinned) - Number(a.pinned);
 const byRecent = (a: TrackerEntry, b: TrackerEntry) => important(a, b) || b.updatedAt.localeCompare(a.updatedAt);
@@ -416,7 +404,7 @@ export function TrackerBoard({
   // dropped, so following the same link again opens it again.
   const linkedId = useSearchParams().get("open");
   const linked = linkedId ? entries.find((entry) => entry.id === linkedId) : undefined;
-  const linkedTab: TrackerView = linked?.archivedAt ? "archived" : linked?.kind === "FollowUp" ? "followups" : linked?.kind === "Note" ? "notes" : linked?.personal ? "personal" : "todo";
+  const linkedTab: TrackerView = linked ? tabOf(linked) : "todo";
   const [handledLink, setHandledLink] = useState<string | null>(null);
   if ((linked?.id ?? null) !== handledLink) {
     setHandledLink(linked?.id ?? null);
@@ -1712,7 +1700,7 @@ type FollowMode = keyof typeof FOLLOW_MODES;
  * to today, 2026-11-21). A chat: the day you talked, today.
  */
 function defaultFollowDate(mode: FollowMode, today: string) {
-  return mode === "waiting" ? format(addBusinessDays(parseISO(today), 2), "yyyy-MM-dd") : today;
+  return mode === "waiting" ? nextReminder(today) : today;
 }
 
 /**
