@@ -25,7 +25,8 @@ Copy the pattern from `actions/content.ts`. Full recipes: `skills.md` §2 (actio
   `updateMany`/`deleteMany({ where: { id, userId } })` and check `count`. Cross-account
   code exists only in `lib/admin.ts` behind `requireAdmin()`.
 - **Append-only history.** No edit/delete for `TicketWorkUpdate` (except same-log autosave
-  upsert + detach) or `FollowUpUpdate`.
+  upsert + detach) or `FollowUpUpdate` (except `editFollowUpUpdate`, which saves the old
+  text as a `FollowUpUpdateRevision` before rewriting it; never a delete).
 - **Sprint maths** only in `lib/sprint.ts`; work-log dates via `lib/worklogs.ts` helpers.
 - **Schema:** additive changes (nullable/defaulted), `userId` + cascade + `userId`-led
   indexes on new models; `npm run db:migrate`; never edit an applied migration or
@@ -34,8 +35,9 @@ Copy the pattern from `actions/content.ts`. Full recipes: `skills.md` §2 (actio
 - **Mobile API** (`/api/mobile/*`): public in the proxy, so every handler starts with
   `verifyMobileToken(request)` and answers via `mobileJson` / `preflight` from
   `lib/mobile-api.ts`. Reuse the same Zod schemas and lib functions as the web actions.
-- **AI** is OpenRouter only (`lib/ai-summary.ts`), no code-built fallback; failures
-  surface as `AI_UNAVAILABLE`.
+- **AI** goes through `lib/ai-summary.ts`: OpenRouter, with Groq as the backup AI when
+  OpenRouter fails or has no key. Never a code-built (non-AI) fallback; failures come
+  back as an `AiFailure` the UI explains. Requests are trimmed to the token budgets.
 - Next.js 16: `proxy.ts` not middleware, `params` is a Promise. Unsure of an API? read
   `app/node_modules/next/dist/docs/`.
 

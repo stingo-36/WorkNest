@@ -4,7 +4,7 @@
 > (with the *why*), gotchas that cost time before, and a changelog. Newest first in
 > every section. Update rules are in `AGENTS.md` §2.
 >
-> Last synced with the codebase: **2026-11-25**
+> Last synced with the codebase: **2026-11-27**
 
 ---
 
@@ -24,6 +24,37 @@
   take ~4.5 MB — lower the limit or move files to Vercel Blob (free, hard-capped).
 
 ## Decisions
+
+- **2026-11-27 — Tracker split into one file per tab; Ping and create-with-star are single
+  server writes; one shared "open" rule.** Steps 2–4 of the Tracker clean-up (step 1 = `lib/tracker-rules.ts`).
+  (2) `tracker-board.tsx` (2,821 lines) became a frame + `tabs/*` + `entry-dialog` + `rows` + `kit`,
+  moved by script: every line of the old file is in the new files unchanged except the dead `Summary`
+  block (deleted), and the rendered text + element structure of all 5 tabs and 8 opened entries matched
+  the old code exactly. No tab plug-in registry — 5 tabs don't need one. (3) "I pinged them" was two
+  calls from the browser (message, then clear the Reminder) and create-then-star was two calls on the
+  web and the phone; now `pingFollowUp` (one transaction) and `createFollowUp({ pinned })`.
+  (4) `OPEN_ON_LISTS` in `lib/follow-ups.ts` is the one "open and not archived" filter. It fixed two
+  real differences: Ask's open list and `list_tracker` counted archived entries as open, and the sprint
+  report listed open-but-archived overdue to-dos under Problems or Blockers. Ask's search still finds
+  archived entries (they stay in history) but now labels them "Archived", and Ask applies the effective
+  Reminder everywhere it shows a due date. *Rejected:* one generic Tracker query function — callers
+  select very different shapes; a shared filter gives the consistency without the indirection.
+
+- **2026-11-27 — Tracker state rules live in one module, `lib/tracker-rules.ts`.** The architecture
+  review found "who spoke last", Needs you, the effective Reminder and "which tab" copied across the
+  board, Ask and the Kaizen API, already drifting (Ask's links didn't know Personal / Archived). Now
+  `readEntry(entry, today)` answers all of it, pure and shared by client and server; it replaced
+  `lib/follow-up-reminder.ts`. Step 1 of the Tracker split (next: one file per tab). Checked by
+  comparing old and new rules on 20,000 generated entries in three timezones (0 differences) and on
+  the running app. Kept as-is on purpose: Work Logs' day card asks "who spoke last *that day*", a
+  different question, so `lib/day-tracker.ts` / `sprint-deck.tsx` still read that day's update.
+  Ask's "waiting on them" still includes Time to ping (open question for the owner).
+
+- **2026-11-27 — Matt Pocock's skills installed as general tools; WorkNest's rules win.** All
+  39 from `mattpocock/skills` are in `.claude/skills/`, pinned in `skills-lock.json`. They assume
+  things WorkNest doesn't have (a test suite for `tdd`, an issue tracker for `to-spec`/`to-tickets`),
+  so `AGENTS.md` §1 says it wins on conflicts, and `skills.md` §13 says how each one fits. Their
+  `code-review` now replaces the built-in `/code-review` in this repo.
 
 - **2026-11-25 — A Tracker note is one document, edited in place, with revisions.** The
   owner wanted a normal Edit, not the dated-entries layout, but with history kept. Edits
@@ -1019,6 +1050,9 @@ is done on the real rendered app.
 
 ## Gotchas
 
+- **`npx skills` crashes on the shell's default Node 16** (`styleText` isn't exported by
+  `node:util`). Put a newer nvm Node first on `PATH` (e.g. `~/.nvm/versions/node/v24.*/bin`)
+  before installing or updating skills.
 - **Sonner's default toast (~4s) is too short for an Undo you need to read first.** The Resources
   merge toast sets `duration: 15_000`; give any "Undo" for a bulk change the same.
 - **The browser pane can't copy while hidden.** `navigator.clipboard.writeText` rejects when the
@@ -1235,6 +1269,10 @@ is done on the real rendered app.
 
 ## Changelog
 
+- 2026-11-27 — Tracker split into `components/tracker/{tracker-board,kit,rows,entry-dialog}.tsx` + `tabs/*.tsx` (dead `Summary` removed); `pingFollowUp` + `createFollowUp({ pinned })` replace two-call sequences on the board and the phone; `OPEN_ON_LISTS` used by Tracker reads, Work Logs, sprint report, Ask, Kaizen and Favourites — `components/tracker/*`, `lib/follow-ups.ts`, `actions/follow-ups.ts`, `lib/validation.ts`, `lib/ask.ts`, `lib/reports.ts`, `lib/mobile-api.ts`, `app/api/mobile/tracker/route.ts`, `app/(app)/favourites/page.tsx`
+- 2026-11-27 — New `lib/tracker-rules.ts` (`readEntry`, `spokeLast`, `tabOf`, `nextReminder`, effective Reminder); board, Ask, Kaizen API and follow-up reads use it; `lib/follow-up-reminder.ts` removed; Ask links now open Personal / Archived entries on their own tab — `lib/tracker-rules.ts`, `components/tracker/tracker-board.tsx`, `lib/ask.ts`, `lib/mobile-api.ts`, `lib/follow-ups.ts`
+- 2026-11-27 — Added `GLOSSARY.md` (domain language, via the `domain-modeling` skill) and linked it from AGENTS §1/§2 and the README; ran `improve-codebase-architecture` (report in the OS temp dir, not the repo); code map line counts fixed — `GLOSSARY.md`, `AGENTS.md`, `README.md`, `.claude/skills/worknest-codemap/SKILL.md`
+- 2026-11-27 — Installed Matt Pocock's skills; brought the agent docs up to date: follow-up edits now keep revisions (AGENTS §4, worknest-backend skill + agent, reviewer agent), AI rule names the Groq backup, line counts, `/reports` no longer listed as Coming soon, older seeds and `PageHead` in recipes, README features (Ask, Quick log, Gmail import, Kaizen) and env vars, Architecture migration range — `AGENTS.md`, `skills.md`, `README.md`, `Architecture.md`, `.claude/skills/worknest-{backend,ui,codemap}/SKILL.md`, `.claude/agents/worknest-{backend,reviewer}.md`, `skills-lock.json`
 - 2026-11-25 — Tracker notes: one document with Edit, each save keeps a revision (`FollowUpUpdateRevision`, migration `20261125152131_follow_up_update_revisions`, `listUpdateRevisions`), Add to note retired; Modal close animation + no scrollbar shift; Notes: sticky editor toolbar, sections/pages folded on open, delete/trash confirmations, no 1.1 numbering, h1/h3 bands, tighter bullets — `components/tracker/tracker-board.tsx`, `components/ui/modal.tsx`, `lib/follow-ups.ts`, `actions/follow-ups.ts`, `lib/validation.ts`, `app/(app)/tracker/page.tsx`, `prisma/schema.prisma`, `components/notes/{NoteForm,SectionEditor,PageEditor,RichTextEditor,NoteReader}.tsx`, `app/globals.css`
 `YYYY-MM-DD — what changed — key files`
 

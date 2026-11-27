@@ -5,7 +5,7 @@
 > **Update the docs** (`AGENTS.md` §2). If you find a better way, or a new task
 > repeats, add or edit a recipe here.
 >
-> Last synced with the codebase: **2026-10-23**
+> Last synced with the codebase: **2026-11-27**
 
 ## Index
 
@@ -88,7 +88,8 @@ Checklist:
 1. Create `app/src/app/(app)/<route>/page.tsx` — a Server Component. It's protected
    automatically (`proxy.ts` + `(app)/layout.tsx`). Use `requireUserId()` for data.
 2. `export const metadata = { title: "…" }` (the root template adds "· WorkNest").
-3. Start the page with `PageHeader` (title, description, optional action).
+3. Start the page with `PageHead` from `components/shell/page-head.tsx` (title, meta,
+   optional action). Some older pages still use `PageHeader`; new pages use `PageHead`.
 4. For the nav, add an entry to `PRIMARY_NAV` in `components/shell/nav-items.ts`
    (Lucide icon). If it depends on a user setting, filter it in `navFor()` and also
    guard the page (see `/tickets` redirect).
@@ -105,7 +106,7 @@ Checklist:
 
 ## 5. Turn a "Coming soon" route into a real feature
 
-`/tasks`, `/reports`, `/links`, `/settings` render `ComingSoonPage`. `Task` and `Link`
+`/tasks`, `/links`, `/settings` render `ComingSoonPage` (`/reports` is live, see `PRD.md` §5.9). `Task` and `Link`
 already have models, `lib/content.ts` functions and actions.
 
 1. Confirm with the owner that it's wanted (Tracker tasks and Resources already
@@ -172,6 +173,7 @@ The established pattern (notes, resources, tracker `pinned`):
 | More Tracker data, keeping what's there | `npm run db:seed:tracker -- <email> --append` | adds a second dummy set; deletes nothing |
 | Notes + Resources study content | `npm run db:seed:workspace -- <email>` | replaces only its own titled items |
 | Achievements | `npm run db:seed:achievements -- <email>` | replaces only its own titled items |
+| Older bulk / fill / notes seeds | `npm run db:seed:bulk`, `db:seed:fill [-- <email> <days>]`, `db:seed:notes` | see `Architecture.md` §8 before running; `fill` also tops up *empty* auto-created logs |
 
 Without an email, scripts target the owner's account (`DEFAULT_EMAIL`). **Ask before
 running anything that replaces data.** New seeds: follow `seed-tracker.ts` (dotenv,
@@ -315,7 +317,7 @@ Other useful built-in / installed skills:
 | Skill | When |
 |---|---|
 | `run` | Launch the app and see a change working |
-| `code-review` | Review the current diff before committing |
+| `code-review` | Matt Pocock's version (installed below) now replaces the built-in one in this repo: reviews changes since a commit or branch against the repo's standards and the spec |
 | `security-review` | Any change touching auth, sessions, uploads or user scoping |
 | `simplify` | Tidy a finished change for reuse and clarity |
 | `engineering:deploy-checklist` | Before a Vercel deploy with migrations |
@@ -323,4 +325,29 @@ Other useful built-in / installed skills:
 | `engineering:architecture` | Recording a larger decision (then summarise it in `Memory.md`) |
 | `engineering:tech-debt` | Deciding what legacy code (e.g. the dormant dark tokens) to delete |
 
-When a project skill is added or removed under `.claude/skills/`, update the table above.
+**Matt Pocock engineering skills** (installed 2026-11-27 from `mattpocock/skills`, all
+39, pinned in `skills-lock.json`; `npx skills add mattpocock/skills --skill '*' --agent
+claude-code -y`, update with `npx skills update -p`). The installer needs Node ≥ 20; the
+shell's default nvm Node 16 crashes it, so put a newer Node first on `PATH`. They are
+general-purpose: where one assumes something WorkNest doesn't have, `AGENTS.md` wins.
+
+| Skill | When | How it fits WorkNest |
+|---|---|---|
+| `ask-matt` | Not sure which of these fits | Router over the rest |
+| `grill-me` / `grill-with-docs` | Stress-test a plan before building | `grill-with-docs` writes ADRs + a glossary: record the outcome in `Memory.md` Decisions too, newest first |
+| `to-spec` → `to-tickets` → `implement-spec` / `implement` | A feature too big for one sitting | Run `setup-matt-pocock-skills` once first (issue tracker, labels, doc layout). Specs still end in the PRD/Architecture updates from recipe 1 |
+| `wayfinder` | Work bigger than one agent session | Shared map of decision tickets on the tracker |
+| `diagnosing-bugs` | A hard bug or slowdown | Pairs with `engineering:debug`; the fix still follows recipes 2–3 |
+| `improve-codebase-architecture`, `codebase-design` | Finding and designing deeper modules | Proposals only; "don't refactor what nobody asked about" still holds |
+| `domain-modeling` | Naming things, a glossary, an ADR | Terms must match `PRD.md` |
+| `prototype` | Try a state model or UI before building it | Throwaway: keep it out of `app/src` or delete it before committing |
+| `tdd` | Only when the owner asks for tests | WorkNest has no test suite by design (`AGENTS.md` §5) |
+| `pr` | Writing a PR body | |
+| `handoff`, `claude-handoff`, `chief-of-staff` | Passing work to a fresh agent or session | |
+| `research`, `teach`, `to-questionnaire`, `retro`, `wait-what`, `wizard`, `writing-for-agents` | As named | Use `writing-for-agents` when editing these skills, `AGENTS.md` or the `worknest-*` files |
+| `setup-pre-commit`, `git-guardrails-claude-code`, `setup-ts-deep-modules` | Repo setup | Change project config: ask the owner first |
+
+Not relevant here: `migrate-to-shoehorn`, `scaffold-exercises`, `software-factory`,
+`loop-me`, `writing-beats` / `writing-fragments` / `writing-shape`.
+
+When a project skill is added or removed under `.claude/skills/`, update the tables above.

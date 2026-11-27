@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { NoteIcon } from "@/components/notes/NoteIcon";
 import { PageHead, UnderlineTabs, outlinePill } from "@/components/shell/page-head";
+import { OPEN_ON_LISTS } from "@/lib/follow-ups";
 import { isLightColor, noteAccent } from "@/lib/note-colors";
 import { prisma } from "@/lib/prisma";
 import { markdownPreview } from "@/lib/rich-text";
@@ -42,7 +43,7 @@ export default async function FavouritesPage({ searchParams }: { searchParams: P
       select: { id: true, title: true, description: true, type: true, url: true, content: true },
     }),
     prisma.followUp.findMany({
-      where: { userId, pinned: true, status: "Open", archivedAt: null },
+      where: { userId, pinned: true, ...OPEN_ON_LISTS },
       orderBy: [{ dueDate: "asc" }, { updatedAt: "desc" }],
       select: { id: true, kind: true, subject: true, person: true, dueDate: true },
     }),

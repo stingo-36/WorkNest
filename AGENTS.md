@@ -5,7 +5,7 @@ Instructions for any coding agent (Claude Code, Codex, …) working in this repo
 
 ## 1. Read first — the map, then only what the task needs
 
-Don't re-scan the repo, and don't read every doc end to end (they're ~3,300 lines).
+Don't re-scan the repo, and don't read every doc end to end (they're ~3,700 lines).
 
 1. **Always:** `.claude/skills/worknest-codemap/SKILL.md` — every source file, grouped
    by feature, with the doc section that explains it. Open only the files it names.
@@ -29,8 +29,13 @@ Don't re-scan the repo, and don't read every doc end to end (they're ~3,300 line
 | `Design-System.md` | How it looks: palettes, tokens, type, components, rules |
 | `Memory.md` | Decisions already made (and why), gotchas, recent changes |
 | `skills.md` | Step-by-step recipes for recurring tasks in this codebase |
+| `GLOSSARY.md` | The domain words (Tracker entry, Follow-up, Message, Needs you…) and which synonyms to avoid. Name new code and UI copy with these |
 
 If a doc or the map turns out to be wrong, fix it as part of your task.
+
+4. **General engineering skills** (planning, specs, diagnosis, architecture) from
+   `mattpocock/skills` are installed too. `skills.md` §13 says which fit WorkNest and
+   how they bend to these rules. This file wins wherever they disagree.
 
 ## 2. Keeping the docs current (required)
 
@@ -50,6 +55,7 @@ finish while the map has drifted or code changed with no doc change.
 | Make a choice someone could later second-guess, reverse an earlier decision, or discover a gotcha | `Memory.md` → Decisions (newest first) / Gotchas |
 | Finish any task | `Memory.md` → Changelog: one line, `YYYY-MM-DD — what changed — key files` |
 | Establish a new repeatable procedure, or change an existing one | `skills.md` |
+| Introduce, rename or sharpen a domain term | `GLOSSARY.md` (domain words only, no implementation) |
 | Change how agents should work, or add/remove a skill or agent | `AGENTS.md`, `skills.md` §13, the matching `.claude/skills/worknest-*` / `.claude/agents/worknest-*` file |
 
 Also bump the **"Last synced"** date at the top of each file you touch. Keep edits
@@ -83,8 +89,9 @@ App-only scripts: `npm --prefix app run <script>` — see `Architecture.md` §8.
   surface. Destructive admin mutations require the target account email.
 - **History is append-only.** Never add an edit/delete path for `TicketWorkUpdate`
   (except the existing same-log autosave upsert and detach) or `FollowUpUpdate`
-  (except `editFollowUpUpdate`, which rewrites a message's text only and stamps
-  `editedAt`; who spoke, channel and `occurredAt` never change, and there is no delete).
+  (except `editFollowUpUpdate`, which first copies the old text into
+  `FollowUpUpdateRevision`, then rewrites the text and stamps `editedAt`; who spoke,
+  channel and `occurredAt` never change, and there is no delete).
   Whole-account/whole-workspace erasure is the explicit privacy/admin exception.
 - **Only what exists.** Don't present Coming Soon or deferred features as live
   (homepage, nav, empty states). No invented users, logos or numbers.

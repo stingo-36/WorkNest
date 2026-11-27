@@ -10,7 +10,7 @@ description: File-level map of the WorkNest codebase — which route, action, li
 > section in the last column if you need the *why*. `npm run docs:check` fails when a
 > file is missing from this map or a listed path no longer exists — keep it green.
 >
-> Last synced with the codebase: **2026-11-17**
+> Last synced with the codebase: **2026-11-27**
 
 Paths are relative to `app/src/` unless they start with `app/` or `/`.
 Docs: **PRD** = `PRD.md`, **Arch** = `Architecture.md`, **DS** = `Design-System.md`,
@@ -40,7 +40,7 @@ Docs: **PRD** = `PRD.md`, **Arch** = `Architecture.md`, **DS** = `Design-System.
 | Tags / types | `lib/tag-colors.ts`, `lib/resource-types.ts`, `components/ui/tag-icon.tsx`, `components/ui/tag-chip.tsx`, `components/ui/tag-input.tsx` | DS §8 |
 | Schema | `app/prisma/schema.prisma`, `app/prisma/migrations/` | Arch §5 |
 | Root layouts | `app/layout.tsx` (fonts, local-dev ribbon), `app/(app)/layout.tsx` (auth + shell), `app/(auth)/layout.tsx`, `app/(marketing)/layout.tsx`, `app/not-found.tsx`, `components/providers.tsx` | Arch §3 |
-| Tokens & global CSS | `app/globals.css` (tokens + `.wl-*` recipes, 1.9k lines — grep, don't read whole), `app/brand-art.css` | DS §2, §8 |
+| Tokens & global CSS | `app/globals.css` (tokens + `.wl-*` recipes, 2.9k lines — grep, don't read whole), `app/brand-art.css` | DS §2, §8 |
 
 ## Features
 
@@ -64,8 +64,8 @@ Models: `Ticket`, `TicketWorkUpdate`, `TicketHistoryEntry`
 ### Tracker (landing page) — PRD §5.3 · DS "Tracker queue"
 Models: `FollowUp`, `FollowUpUpdate` (append-only), `FollowUpFile`
 - Route: `app/(app)/tracker/page.tsx`
-- Actions: `actions/follow-ups.ts` · Lib: `lib/follow-ups.ts`, `lib/follow-up-reminder.ts` (effective "time to ping" date: a reminder on/before your last message → 2 working days after it)
-- UI: `components/tracker/tracker-board.tsx` (1.9k lines — grep for the tab/dialog you need), `components/tracker/update-editor.tsx` (rich editor + renderer), `components/tracker/note-text.tsx` (legacy plain text)
+- Actions: `actions/follow-ups.ts` · Lib: `lib/follow-ups.ts`, `lib/tracker-rules.ts` (every Tracker state rule — `readEntry`: follow state, Needs you, effective Reminder, archived, tab — shared by the board, Ask, the Kaizen API and `lib/follow-ups.ts`)
+- UI (split 2026-11-27 — open only the tab you're changing): `components/tracker/tracker-board.tsx` (frame: header, tabs, search, `?open=`), `components/tracker/tabs/todo.tsx` (Needs you, Coming up, People card, add to-do), `components/tracker/tabs/personal.tsx` (sticky notes), `components/tracker/tabs/follow-ups.tsx` (Your turn / Time to ping / Waiting, New follow-up), `components/tracker/tabs/notes.tsx` (notes list, tag filter, New note), `components/tracker/tabs/archived.tsx`, `components/tracker/entry-dialog.tsx` (the opened entry: details, messages, revisions, timeline), `components/tracker/rows.tsx` (to-do and follow-up rows, shared by To-do and Follow-ups), `components/tracker/kit.tsx` (types, row parts, pills, add pill, date panel, `useRun`, `useCreate`), `components/tracker/update-editor.tsx` (rich editor + renderer), `components/tracker/note-text.tsx` (legacy plain text)
 
 ### Notes — PRD §5.4 · DS "Notes F layout"
 Models: `Note` → `NoteSection` → `NotePage` (TipTap JSON)
@@ -140,4 +140,4 @@ Bearer token, no cookie; `/api/mobile/*` is public in the proxy and checks its o
 - Root: `package.json`, `scripts/setup.mjs` (`npm run dev`), `scripts/check-docs.mjs` (`npm run docs:check`), `docker-compose.yml`
 - App: `app/package.json`, `app/scripts/hosted-db.mjs`, `app/scripts/vercel-build.mjs`, `app/prisma.config.ts`, `app/next.config.ts`
 - Seeds: `app/prisma/seed.ts`, `seed-sprint.ts`, `seed-tracker.ts`, `seed-workspace.ts`, `seed-notes.ts`, `seed-achievements.ts`, `seed-bulk.ts`, `seed-fill.ts`, `seed-fresh-demo.ts` (resets the `DEMO_EMAIL` account from `app/.env` to a fictional "Lumen Health" workspace — destructive for that account only)
-- Agent setup: `AGENTS.md`, `CLAUDE.md`, `.claude/skills/worknest-*`, `.claude/agents/worknest-*`, `.claude/settings.json` (Stop hook → docs check)
+- Agent setup: `AGENTS.md`, `CLAUDE.md`, `.claude/skills/worknest-*`, `.claude/agents/worknest-*`, `.claude/settings.json` (Stop hook → docs check); third-party skills in `.claude/skills/` are pinned in `skills-lock.json` (see `skills.md` §13)

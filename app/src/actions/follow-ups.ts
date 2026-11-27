@@ -12,6 +12,7 @@ import {
   editFollowUpUpdateSchema,
   editPersonalTodoSchema,
   listUpdateRevisionsSchema,
+  pingFollowUpSchema,
   rescheduleFollowUpSchema,
   setFollowUpAddedSchema,
   setFollowUpArchivedSchema,
@@ -162,6 +163,17 @@ export async function setFollowUpStatus(input: unknown) {
   );
   if (!followUp) return notFound("Follow-up not found");
 
+  revalidatePath("/tracker");
+  return ok(followUp);
+}
+
+/** "I pinged them" — one message from you and the Reminder cleared, together. Input: { followUpId, channel? } */
+export async function pingFollowUp(input: unknown) {
+  const userId = await requireUserId();
+  const parsed = parseOrFail(pingFollowUpSchema, input);
+  if (!parsed.ok) return parsed;
+  const followUp = await followUps.pingFollowUp(userId, parsed.data.followUpId, parsed.data.channel);
+  if (!followUp) return notFound("Follow-up not found");
   revalidatePath("/tracker");
   return ok(followUp);
 }

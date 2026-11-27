@@ -5,7 +5,7 @@ description: WorkNest's design rules in one page — tokens, type, breakpoints, 
 
 # Build UI the WorkNest way
 
-Full reference: `Design-System.md` (585 lines). Open only the section you need:
+Full reference: `Design-System.md` (~660 lines). Open only the section you need:
 
 | Need | Section |
 |---|---|
@@ -34,7 +34,7 @@ Full reference: `Design-System.md` (585 lines). Open only the section you need:
   never toast on autosave.
 - **Access:** visible label (`Field`), keyboard reachable, visible focus, 44px touch
   targets on phones, inputs ≥ 16px on phones, reduced-motion support.
-- `globals.css` is ~1.9k lines: `grep -n "<class or token>"`, don't read it whole.
+- `globals.css` is ~2.9k lines: `grep -n "<class or token>"`, don't read it whole.
 
 ## Deeper design skills (project, in `.claude/skills/`)
 
