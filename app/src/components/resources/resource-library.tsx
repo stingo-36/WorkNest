@@ -236,11 +236,11 @@ function TypePreview({ group, href, gmail, onAdd }: { group: TypeGroup; href: st
         <p className="relative mt-1.5 text-base opacity-90">{gmail !== undefined ? "Filled from your Gmail import, plus anything you add." : count}</p>
       </div>
       {gmail ? (
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border bg-surface-2 px-6 py-2.5 text-sm text-text-muted">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border bg-surface-2 px-6 py-2.5 text-sm text-text-muted">
           <Mail className="size-4 text-accent-text" aria-hidden="true" />
           <span>From Gmail · last email added {gmail.added}</span>
           <GmailUndoButton messageId={gmail.messageId} added={gmail.added} />
-        </p>
+        </div>
       ) : null}
       <ol className="flex max-h-96 flex-col overflow-y-auto py-1">
         {group.items.slice(0, PREVIEW_ITEMS).map((item, index) => (

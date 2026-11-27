@@ -3,7 +3,7 @@
 import { ArrowUpRight, Check, Clipboard, Mail, Pencil, Star, Trash2 } from "lucide-react";
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
-import { isToday } from "date-fns";
+import { format, isToday, parseISO } from "date-fns";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
@@ -429,15 +429,15 @@ export function ResourceQuickActions({ resource, className }: { resource: Resour
 }
 
 /**
- * One resource as a list row (search results, 2026-11-20): tile, title (opens the
- * link), its type, the site or the code, one line of description, tags, then
- * Copy / Open, star, edit and delete.
+ * Shared resource row with Copy / Open, star, edit and delete. The Drupal list
+ * shows the added date in place of the search result's type chip.
  */
-export function ResourceRow({ resource, onEdit }: { resource: ResourceItem; onEdit: () => void }) {
+export function ResourceRow({ resource, onEdit, inTypeList = false }: { resource: ResourceItem; onEdit: () => void; inTypeList?: boolean }) {
   const { remove, pending, dialog } = useRemove(resource);
   const code = CODE_TYPES.has(resourceTypeKey(resource.type)) ? resource.content : "";
+  const newImport = inTypeList && isNewImport(resource);
   return (
-    <li className="rs-row">
+    <li className={cn("rs-row", inTypeList && "rs-type-row", newImport && "bg-primary-subtle")}>
       {code ? (
         <span aria-hidden="true" className={cn("rt-tile size-9", typeTone(resource.type))}><TypeIcon type={resource.type} className="size-4" /></span>
       ) : (
@@ -445,22 +445,33 @@ export function ResourceRow({ resource, onEdit }: { resource: ResourceItem; onEd
       )}
       <div className="min-w-0">
         <p className="flex min-w-0 items-center gap-2">
-          {resource.url ? (
+          {resource.url && !inTypeList ? (
             <a href={resource.url} target="_blank" rel="noreferrer" className="truncate text-base font-semibold text-text hover:underline">
               {resource.title}
               <ArrowUpRight className="ml-1 inline size-[0.9em] align-[-0.1em]" strokeWidth={2.2} aria-hidden="true" />
               <span className="sr-only"> (opens in a new tab)</span>
             </a>
           ) : (
-            <span className="truncate text-base font-semibold text-text">{resource.title}</span>
+            <span className={cn("text-base font-semibold text-text", inTypeList ? "[overflow-wrap:anywhere]" : "truncate")}>{resource.title}</span>
           )}
-          <span className={cn("rt-chip shrink-0", typeTone(resource.type))}>{typeMeta(resource.type).label}</span>
+          {!inTypeList ? <span className={cn("rt-chip shrink-0", typeTone(resource.type))}>{typeMeta(resource.type).label}</span> : null}
         </p>
         {code ? <pre className="rs-code rs-code-row">{resourceTypeKey(resource.type) === resourceTypeKey("Command") ? <span className="rs-prompt" aria-hidden="true">$ </span> : null}{code}</pre>
           : resource.url ? <p className="truncate font-mono text-xs text-text-muted">{safeHost(resource.url)}</p> : null}
         {resource.description ? <p className="mt-1 line-clamp-1 text-sm text-text-muted">{plainText(resource.description)}</p> : null}
-        {resource.tags.length ? <p className="mt-1.5 flex flex-wrap gap-1.5">{resource.tags.map((tag) => <span key={tag} className="rs-chip">#{tag}</span>)}</p> : null}
+        {resource.tags.length || newImport ? (
+          <p className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {resource.tags.map((tag) => <span key={tag} className="rs-chip">#{tag}</span>)}
+            {newImport ? <span className="rs-new"><Mail className="size-3.5" aria-hidden="true" />New · from Gmail</span> : null}
+          </p>
+        ) : null}
       </div>
+      {inTypeList ? (
+        <p className="rs-row-added text-sm whitespace-nowrap text-text-muted">
+          <span className="md:sr-only">Added </span>
+          <time dateTime={resource.createdAt} suppressHydrationWarning>{format(parseISO(resource.createdAt), "d MMM yyyy")}</time>
+        </p>
+      ) : null}
       <span className="rs-row-actions flex items-center">
         <ResourceQuickActions resource={resource} />
         <EditButton resource={resource} onClick={onEdit} className="size-9 md:size-8" />

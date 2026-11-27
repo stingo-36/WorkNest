@@ -6,7 +6,7 @@ import { format, parseISO } from "date-fns";
 import { editPersonalTodo } from "@/actions/follow-ups";
 import { cn } from "@/components/cn";
 import { Button } from "@/components/ui/button";
-import { Column, DeleteEntry, DoneCircle, Empty, FavouriteToggle, FinishedGroup, LatestLine, type TrackerEntry, byCompleted, dayLabel, fitHeight, important, isOpen, matches, onEnterSave, useRun } from "@/components/tracker/kit";
+import { Column, DeleteEntry, DoneCircle, Empty, FavouriteToggle, FinishedGroup, LatestLine, type TrackerEntry, byCompleted, dayLabel, fitHeight, important, isOpen, matches, onEnterSave, splitSticky, useRun } from "@/components/tracker/kit";
 import { TodoRow } from "@/components/tracker/rows";
 
 const STICKY_TILTS = ["-1.2deg", "0.8deg", "-0.5deg", "1.1deg", "-0.9deg"];
@@ -58,17 +58,6 @@ export function StickyBoard({ entries, today, needle, onOpen }: { entries: Track
       </div>
     </div>
   );
-}
-
-/**
- * A sticky's first line is its title; the rest is its body. A long single line
- * (an old one-field note) reads as body text, not a giant bold heading.
- */
-function splitSticky(subject: string) {
-  const [first, ...rest] = subject.split("\n");
-  const body = rest.join("\n").trim();
-  if (first.length > 80) return { title: "", body: subject.trim() };
-  return { title: first.trim(), body };
 }
 
 function StickyNote({ entry, today, onOpen }: { entry: TrackerEntry; today: string; onOpen: () => void }) {

@@ -56,7 +56,7 @@ placeholder page) · **Retired** (redirects).
 | Auth | `/login`, `/register` | Live (public) | Email + password; Ocean look (2026-11-01): sign-in centred over waves, register in two steps (name + email, then passwords) on one form. Direct admin sign-ins land on `/admin`; regular users land on `/tracker`. |
 | Work Logs | `/work-logs`, `/work-logs/[id]`, `/work-logs/[id]/edit` | Live | The core workflow — see §5.1. |
 | Tickets | `/tickets` | Live · hidden when *Tickets* is off in Profile | Master-detail ticket manager — see §5.2. |
-| Tracker | `/tracker` | Live — **post-login landing page** | To-do · Follow-ups · Personal · Notes · Archived tabs (`?view=`), a plain header (2026-11-17: date · sprint day, greeting, three summary pills — overdue · follow-ups need you · people waiting on your reply — and underline tabs whose counts are only what needs you; search in the desktop top bar), Work to-dos as one white list card in two groups (**Needs you**: late, due today, then follow-ups that need you — first 6 + "Show N more", the just-added to-do always shown and highlighted, and a line when personal to-dos are due or late · **Coming up** by day, No date last) beside a **People** card (Waiting on you with Reply · You're waiting on with Nudge; both open the thread), Follow-ups laid out like Notes — a **New update** composer card (type dropdown — General / Waiting on / I told / They told me — title, optional rich first message, who/where, reminder or "said on" date, star) beside the follow-up list (Your turn · Nudge due · Waiting), rows open the entry dialog (2026-11-01); **Personal** is its own tab (2026-11-17; was an All / Work / Personal switch on To-do) showing sticky notes — see §5.3. |
+| Tracker | `/tracker` | Live — **post-login landing page** | To-do · Follow-ups · Personal · Notes · Archived tabs (`?view=`), a plain header (2026-11-17: date · sprint day, greeting, three summary pills — overdue · follow-ups need you · people waiting on your reply — and underline tabs whose counts are only what needs you; search in the desktop top bar), Work to-dos as one white list card in two groups (**Needs you**: late, due today, then follow-ups that need you — first 6 + "Show N more", the just-added to-do always shown and highlighted, and a line when personal to-dos are due or late · **Coming up** by day, No date last) beside a **People** card (Waiting on you with Reply · You're waiting on with Nudge; both open the thread), Follow-ups laid out like Notes — a **New update** composer card (type dropdown — General / Waiting on / I told / They told me — title, optional rich first message, who/where, reminder or "said on" date, star) beside the follow-up list (Your turn · Nudge due · Waiting), rows open the entry dialog (2026-11-01); **Personal** is its own tab (2026-11-17; was an All / Work / Personal switch on To-do) showing sticky notes whose dialog has an Edit action and puts the content and timeline in one column — see §5.3. |
 | Notes | `/notes`, `/notes/new`, `/notes/[id]`, `/notes/[id]/edit` | Live | Notebooks: note → sections → pages — see §5.4. |
 | Resources | `/resources`, `/resources/<type>` | Live | Typed personal library, one page per type; the Drupal type can fill itself from a Gmail label — see §5.5. |
 | Favourites | `/favourites` | Live | Everything starred in one place — see §5.6. |
@@ -278,6 +278,7 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   Done ones fold into "✓ N done · Show".
   Personal to-dos count in the To-do badge, but are **kept out of Work Logs** (day cards,
   log to-dos, AI summary input) and the sprint report; Ask still sees them, marked personal.
+- **Opened Personal to-do** (2026-11-28): title in the dialog header, then a status and date summary beside the actions. **Details** reveals the date fields. The task text and dated Notes timeline share the same reading column. **Edit** opens the Title and Details fields there. **Add a note** opens the timeline note editor.
 - **Archive, labelled (2026-11-17, phase 4):** the entry dialog's Archive / Restore is a labelled
   button beside Mark done / Done (was an unlabelled box icon among star and delete); its toast says
   where the item went. The **Archived** tab stays (owner's choice over moving it to a link under
@@ -464,6 +465,8 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   search, then the cards: **link cards** (initials tile, title ↗ + site, star,
   description, tags, edit/delete on hover; a Gmail import added today has a blue ring and
   "New · from Gmail") or, for commands/snippets, **dark code cards** (Copy, `$` prompt).
+  **Drupal** uses one row per resource with its description, tags, added date and a visible
+  **Open** button that opens the resource link in a new tab. New Gmail imports are highlighted.
 - **Gmail import → Drupal (2026-11-17):** with Gmail connected (§5.7), each email under
   the chosen label (default *Drupal Daily*) is read once. Drupal Module Watch and the
   older digest both import the module name, project link, and description as resources of the chosen
