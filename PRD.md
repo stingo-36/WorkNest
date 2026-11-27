@@ -571,7 +571,7 @@ two columns.
   `{Name} 5-15 Report`, `(dd-MM-yyyy to dd-MM-yyyy)`, **Completed This Week** (groups
   titled `Ticket <key> - <title>` or a topic, with full-sentence bullets) and
   **Problems or Blockers**. Source: the sprint's work logs (ticket updates, Work done)
-  and to-dos completed / still overdue at sprint end. **No meetings section** — meeting
+  and to-dos completed / still overdue at sprint end (archived to-dos don't count as overdue, 2026-11-27). **No meetings section** — meeting
   notes are only context the AI may fold into related work.
 - **AI only** via OpenRouter (same key as summaries). With no key the page says so and
   the Generate button is disabled; if a request fails or the reply ignores the format,
@@ -676,7 +676,7 @@ dialog via `/tracker?open=`, tickets via `/tickets?ticket=`, work logs and noteb
 open their page, resources go to Resources).
 
 - **Looks things up itself.** Starts with your open Tracker (exact counts, due dates
-  spelled out) and keyword matches, then searches again with other words, reads your
+  spelled out; archived entries aren't "open", and search results label them *Archived*, 2026-11-27) and keyword matches, then searches again with other words, reads your
   work logs for any day or period, or lists finished Tracker items — up to 4 lookups
   per message. Work logs are history; their stored AI summaries are not used (they
   can be stale).

@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 
-import { createFollowUp, setFollowUpPinned } from "@/lib/follow-ups";
+import { createFollowUp } from "@/lib/follow-ups";
 import { listMobileOptions, listMobileTracker, mobileJson, preflight, verifyMobileToken } from "@/lib/mobile-api";
 import { zodFields } from "@/lib/result";
 import { createFollowUpSchema } from "@/lib/validation";
@@ -29,9 +29,8 @@ export async function POST(request: Request) {
     return mobileJson({ error: Object.values(fields)[0] ?? "Check the details and try again", fields }, 400);
   }
 
+  // `pinned: true` stars it in the same write (the phone always sent it with the entry).
   const created = await createFollowUp(userId, parsed.data);
-  // The Tracker's add forms star an entry as a second step; the phone sends `pinned` with the entry.
-  if (body?.pinned === true) await setFollowUpPinned(userId, created.id, true);
   revalidatePath("/tracker");
   return mobileJson({ id: created.id, entries: await listMobileTracker(userId) }, 201);
 }

@@ -3,6 +3,7 @@ import "server-only";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 
 import { EntryKind } from "@/generated/prisma/enums";
+import { OPEN_ON_LISTS } from "@/lib/follow-ups";
 import { aiFailureMessage, type ChatMessage, openRouterChat, openRouterComplete, type ToolSpec } from "@/lib/ai-summary";
 import { DEFAULT_OPENROUTER_MODEL, getOpenRouterConfig } from "@/lib/ai-settings";
 import { spokeLast, tabOf, withEffectiveDue } from "@/lib/tracker-rules";
@@ -113,6 +114,7 @@ function entryCandidate(entry: EntryRow, todayKey: string, maxUpdates: number): 
     entry.person ? `Person: ${entry.person}` : "",
     entry.ticketKey ? `Ticket: ${entry.ticketKey}` : "",
     entry.personal ? "List: personal (not work)" : "",
+    entry.archivedAt ? `Archived ${day(entry.archivedAt)} (put away, off the Tracker lists)` : "",
     `Status: ${open ? (entry.kind === EntryKind.Note ? "active" : "open") : `done${entry.completedAt ? ` on ${day(entry.completedAt)}` : ""}`}${waiting}`,
     entry.dueDate ? `Due: ${dueText(entry.dueDate, open, todayKey)}` : entry.kind === EntryKind.Task && open ? "Due: no date" : "",
     `Created: ${day(entry.createdAt)}`,
@@ -154,7 +156,7 @@ function logCandidate(log: LogRow): Candidate {
  */
 async function openTracker(userId: string, todayKey: string): Promise<{ candidates: Candidate[]; counts: string }> {
   const entries = await prisma.followUp.findMany({
-    where: { userId, status: "Open" },
+    where: { userId, ...OPEN_ON_LISTS },
     orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { updatedAt: "desc" }],
     take: MAX_OPEN_ENTRIES,
     select: ENTRY_SELECT,
@@ -207,7 +209,7 @@ async function findCandidates(userId: string, terms: string[], ticketsEnabled: b
       orderBy: { updatedAt: "desc" },
       take: PER_SOURCE,
       select: ENTRY_SELECT,
-    }),
+    }).then((rows) => rows.map(withEffectiveDue)),
     prisma.workLog.findMany({
       where: recent ? { userId } : {
         userId,
@@ -592,7 +594,7 @@ async function runTool(name: string, rawArgs: string, ctx: ToolContext): Promise
       const entries = await prisma.followUp.findMany({
         where: {
           userId: ctx.userId,
-          status: done ? "Done" : "Open",
+          ...(done ? { status: "Done" as const } : OPEN_ON_LISTS),
           ...(kind ? { kind } : {}),
           ...(done && (between.from || between.to)
             ? { completedAt: { ...(between.from ? { gte: between.from } : {}), ...(between.to ? { lt: new Date(between.to.getTime() + 86_400_000) } : {}) } }
@@ -601,7 +603,7 @@ async function runTool(name: string, rawArgs: string, ctx: ToolContext): Promise
         orderBy: done ? { completedAt: "desc" } : [{ dueDate: { sort: "asc", nulls: "last" } }, { updatedAt: "desc" }],
         take: 40,
         select: ENTRY_SELECT,
-      });
+      }).then((rows) => rows.map(withEffectiveDue));
       return ctx.records.render(entries.map((entry) => entryCandidate(entry, ctx.todayKey, 2)), 400);
     }
     case "create_tracker_item": {

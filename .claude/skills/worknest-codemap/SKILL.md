@@ -65,7 +65,7 @@ Models: `Ticket`, `TicketWorkUpdate`, `TicketHistoryEntry`
 Models: `FollowUp`, `FollowUpUpdate` (append-only), `FollowUpFile`
 - Route: `app/(app)/tracker/page.tsx`
 - Actions: `actions/follow-ups.ts` · Lib: `lib/follow-ups.ts`, `lib/tracker-rules.ts` (every Tracker state rule — `readEntry`: follow state, Needs you, effective Reminder, archived, tab — shared by the board, Ask, the Kaizen API and `lib/follow-ups.ts`)
-- UI: `components/tracker/tracker-board.tsx` (2.8k lines — grep for the tab/dialog you need), `components/tracker/update-editor.tsx` (rich editor + renderer), `components/tracker/note-text.tsx` (legacy plain text)
+- UI (split 2026-11-27 — open only the tab you're changing): `components/tracker/tracker-board.tsx` (frame: header, tabs, search, `?open=`), `components/tracker/tabs/todo.tsx` (Needs you, Coming up, People card, add to-do), `components/tracker/tabs/personal.tsx` (sticky notes), `components/tracker/tabs/follow-ups.tsx` (Your turn / Time to ping / Waiting, New follow-up), `components/tracker/tabs/notes.tsx` (notes list, tag filter, New note), `components/tracker/tabs/archived.tsx`, `components/tracker/entry-dialog.tsx` (the opened entry: details, messages, revisions, timeline), `components/tracker/rows.tsx` (to-do and follow-up rows, shared by To-do and Follow-ups), `components/tracker/kit.tsx` (types, row parts, pills, add pill, date panel, `useRun`, `useCreate`), `components/tracker/update-editor.tsx` (rich editor + renderer), `components/tracker/note-text.tsx` (legacy plain text)
 
 ### Notes — PRD §5.4 · DS "Notes F layout"
 Models: `Note` → `NoteSection` → `NotePage` (TipTap JSON)

@@ -9,8 +9,8 @@ You answer questions about the WorkNest codebase cheaply and precisely. You neve
 
 1. Read `.claude/skills/worknest-codemap/SKILL.md` first. Pick the feature section(s) that
    match the question.
-2. Open only the files that section lists — and inside big files (`tracker-board.tsx`,
-   `globals.css`, `validation.ts`, `ask.ts`, `tickets.ts`) grep for the symbol instead of
+2. Open only the files that section lists — and inside big files (`tracker/kit.tsx`,
+   `tracker/entry-dialog.tsx`, `globals.css`, `validation.ts`, `ask.ts`, `tickets.ts`) grep for the symbol instead of
    reading the whole file.
 3. For the *why* behind code, read just the named doc section (`grep -n "^## \|^### "
    <doc>` to find it) and grep `Memory.md` for the keyword — past decisions live there.

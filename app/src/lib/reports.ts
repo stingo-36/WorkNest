@@ -3,7 +3,8 @@ import "server-only";
 import { addDays, format } from "date-fns";
 
 import { TICKET_STATUS_LABELS } from "@/components/ui/ticket-status-badge";
-import { EntryKind, FollowUpStatus } from "@/generated/prisma/enums";
+import { EntryKind } from "@/generated/prisma/enums";
+import { OPEN_ON_LISTS } from "@/lib/follow-ups";
 import { getOpenRouterConfig } from "@/lib/ai-settings";
 import { type AiFailure, openRouterComplete } from "@/lib/ai-summary";
 import { prisma } from "@/lib/prisma";
@@ -142,7 +143,7 @@ async function loadSprintData(userId: string, start: Date, end: Date, ticketsEna
         kind: EntryKind.Task,
         personal: false,
         dueDate: { lte: to },
-        OR: [{ status: FollowUpStatus.Open }, { completedAt: { gte: addDays(end, 1) } }],
+        OR: [OPEN_ON_LISTS, { completedAt: { gte: addDays(end, 1) } }],
       },
       select: { subject: true },
     }),

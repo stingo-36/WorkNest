@@ -452,6 +452,8 @@ export const createFollowUpSchema = z
     tags: tagsSchema,
     /** A personal to-do (sticky note). Ignored for anything but a Task. */
     personal: z.boolean().optional(),
+    /** Star it as it's created. Anything but `true` is ignored, as the phone always did. */
+    pinned: z.boolean().optional().catch(undefined),
   })
   .superRefine((value, ctx) => {
     // Only a follow-up is addressed to someone. A task or a note is yours, so
@@ -544,6 +546,12 @@ export const setFollowUpArchivedSchema = z.object({
 export const setFollowUpStatusSchema = z.object({
   followUpId: idSchema,
   status: followUpStatusSchema,
+});
+
+/** "I pinged them": one message from you plus a cleared Reminder (`lib/follow-ups.ts` → `pingFollowUp`). */
+export const pingFollowUpSchema = z.object({
+  followUpId: idSchema,
+  channel: followUpChannelSchema.optional(),
 });
 
 export const rescheduleFollowUpSchema = z.object({

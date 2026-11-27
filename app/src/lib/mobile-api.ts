@@ -2,10 +2,9 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import { FollowUpStatus } from "@/generated/prisma/enums";
 import { listResources } from "@/lib/content";
 import { withEffectiveDue } from "@/lib/tracker-rules";
-import { getFollowUp, listFollowUpPeople } from "@/lib/follow-ups";
+import { getFollowUp, listFollowUpPeople, OPEN_ON_LISTS } from "@/lib/follow-ups";
 import { prisma } from "@/lib/prisma";
 import { isStatusNote } from "@/lib/rich-text";
 import { getOrderedList, getSavedTags } from "@/lib/user-lists";
@@ -86,7 +85,7 @@ export async function listMobileTracker(userId: string) {
       userId,
       archivedAt: null,
       OR: [
-        { status: FollowUpStatus.Open },
+        OPEN_ON_LISTS,
         { completedAt: { gte: new Date(Date.now() - KEEP_DONE_MS) } },
       ],
     },

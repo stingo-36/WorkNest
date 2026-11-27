@@ -41,6 +41,8 @@ export type FollowUpInput = {
   tags?: string[];
   /** A personal to-do (sticky note). Only kept on a Task. */
   personal?: boolean;
+  /** Starred as it's created (one write, not create-then-star). */
+  pinned?: boolean;
 };
 
 /** Lowercase, no "#", spaces → dashes, de-duplicated — same rule as resources. */
@@ -119,6 +121,15 @@ const FOLLOW_UP_SELECT = {
   },
 } satisfies Prisma.FollowUpSelect;
 
+/**
+ * The one definition of "open and on the Tracker lists": not done, not put away
+ * with Archive (2026-11-27). Every reader that means "what's open right now" —
+ * the Tracker, Work Logs, the sprint report, Ask, the phone, Favourites — spreads
+ * this into its `where`, so an archived to-do can't count as open in one place
+ * and not another. History reads (search, what happened on a day) leave it out.
+ */
+export const OPEN_ON_LISTS = { status: FollowUpStatus.Open, archivedAt: null } satisfies Prisma.FollowUpWhereInput;
+
 export async function createFollowUp(userId: string, input: FollowUpInput) {
   const { note, doc } = noteFields(input);
 
@@ -139,6 +150,7 @@ export async function createFollowUp(userId: string, input: FollowUpInput) {
       dueDate: input.dueDate ?? null,
       tags: normalizeTags(input.tags),
       personal: (input.kind ?? EntryKind.FollowUp) === EntryKind.Task && Boolean(input.personal),
+      pinned: input.pinned === true,
       // A first note is written as a real update row, not as a field on the
       // thread, so day one is history in exactly the same shape as day ten.
       ...(note || doc
@@ -358,7 +370,7 @@ export async function listTodosAroundDay(userId: string, day: Date) {
         { completedAt: { gte: from, lt: to } },
         {
           dueDate: { lte: day },
-          OR: [{ status: FollowUpStatus.Open, archivedAt: null }, { completedAt: { gte: from } }],
+          OR: [OPEN_ON_LISTS, { completedAt: { gte: from } }],
         },
       ],
     },
@@ -382,7 +394,7 @@ export async function listTrackerForRange(userId: string, from: Date, to: Date) 
         { createdAt: { gte: from, lt: to } },
         { completedAt: { gte: from, lt: to } },
         { updates: { some: { occurredAt: { gte: from, lt: to } } } },
-        { kind: EntryKind.Task, status: FollowUpStatus.Open, archivedAt: null, dueDate: { lt: to } },
+        { kind: EntryKind.Task, ...OPEN_ON_LISTS, dueDate: { lt: to } },
       ],
     },
     orderBy: [{ pinned: "desc" }, { createdAt: "asc" }],
@@ -406,6 +418,30 @@ export async function listTrackerForRange(userId: string, from: Date, to: Date) 
     },
     take: 300,
   });
+}
+
+/** The message "I pinged them" records (it was "Nudged" before 2026-11-17; old rows keep that). */
+export const PING_NOTE = "Pinged them again";
+
+/**
+ * "I pinged them": append one message from you and clear the Reminder, in one
+ * transaction, so the follow-up moves to Waiting on them and never ends up
+ * half done. The Tracker used to do this as two calls from the browser.
+ */
+export async function pingFollowUp(userId: string, followUpId: string, channel?: string) {
+  const done = await prisma.$transaction(async (tx) => {
+    const owned = await tx.followUp.updateMany({
+      where: { id: followUpId, userId },
+      // Touch the thread so "recently active" ordering stays honest.
+      data: { dueDate: null, updatedAt: new Date() },
+    });
+    if (owned.count === 0) return false;
+    await tx.followUpUpdate.create({
+      data: { followUpId, userId, ...noteFields({ note: PING_NOTE }), channel: channel ?? "Slack", occurredAt: new Date(), fromThem: false },
+    });
+    return true;
+  });
+  return done ? getFollowUp(userId, followUpId) : null;
 }
 
 export async function rescheduleFollowUp(
