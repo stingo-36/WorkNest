@@ -5,7 +5,7 @@ Instructions for any coding agent (Claude Code, Codex, …) working in this repo
 
 ## 1. Read first — the map, then only what the task needs
 
-Don't re-scan the repo, and don't read every doc end to end (they're ~3,300 lines).
+Don't re-scan the repo, and don't read every doc end to end (they're ~3,700 lines).
 
 1. **Always:** `.claude/skills/worknest-codemap/SKILL.md` — every source file, grouped
    by feature, with the doc section that explains it. Open only the files it names.
@@ -31,6 +31,10 @@ Don't re-scan the repo, and don't read every doc end to end (they're ~3,300 line
 | `skills.md` | Step-by-step recipes for recurring tasks in this codebase |
 
 If a doc or the map turns out to be wrong, fix it as part of your task.
+
+4. **General engineering skills** (planning, specs, diagnosis, architecture) from
+   `mattpocock/skills` are installed too. `skills.md` §13 says which fit WorkNest and
+   how they bend to these rules. This file wins wherever they disagree.
 
 ## 2. Keeping the docs current (required)
 
@@ -83,8 +87,9 @@ App-only scripts: `npm --prefix app run <script>` — see `Architecture.md` §8.
   surface. Destructive admin mutations require the target account email.
 - **History is append-only.** Never add an edit/delete path for `TicketWorkUpdate`
   (except the existing same-log autosave upsert and detach) or `FollowUpUpdate`
-  (except `editFollowUpUpdate`, which rewrites a message's text only and stamps
-  `editedAt`; who spoke, channel and `occurredAt` never change, and there is no delete).
+  (except `editFollowUpUpdate`, which first copies the old text into
+  `FollowUpUpdateRevision`, then rewrites the text and stamps `editedAt`; who spoke,
+  channel and `occurredAt` never change, and there is no delete).
   Whole-account/whole-workspace erasure is the explicit privacy/admin exception.
 - **Only what exists.** Don't present Coming Soon or deferred features as live
   (homepage, nav, empty states). No invented users, logos or numbers.

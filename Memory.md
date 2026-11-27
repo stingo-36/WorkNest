@@ -4,7 +4,7 @@
 > (with the *why*), gotchas that cost time before, and a changelog. Newest first in
 > every section. Update rules are in `AGENTS.md` §2.
 >
-> Last synced with the codebase: **2026-11-25**
+> Last synced with the codebase: **2026-11-27**
 
 ---
 
@@ -24,6 +24,12 @@
   take ~4.5 MB — lower the limit or move files to Vercel Blob (free, hard-capped).
 
 ## Decisions
+
+- **2026-11-27 — Matt Pocock's skills installed as general tools; WorkNest's rules win.** All
+  39 from `mattpocock/skills` are in `.claude/skills/`, pinned in `skills-lock.json`. They assume
+  things WorkNest doesn't have (a test suite for `tdd`, an issue tracker for `to-spec`/`to-tickets`),
+  so `AGENTS.md` §1 says it wins on conflicts, and `skills.md` §13 says how each one fits. Their
+  `code-review` now replaces the built-in `/code-review` in this repo.
 
 - **2026-11-25 — A Tracker note is one document, edited in place, with revisions.** The
   owner wanted a normal Edit, not the dated-entries layout, but with history kept. Edits
@@ -1019,6 +1025,9 @@ is done on the real rendered app.
 
 ## Gotchas
 
+- **`npx skills` crashes on the shell's default Node 16** (`styleText` isn't exported by
+  `node:util`). Put a newer nvm Node first on `PATH` (e.g. `~/.nvm/versions/node/v24.*/bin`)
+  before installing or updating skills.
 - **Sonner's default toast (~4s) is too short for an Undo you need to read first.** The Resources
   merge toast sets `duration: 15_000`; give any "Undo" for a bulk change the same.
 - **The browser pane can't copy while hidden.** `navigator.clipboard.writeText` rejects when the
@@ -1235,6 +1244,7 @@ is done on the real rendered app.
 
 ## Changelog
 
+- 2026-11-27 — Installed Matt Pocock's skills; brought the agent docs up to date: follow-up edits now keep revisions (AGENTS §4, worknest-backend skill + agent, reviewer agent), AI rule names the Groq backup, line counts, `/reports` no longer listed as Coming soon, older seeds and `PageHead` in recipes, README features (Ask, Quick log, Gmail import, Kaizen) and env vars, Architecture migration range — `AGENTS.md`, `skills.md`, `README.md`, `Architecture.md`, `.claude/skills/worknest-{backend,ui,codemap}/SKILL.md`, `.claude/agents/worknest-{backend,reviewer}.md`, `skills-lock.json`
 - 2026-11-25 — Tracker notes: one document with Edit, each save keeps a revision (`FollowUpUpdateRevision`, migration `20261125152131_follow_up_update_revisions`, `listUpdateRevisions`), Add to note retired; Modal close animation + no scrollbar shift; Notes: sticky editor toolbar, sections/pages folded on open, delete/trash confirmations, no 1.1 numbering, h1/h3 bands, tighter bullets — `components/tracker/tracker-board.tsx`, `components/ui/modal.tsx`, `lib/follow-ups.ts`, `actions/follow-ups.ts`, `lib/validation.ts`, `app/(app)/tracker/page.tsx`, `prisma/schema.prisma`, `components/notes/{NoteForm,SectionEditor,PageEditor,RichTextEditor,NoteReader}.tsx`, `app/globals.css`
 `YYYY-MM-DD — what changed — key files`
 

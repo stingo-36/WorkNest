@@ -5,7 +5,7 @@ work logs, ticket history, follow-ups, notes and a resource library — recorded
 happens, so months later it still answers *"what did I do, when, and in what order?"*
 
 Built with Next.js 16, React 19, TypeScript, Tailwind CSS 4, MUI 9, Auth.js, PostgreSQL 16
-and Prisma 7. Optional AI summaries and sprint reports via OpenRouter.
+and Prisma 7. Optional AI (summaries, sprint reports, Ask, Quick log) via OpenRouter, with Groq as a backup.
 
 ---
 
@@ -71,14 +71,17 @@ npm run dev                   # http://localhost:3000
 |---|---|
 | **Work Logs** | One log per day: meeting notes, ticket work, learning notes, attachments. Grouped by sprint. Holiday/leave days. Copy a day as plain text. |
 | **Tickets** | Find or create a ticket *inside* today's log. Work history is append-only — yesterday's update is never overwritten. Five-stage workflow. |
-| **Tracker** | Follow-ups ("what did I tell whom, and when"), tasks, notes and ideas, grouped into Overdue / Today / Upcoming. |
+| **Tracker** | The landing page: to-dos (Needs you / Coming up), follow-ups ("what did I tell whom, and when") with a People card, personal sticky notes and notes. Notes are edited in place and every earlier version is kept. |
 | **Notes** | Notebooks → sections → pages with a rich-text editor. |
-| **Resources** | Links, docs, tools, commands and snippets with searchable tags. |
+| **Resources** | Links, docs, tools, commands and snippets with searchable tags, one page per type. The Drupal type can fill itself from a Gmail label. |
 | **Favourites** | Everything you've starred, in one place. |
 | **Reports** | A "5-15" report per sprint, built from your work logs, ready to paste into a doc. |
 | **Achievements** | Certifications, courses and awards on a timeline, with the certificate attached. |
-| **AI summaries** | Optional: a short summary of any day and the sprint report, written by AI (your own OpenRouter key, free models work). No key → no AI; nothing is invented. |
-| **Profile** | Your name, sprint calendar, tracked lists, whether you track tickets, and your AI key. |
+| **AI summaries** | Optional: a short summary of any day and the sprint report, written by AI (your own OpenRouter or Groq key, free models work). No key → no AI; nothing is invented. |
+| **Ask** | Chat about your own records, with links to the sources; it can propose Tracker changes you confirm with one click. |
+| **Quick log** | Paste rough text, get an AI draft, review it, then apply it as a work log, to-dos or follow-ups. |
+| **Profile** | Your name, sprint calendar, whether you track tickets, your AI keys and Gmail import. |
+| **Phone + install** | Install WorkNest as an app; the Kaizen phone app can read and add Tracker entries and Resources. |
 
 Full product spec: [PRD.md](PRD.md).
 
@@ -116,6 +119,10 @@ More scripts (extra seeds, hosted DB) are listed in [Architecture.md](Architectu
 | `HOSTED_DATABASE_URL` | Only for deploying — see below |
 | `OPENROUTER_API_KEY` | Optional server-wide AI key. Each user can also add their own in **Profile → Account**. |
 | `OPENROUTER_MODEL` | Optional comma-separated model list (default: free models) |
+| `GROQ_API_KEY` · `GROQ_MODEL` | Optional backup AI, used when OpenRouter fails or has no key |
+| `GROQ_MAX_REQUEST_TOKENS` · `OPENROUTER_MAX_REQUEST_TOKENS` | Optional cap on one AI request; bigger inputs are trimmed to fit |
+| `GOOGLE_CLIENT_ID` · `GOOGLE_CLIENT_SECRET` | Optional: Gmail import (Google OAuth client, redirect `<site>/api/gmail/callback`) |
+| `DEMO_EMAIL` | The account `prisma/seed-fresh-demo.ts` resets |
 
 Never commit `.env` files or real credentials; this repository is public.
 

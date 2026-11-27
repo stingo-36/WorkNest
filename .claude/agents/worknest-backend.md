@@ -17,7 +17,8 @@ Before editing:
 Rules:
 - `userId` from `requireUserId()` in every action and every WHERE; never from the client.
 - Every mutation validated by a schema in `lib/validation.ts`.
-- No edit/delete paths for `TicketWorkUpdate` / `FollowUpUpdate` history.
+- No new edit/delete paths for `TicketWorkUpdate` / `FollowUpUpdate` history. The only
+  follow-up edit is `editFollowUpUpdate`, and it must keep saving a `FollowUpUpdateRevision`.
 - Schema changes additive; create migrations with `npm run db:migrate`; never edit an
   applied migration or `app/src/generated/prisma`.
 - Ask the caller before anything that replaces data or touches a hosted service

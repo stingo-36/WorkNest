@@ -10,7 +10,7 @@ description: File-level map of the WorkNest codebase — which route, action, li
 > section in the last column if you need the *why*. `npm run docs:check` fails when a
 > file is missing from this map or a listed path no longer exists — keep it green.
 >
-> Last synced with the codebase: **2026-11-17**
+> Last synced with the codebase: **2026-11-27**
 
 Paths are relative to `app/src/` unless they start with `app/` or `/`.
 Docs: **PRD** = `PRD.md`, **Arch** = `Architecture.md`, **DS** = `Design-System.md`,
@@ -140,4 +140,4 @@ Bearer token, no cookie; `/api/mobile/*` is public in the proxy and checks its o
 - Root: `package.json`, `scripts/setup.mjs` (`npm run dev`), `scripts/check-docs.mjs` (`npm run docs:check`), `docker-compose.yml`
 - App: `app/package.json`, `app/scripts/hosted-db.mjs`, `app/scripts/vercel-build.mjs`, `app/prisma.config.ts`, `app/next.config.ts`
 - Seeds: `app/prisma/seed.ts`, `seed-sprint.ts`, `seed-tracker.ts`, `seed-workspace.ts`, `seed-notes.ts`, `seed-achievements.ts`, `seed-bulk.ts`, `seed-fill.ts`, `seed-fresh-demo.ts` (resets the `DEMO_EMAIL` account from `app/.env` to a fictional "Lumen Health" workspace — destructive for that account only)
-- Agent setup: `AGENTS.md`, `CLAUDE.md`, `.claude/skills/worknest-*`, `.claude/agents/worknest-*`, `.claude/settings.json` (Stop hook → docs check)
+- Agent setup: `AGENTS.md`, `CLAUDE.md`, `.claude/skills/worknest-*`, `.claude/agents/worknest-*`, `.claude/settings.json` (Stop hook → docs check); third-party skills in `.claude/skills/` are pinned in `skills-lock.json` (see `skills.md` §13)

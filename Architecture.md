@@ -46,7 +46,7 @@
     ├── components.json        shadcn config (utils alias → @/components/cn)
     ├── prisma/
     │   ├── schema.prisma      the data model (§5)
-    │   ├── migrations/        migrations from init 2026-09-11 → gmail_import 2026-11-17
+    │   ├── migrations/        migrations from init 2026-09-11 → follow_up_update_revisions 2026-11-25
     │   └── seed*.ts           seed scripts (§8)
     ├── scripts/
     │   ├── hosted-db.mjs      migrate (+ optional seed) the hosted DB

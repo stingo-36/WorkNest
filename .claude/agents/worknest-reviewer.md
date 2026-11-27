@@ -14,7 +14,8 @@ You review the current WorkNest change. You never edit; you report.
    - **Isolation:** any query/mutation not scoped by the session `userId`; ids or
      `userId` trusted from the client; cross-account code outside `lib/admin.ts`;
      `/api/mobile/*` handler without `verifyMobileToken`.
-   - **History:** any edit/delete path for `TicketWorkUpdate` or `FollowUpUpdate`.
+   - **History:** any new edit/delete path for `TicketWorkUpdate` or `FollowUpUpdate`, or a
+     change to `editFollowUpUpdate` that rewrites text without saving a `FollowUpUpdateRevision`.
    - **Validation/layering:** mutation without a `lib/validation.ts` schema; client
      importing `lib/*`; missing `revalidatePath` for a page that shows the data.
    - **Schema:** non-additive change, edited applied migration, edited generated client.
