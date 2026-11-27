@@ -4,7 +4,7 @@
 > delete a module, route, model or script, update the relevant section in the same
 > change.
 >
-> Last synced with the codebase: **2026-11-27**
+> Last synced with the codebase: **2026-11-28**
 
 ---
 
@@ -46,7 +46,7 @@
     ├── components.json        shadcn config (utils alias → @/components/cn)
     ├── prisma/
     │   ├── schema.prisma      the data model (§5)
-    │   ├── migrations/        migrations from init 2026-09-11 → follow_up_update_revisions 2026-11-25
+    │   ├── migrations/        migrations from init 2026-09-11 → retry_module_watch_imports 2026-11-28
     │   └── seed*.ts           seed scripts (§8)
     ├── scripts/
     │   ├── hosted-db.mjs      migrate (+ optional seed) the hosted DB
@@ -210,7 +210,7 @@ browser ──► proxy.ts ──► (app)/layout.tsx ──► page.tsx (Server
 | `lib/ai-settings.ts` | per-user OpenRouter key/model and Groq key: `getAiSettings` (client-safe view, never a key; `aiOn`, `keySource`, `groqSource`), `getOpenRouterConfig` (user keys → env fallbacks, for OpenRouter and the Groq backup; null only when neither exists), `checkOpenRouterKey` / `checkGroqKey`, save/clear for each |
 | `lib/secret-box.ts` | AES-256-GCM `seal`/`open` for stored secrets, keyed off `AUTH_SECRET` |
 | `lib/gmail.ts` | Gmail import: OAuth URL / code exchange (plain fetch), `getGmailStatus`, `saveGmailRule`, `disconnectGmail` (revokes), `syncGmail` (label search, 14 days, unseen emails only, skips known URLs; `onlyIfStale` = 6 h), `latestGmailImport`, `undoGmailImport` |
-| `lib/drupal-digest.ts` | pure: Drupal Daily email HTML → `{ title, url, description, moduleOfTheDay }[]` |
+| `lib/drupal-digest.ts` | pure: Drupal Module Watch and legacy Drupal digest HTML → `{ title, url, description, moduleOfTheDay }[]` |
 | `lib/resource-types.ts` | type labels/keys plus the shared Resources helpers: `typeSlug`, `typeTone`, `matchesSearch`, `orderTypes` (client + server) |
 | `lib/mobile-api.ts` | Kaizen phone link: stateless HMAC token (`wn1.<userId>.<authVersion>.<sig>`, keyed off `AUTH_SECRET`) `createMobileToken` / `verifyMobileToken`, CORS `mobileJson` / `preflight`, `listMobileTracker` (the phone's list shape) |
 | `lib/validation.ts` | all Zod schemas |
@@ -274,7 +274,7 @@ User ─┬─ WorkLog ─┬─ Meeting ── MeetingMinutesLink ──► Fol
 | `Note` / `NoteSection` / `NotePage` | icon (`iconName`, `iconLibrary` si/lu/fa6), `favorite`, `deletedAt` (trash); sections & pages ordered by `order`; page `content Json` |
 | `Resource` | `type` (free text from the user's list; was an enum), `url?`, `content`, `tags[]`, `favorite`, `source?` ("gmail"), `sourceMessageId?` (Undo key) |
 | `GmailConnection` | one per user (`userId` PK): `email`, sealed `refreshToken`, `label` (default "Drupal Daily"), `resourceType` (default "Drupal"), `lastSyncAt?`, `lastSyncError?` |
-| `GmailImport` | `(userId, messageId)` PK — every email read, `added`, `undone`; an email is never imported twice |
+| `GmailImport` | `(userId, messageId)` PK — every email read, `added`, `undone`; successful and undone imports are retained. A one-time migration clears zero-result receipts for Drupal Module Watch so the new parser can retry them within the normal lookback |
 | `SprintReport` | one per `(userId, sprintStart)` (`@db.Date`, UTC midnight like `WorkLog.date`); `content` (Markdown), `model?` (null = built), `generatedAt`, `editedAt?` (owner edited the text; cleared on regenerate) |
 | `Achievement` | `title`, `type` (free text), `status` (`AchievementStatus` InProgress/Completed), `assignedBy?`, `startDate?`/`endDate?` `@db.Date`, `description` |
 | `AchievementFile` | `name`, `mimeType`, `size`, `data Bytes` (≤10 MB); `userId` denormalised for owner-only download. **`data` never selected in lists.** |

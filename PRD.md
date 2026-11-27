@@ -4,7 +4,7 @@
 > changes scope, or is retired, update the matching section here (see
 > `AGENTS.md → Keeping the docs current`).
 >
-> Last synced with the codebase: **2026-11-27**
+> Last synced with the codebase: **2026-11-28**
 
 ---
 
@@ -62,7 +62,7 @@ placeholder page) · **Retired** (redirects).
 | Favourites | `/favourites` | Live | Everything starred in one place — see §5.6. |
 | Ask | top bar button (≥1024) / tab bar item (phones); full-height side drawer on desktop | Live | Chat that answers questions about your own records, with numbered links to the sources, looks things up across your logs and Tracker, and proposes Tracker changes (add, done, reopen, reschedule, update) you confirm with one click — see §5.13. |
 | Quick log | full-screen dialog (sidebar button, phone tab bar +, Work Logs header) | Live | Paste rough text → AI draft → review → apply, for a work log, to-dos or follow-ups — see §5.10. |
-| Profile | `/profile` (account menu) | Live | Name, sprint calendar, tickets on/off, AI summary key, Gmail import — see §5.7. |
+| Profile | `/profile` (account menu) | Live | Name, sprint calendar, tickets on/off, AI summary key, Gmail import for Drupal Module Watch — see §5.7. |
 | Achievements | `/achievements` (account menu) | Live | Certifications/courses/awards timeline with certificates — see §5.8. |
 | Reports | `/reports` (account menu) | Live | "5-15 Report" per sprint, ready to paste into a doc — see §5.9. |
 | Kaizen phone link | `/api/mobile/*` (no page) | Live | The owner's Kaizen mobile app signs in once and shows the Tracker (Work / Personal to-dos, follow-ups, notes), can add entries, tick them and edit sticky notes, and lists and adds Resources. Nothing else in WorkNest is reachable — see §5.14. |
@@ -465,8 +465,8 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   description, tags, edit/delete on hover; a Gmail import added today has a blue ring and
   "New · from Gmail") or, for commands/snippets, **dark code cards** (Copy, `$` prompt).
 - **Gmail import → Drupal (2026-11-17):** with Gmail connected (§5.7), each email under
-  the chosen label (default *Drupal Daily*) is read once; every module in it (name, the
-  drupal.org project link, the "What does it do?" line) becomes a resource of the chosen
+  the chosen label (default *Drupal Daily*) is read once. Drupal Module Watch and the
+  older digest both import the module name, project link, and description as resources of the chosen
   type (default *Drupal*), tagged `drupal`; *Module of the Day* is starred. Modules whose
   URL is already in the library are skipped. Checks run after a Resources page loads, at
   most every six hours, plus **Check now** in Profile. **Undo last email** (2026-11-21:
