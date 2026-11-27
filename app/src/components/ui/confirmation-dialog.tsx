@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { cn } from "@/components/cn";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,8 @@ export function ConfirmationDialog({
   onCancel: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const descriptionId = `${titleId}-description`;
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -55,8 +57,8 @@ export function ConfirmationDialog({
   return (
     <dialog
       ref={ref}
-      aria-labelledby="confirm-title"
-      aria-describedby={description ? "confirm-description" : undefined}
+      aria-labelledby={titleId}
+      aria-describedby={description ? descriptionId : undefined}
       onCancel={(event) => {
         // Escape key. Let the parent own `open`.
         event.preventDefault();
@@ -71,12 +73,12 @@ export function ConfirmationDialog({
         "backdrop:bg-overlay",
       )}
     >
-      <h2 id="confirm-title" className="text-lg font-semibold text-text">
+      <h2 id={titleId} className="text-lg font-semibold text-text">
         {title}
       </h2>
 
       {description ? (
-        <p id="confirm-description" className="mt-2 text-md text-text-muted">
+        <p id={descriptionId} className="mt-2 text-md text-text-muted">
           {description}
         </p>
       ) : null}

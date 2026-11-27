@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { cn } from "@/components/cn";
-import { CODE_TYPES, CodeCard, ResourceCard, ResourceComposer, isNewImport, type ResourceItem, GmailUndoButton } from "@/components/resources/resource-cards";
+import { CODE_TYPES, CodeCard, ResourceCard, ResourceComposer, ResourceRow, isNewImport, type ResourceItem, GmailUndoButton } from "@/components/resources/resource-cards";
 import { TypeIcon, TypeIconsProvider, type TypeIconMap } from "@/components/resources/type-icon";
 import { matchesSearch, resourceTypeKey, typeMeta, typeTone } from "@/lib/resource-types";
 
@@ -23,8 +23,8 @@ export type GmailImportView = {
 /**
  * One resource type (`/resources/<type>`, 2026-11-17): back link, a banner in
  * the type's tone with Add, the Gmail import line when this type is the one
- * Gmail fills, All / New / Starred filters, then the cards (code cards for
- * commands and snippets).
+ * Gmail fills, All / New / Starred filters, then a list for Drupal or cards for
+ * other types (including code cards for commands and snippets).
  */
 export function ResourceTypeView({
   type,
@@ -55,7 +55,9 @@ export function ResourceTypeView({
   const fresh = resources.filter(isNewImport);
   const starred = resources.filter((resource) => resource.favorite);
   const shown = (filter === "new" ? fresh : filter === "starred" ? starred : resources).filter((resource) => matchesSearch(resource, query));
-  const isCode = CODE_TYPES.has(resourceTypeKey(type));
+  const typeKey = resourceTypeKey(type);
+  const isCode = CODE_TYPES.has(typeKey);
+  const isDrupal = typeKey === resourceTypeKey("Drupal");
   const knownTags = useMemo(() => [...new Set([...resources.flatMap((resource) => resource.tags), ...savedTags])], [resources, savedTags]);
 
   const filters: Array<{ id: Filter; label: string; count: number }> = [
@@ -88,16 +90,16 @@ export function ResourceTypeView({
         </header>
 
         {gmail ? (
-          <p className="rt-import" role="status">
+          <div className="rt-import">
             <Mail className="size-4 shrink-0" aria-hidden="true" />
-            <span className="min-w-0 flex-1">
+            <span className="min-w-0 flex-1" role="status">
               <b>Auto-import is on.</b> New modules from “{gmail.label}” land here.{" "}
               {gmail.lastSyncAt ? `Last checked ${formatDistanceToNow(new Date(gmail.lastSyncAt), { addSuffix: true })}.` : "Not checked yet."}
               {gmail.latest ? ` Last email added ${gmail.latest.added}.` : ""}
             </span>
             {gmail.latest ? <GmailUndoButton messageId={gmail.latest.messageId} added={gmail.latest.added} /> : null}
             <Link href="/profile?section=gmail" className="font-semibold text-accent-text hover:underline">Settings</Link>
-          </p>
+          </div>
         ) : null}
 
         <div className="flex flex-wrap items-center gap-2">
@@ -117,6 +119,16 @@ export function ResourceTypeView({
           <p className="rounded-2xl border border-dashed border-border-strong px-4 py-8 text-center text-md text-text-muted">
             {resources.length === 0 ? `Nothing in ${label} yet.` : "Nothing matches."}
           </p>
+        ) : isDrupal ? (
+          <div className="min-w-0">
+            <div aria-hidden="true" className="rs-type-list-heading text-2xs font-semibold tracking-[0.1em] text-text-subtle uppercase">
+              <span className="col-span-2">Resource</span>
+              <span>Added</span>
+            </div>
+            <ul aria-label={`${label} resources`} className="rs-rows">
+              {shown.map((resource) => <ResourceRow key={resource.id} resource={resource} inTypeList onEdit={() => setComposer({ resource })} />)}
+            </ul>
+          </div>
         ) : (
           <ul className={isCode ? "rs-terms" : "rs-cards"} data-reveal-stagger>
             {shown.map((resource) => isCode

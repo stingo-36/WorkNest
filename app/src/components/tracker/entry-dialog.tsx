@@ -1,47 +1,54 @@
 "use client";
 
 import { Archive, ArchiveRestore, Pencil, Check, ChevronDown, ChevronRight, History, MessageSquareReply, Plus, RotateCcw, Send, Star, Trash2 } from "lucide-react";
-import { useContext, useState, useTransition } from "react";
+import { useContext, useRef, useState, useTransition } from "react";
 import { format, parseISO } from "date-fns";
-import { addFollowUpUpdate, editFollowUpUpdate, listUpdateRevisions, setNotePerson, deleteFollowUp, rescheduleFollowUp, setFollowUpAdded, setFollowUpArchived, setFollowUpPinned, setFollowUpStatus, setFollowUpTags } from "@/actions/follow-ups";
+import { addFollowUpUpdate, editFollowUpUpdate, editPersonalTodo, listUpdateRevisions, setNotePerson, deleteFollowUp, rescheduleFollowUp, setFollowUpAdded, setFollowUpArchived, setFollowUpPinned, setFollowUpStatus, setFollowUpTags } from "@/actions/follow-ups";
 import { cn } from "@/components/cn";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
-import { Field } from "@/components/ui/field";
+import { Field, FormError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { TagInput } from "@/components/ui/tag-input";
+import { Textarea } from "@/components/ui/textarea";
 import { FormattedNote } from "@/components/tracker/note-text";
 import { UpdateDoc, UpdateEditor, type EditorValue } from "@/components/tracker/update-editor";
 import type { JSONContent } from "@tiptap/core";
 import { isStatusNote, TODO_STATUS_NOTES } from "@/lib/rich-text";
 import { tagChipClass, tagChipStyle } from "@/components/ui/tag-chip";
-import { ChannelSelect, FOLLOW_STATE, ListsContext, MOM_TAG, NOTE_TYPES, PersonAutocomplete, type TrackerEntry, defaultChannel, entryLabel, followStateOf, isMom, localDay, todayIso, tone, useRun } from "@/components/tracker/kit";
+import { ChannelSelect, FOLLOW_STATE, ListsContext, MOM_TAG, NOTE_TYPES, STICKY_TITLE_MAX_LENGTH, PersonAutocomplete, type TrackerEntry, defaultChannel, entryLabel, followStateOf, isMom, localDay, splitSticky, todayIso, tone, useRun } from "@/components/tracker/kit";
 
 export function EntryEyebrow({ entry }: { entry: TrackerEntry }) {
+  const hasTitle = !entry.personal || Boolean(splitSticky(entry.subject).title);
+  if (!hasTitle && !entry.pinned) return null;
   return (
     <span className="flex items-center gap-1.5">
-      {entryLabel(entry)}
-      {entry.pinned ? <><span aria-hidden="true">·</span><Star className="size-3.5 fill-current text-warning" aria-hidden="true" />Favourite</> : null}
+      {hasTitle ? entryLabel(entry) : null}
+      {entry.pinned ? <>{hasTitle ? <span aria-hidden="true">·</span> : null}<Star className="size-3.5 fill-current text-warning" aria-hidden="true" />Favourite</> : null}
     </span>
   );
 }
 
 export function EntryTitle({ entry }: { entry: TrackerEntry }) {
-  return <span className={cn("[overflow-wrap:anywhere]", entry.personal && "whitespace-pre-line", entry.status === "Done" && entry.kind !== "Note" && "text-text-muted line-through")}>{entry.subject}</span>;
+  const title = entry.personal ? splitSticky(entry.subject).title || entryLabel(entry) : entry.subject;
+  return <span className={cn("[overflow-wrap:anywhere]", entry.status === "Done" && entry.kind !== "Note" && "text-text-muted line-through")}>{title}</span>;
 }
 
 /** Facts, date, actions, add-an-update and the history — the opened entry's dialog. */
 export function EntryBody({ entry, tagSuggestions, onDeleted }: { entry: TrackerEntry; tagSuggestions: string[]; onDeleted: () => void }) {
-  // Notes read as a document (2026-11-21), not the two-column facts + history layout.
   if (entry.kind === "Note") return <NoteBody entry={entry} tagSuggestions={tagSuggestions} onDeleted={onDeleted} />;
   return <TrackedEntryBody entry={entry} onDeleted={onDeleted} />;
 }
 
-/** A to-do or follow-up: facts, dates and actions on the left, the history on the right. */
+/** A to-do or follow-up, with an inline timeline for personal to-dos. */
 function TrackedEntryBody({ entry, onDeleted }: { entry: TrackerEntry; onDeleted: () => void }) {
   const { run, pending } = useRun();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [addingNote, setAddingNote] = useState(false);
+  const [editingTodo, setEditingTodo] = useState(false);
+  const editTodoButton = useRef<HTMLButtonElement>(null);
   const isDone = entry.status === "Done";
   const kind = entry.kind;
   const state = kind === "FollowUp" ? followStateOf(entry) : null;
@@ -61,88 +68,139 @@ function TrackedEntryBody({ entry, onDeleted }: { entry: TrackerEntry; onDeleted
     ...(entry.archivedAt ? [{ label: "Archived", value: format(parseISO(entry.archivedAt), "d MMM yyyy") }] : []),
   ];
 
-  return (
-    // Two columns from md: facts, actions and the add form on the left; the history on the right.
-    <div className={cn("grid gap-6 md:grid-cols-2 md:gap-8", pending && "opacity-60")}>
-      <div className="flex min-w-0 flex-col gap-6">
-      {/* Labels on one line, values centred in one 44px row (the date field's height). */}
-      <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
-        {facts.length ? <dl className="flex flex-wrap gap-x-8 gap-y-4">
-          {facts.map((fact) => (
-            <div key={fact.label} className="min-w-0">
-              <dt className="text-xs text-text-subtle">{fact.label}</dt>
-              <dd className="mt-1 flex h-11 items-center text-sm font-medium text-text">{fact.value}</dd>
-            </div>
-          ))}
-        </dl> : null}
+  const details = (
+    <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
+      {facts.length ? <dl className="flex flex-wrap gap-x-8 gap-y-4">
+        {facts.map((fact) => (
+          <div key={fact.label} className="min-w-0">
+            <dt className="text-xs text-text-subtle">{fact.label}</dt>
+            <dd className="mt-1 flex h-11 items-center text-sm font-medium text-text">{fact.value}</dd>
+          </div>
+        ))}
+      </dl> : null}
+      <div className="min-w-0">
+        <label htmlFor={`added-${entry.id}`} className="block text-xs text-text-subtle">Added</label>
+        <Input
+          id={`added-${entry.id}`}
+          type="date"
+          value={localDay(entry.createdAt)}
+          max={todayIso()}
+          required
+          className="mt-1 h-11 w-44"
+          onChange={(event) => {
+            const day = event.target.value;
+            if (!day || day === localDay(entry.createdAt)) return;
+            // Keep the old time of day; only the calendar day moves.
+            const old = parseISO(entry.createdAt);
+            const next = parseISO(`${day}T${format(old, "HH:mm:ss")}`);
+            run(() => setFollowUpAdded({ followUpId: entry.id, createdAt: next.toISOString() }), "Date changed");
+          }}
+        />
+      </div>
+      {kind !== "Note" && !isDone ? (
         <div className="min-w-0">
-          <label htmlFor={`added-${entry.id}`} className="block text-xs text-text-subtle">Added</label>
+          <label htmlFor={`due-${entry.id}`} className="block text-xs text-text-subtle">{kind === "Task" ? "Due" : "Remind me on"}</label>
           <Input
-            id={`added-${entry.id}`}
+            id={`due-${entry.id}`}
             type="date"
-            value={localDay(entry.createdAt)}
-            max={todayIso()}
-            required
+            value={entry.dueDate ?? ""}
             className="mt-1 h-11 w-44"
-            onChange={(event) => {
-              const day = event.target.value;
-              if (!day || day === localDay(entry.createdAt)) return;
-              // Keep the old time of day; only the calendar day moves.
-              const old = parseISO(entry.createdAt);
-              const next = parseISO(`${day}T${format(old, "HH:mm:ss")}`);
-              run(() => setFollowUpAdded({ followUpId: entry.id, createdAt: next.toISOString() }), "Date changed");
-            }}
+            onChange={(event) => run(() => rescheduleFollowUp({ followUpId: entry.id, dueDate: event.target.value || null }), event.target.value ? "Date set" : "Date cleared")}
           />
         </div>
-        {kind !== "Note" && !isDone ? (
-          <div className="min-w-0">
-            <label htmlFor={`due-${entry.id}`} className="block text-xs text-text-subtle">{kind === "Task" ? "Due" : "Remind me on"}</label>
-            <Input
-              id={`due-${entry.id}`}
-              type="date"
-              value={entry.dueDate ?? ""}
-              className="mt-1 h-11 w-44"
-              onChange={(event) => run(() => rescheduleFollowUp({ followUpId: entry.id, dueDate: event.target.value || null }), event.target.value ? "Date set" : "Date cleared")}
-            />
-          </div>
-        ) : null}
-      </div>
+      ) : null}
+    </div>
+  );
 
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant={isDone ? "secondary" : "primary"} onClick={() => run(() => setFollowUpStatus({ followUpId: entry.id, status: isDone ? "Open" : "Done" }), doneToast)}>
-          {isDone ? <RotateCcw aria-hidden="true" /> : <Check aria-hidden="true" />}
-          {doneLabel}
+  const actions = (
+    <div className="flex flex-wrap items-center gap-2">
+      {entry.personal ? (
+        <>
+          <Button size="sm" variant="ghost" aria-expanded={detailsOpen} aria-controls={`todo-details-${entry.id}`} onClick={() => setDetailsOpen(!detailsOpen)}>
+            Details<ChevronDown aria-hidden="true" className={cn("motion-safe:transition-transform", detailsOpen && "rotate-180")} />
+          </Button>
+          <Button ref={editTodoButton} size="sm" variant="secondary" aria-disabled={editingTodo} aria-expanded={editingTodo} aria-controls={`todo-editor-${entry.id}`} onClick={() => setEditingTodo(true)}>
+            <Pencil aria-hidden="true" />Edit
+          </Button>
+          <Button size="sm" variant="secondary" aria-expanded={addingNote} aria-controls={`todo-composer-${entry.id}`} onClick={() => setAddingNote(!addingNote)}>
+            {addingNote ? "Cancel note" : <><Plus aria-hidden="true" />Add a note</>}
+          </Button>
+        </>
+      ) : null}
+      <Button size="sm" variant={isDone ? "secondary" : "primary"} onClick={() => run(() => setFollowUpStatus({ followUpId: entry.id, status: isDone ? "Open" : "Done" }), doneToast)}>
+        {isDone ? <RotateCcw aria-hidden="true" /> : <Check aria-hidden="true" />}
+        {doneLabel}
+      </Button>
+      {/* Labelled since 2026-11-17 (simplification phase 4): an unlabelled box icon read as nothing. Notes archive through the button above. */}
+      {canArchive ? (
+        <Button size="sm" variant="secondary" onClick={() => run(() => setFollowUpArchived({ followUpId: entry.id, archived: !shelved }), shelved ? "Restored" : "Archived. Find it on the Archived tab.")}>
+          {shelved ? <ArchiveRestore aria-hidden="true" /> : <Archive aria-hidden="true" />}
+          {shelved ? "Restore" : "Archive"}
         </Button>
-        {/* Labelled since 2026-11-17 (simplification phase 4): an unlabelled box icon read as nothing. Notes archive through the button above. */}
-        {canArchive ? (
-          <Button size="sm" variant="secondary" onClick={() => run(() => setFollowUpArchived({ followUpId: entry.id, archived: !shelved }), shelved ? "Restored" : "Archived. Find it on the Archived tab.")}>
-            {shelved ? <ArchiveRestore aria-hidden="true" /> : <Archive aria-hidden="true" />}
-            {shelved ? "Restore" : "Archive"}
-          </Button>
-        ) : null}
-        <div className="ml-auto flex items-center gap-1">
-          <Button
-            size="sm"
-            variant="ghost"
-            iconOnly
-            aria-pressed={entry.pinned}
-            aria-label={entry.pinned ? "Remove from favourites" : "Mark as favourite"}
-            title={entry.pinned ? "Remove from favourites" : "Mark as favourite"}
-            onClick={() => run(() => setFollowUpPinned({ followUpId: entry.id, pinned: !entry.pinned }), entry.pinned ? "Removed from favourites" : "Added to favourites")}
-          >
-            <Star aria-hidden="true" className={cn(entry.pinned && "fill-current text-warning")} />
-          </Button>
-          <Button size="sm" variant="ghost" iconOnly className="hover:text-danger" aria-label={`Delete ${entry.subject}`} title="Delete" onClick={() => setConfirmDelete(true)}>
-            <Trash2 aria-hidden="true" />
-          </Button>
+      ) : null}
+      <div className="ml-auto flex items-center gap-1">
+        <Button
+          size="sm"
+          variant="ghost"
+          iconOnly
+          aria-pressed={entry.pinned}
+          aria-label={entry.pinned ? "Remove from favourites" : "Mark as favourite"}
+          title={entry.pinned ? "Remove from favourites" : "Mark as favourite"}
+          onClick={() => run(() => setFollowUpPinned({ followUpId: entry.id, pinned: !entry.pinned }), entry.pinned ? "Removed from favourites" : "Added to favourites")}
+        >
+          <Star aria-hidden="true" className={cn(entry.pinned && "fill-current text-warning")} />
+        </Button>
+        <Button size="sm" variant="ghost" iconOnly className="hover:text-danger" aria-label={`Delete ${entry.subject}`} title="Delete" onClick={() => setConfirmDelete(true)}>
+          <Trash2 aria-hidden="true" />
+        </Button>
+      </div>
+    </div>
+  );
+
+  const body = entry.personal ? splitSticky(entry.subject).body : "";
+  return (
+    <div className={cn("min-w-0", pending && "opacity-60")}>
+      {entry.personal ? (
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border pb-4">
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-text-muted">
+              <span className="font-semibold text-text">{isDone ? "Done" : "Open"}</span>
+              <span aria-hidden="true">·</span>
+              <time dateTime={entry.createdAt}>{format(parseISO(entry.createdAt), "EEE d MMM yyyy")}</time>
+              {entry.dueDate && !isDone ? <span>· Due {format(parseISO(entry.dueDate), "d MMM yyyy")}</span> : null}
+              {shelved ? <span>· Archived</span> : null}
+            </p>
+            {actions}
+          </div>
+          <div id={`todo-details-${entry.id}`} hidden={!detailsOpen} className="rounded-xl border border-border bg-surface-2 p-4">
+            {details}
+          </div>
+          <div className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-5">
+            <div id={`todo-editor-${entry.id}`} hidden={!editingTodo}>
+              {editingTodo ? (
+                <PersonalTodoEditor entry={entry} onDone={() => {
+                  setEditingTodo(false);
+                  editTodoButton.current?.focus();
+                }} />
+              ) : null}
+            </div>
+            {!editingTodo && body ? <p className="text-md leading-7 whitespace-pre-wrap text-text [overflow-wrap:anywhere]">{body}</p> : null}
+            <div id={`todo-composer-${entry.id}`} hidden={!addingNote}>
+              {addingNote ? <AddUpdateForm key={entry.updates.length} entry={entry} autoFocus /> : null}
+            </div>
+            <Timeline entry={entry} className={body || editingTodo || addingNote ? "border-t border-border pt-5" : undefined} />
+          </div>
         </div>
-      </div>
-
-      <AddUpdateForm key={entry.updates.length} entry={entry} />
-      </div>
-
-      <Timeline entry={entry} />
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 md:gap-8">
+          <div className="flex min-w-0 flex-col gap-6">
+            {details}
+            {actions}
+            <AddUpdateForm key={entry.updates.length} entry={entry} />
+          </div>
+          <Timeline entry={entry} className="border-t border-border pt-5 md:border-t-0 md:border-l md:pt-0 md:pl-8" />
+        </div>
+      )}
 
       <ConfirmationDialog
         open={confirmDelete}
@@ -158,6 +216,41 @@ function TrackedEntryBody({ entry, onDeleted }: { entry: TrackerEntry; onDeleted
         }}
       />
     </div>
+  );
+}
+
+/** Edit the Personal to-do's original text in the reading column. */
+function PersonalTodoEditor({ entry, onDone }: { entry: TrackerEntry; onDone: () => void }) {
+  const { run, pending } = useRun();
+  const initial = splitSticky(entry.subject);
+  const [title, setTitle] = useState(initial.title);
+  const [body, setBody] = useState(initial.body);
+  const hasTitle = Boolean(initial.title);
+  const subject = [title.trim(), body.trim()].filter(Boolean).join("\n");
+  const tooLong = subject.length > 1000;
+  const canSave = Boolean(subject) && !tooLong && (!hasTitle || Boolean(title.trim()));
+  const titleId = `todo-title-${entry.id}`;
+  const bodyId = `todo-body-${entry.id}`;
+
+  return (
+    <form aria-label="Edit personal to-do" className="flex min-w-0 flex-col gap-4" onSubmit={(event) => {
+      event.preventDefault();
+      if (pending || !canSave) return;
+      if (title === initial.title && body === initial.body) { onDone(); return; }
+      run(() => editPersonalTodo({ followUpId: entry.id, subject }), "Saved", onDone);
+    }}>
+      <Field label={hasTitle ? "Title" : "Title (optional)"} htmlFor={titleId} required={hasTitle}>
+        <Input id={titleId} value={title} maxLength={STICKY_TITLE_MAX_LENGTH} autoFocus={hasTitle} required={hasTitle} disabled={pending} onChange={(event) => setTitle(event.target.value)} />
+      </Field>
+      <Field label="Details (optional)" htmlFor={bodyId}>
+        <Textarea id={bodyId} value={body} autoFocus={!hasTitle} disabled={pending} onChange={(event) => setBody(event.target.value)} />
+      </Field>
+      {tooLong ? <FormError>Use 1,000 characters or fewer for the title and details combined.</FormError> : null}
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button size="sm" variant="ghost" disabled={pending} onClick={onDone}>Cancel</Button>
+        <Button size="sm" type="submit" loading={pending} disabled={!canSave}>Save</Button>
+      </div>
+    </form>
   );
 }
 
@@ -188,7 +281,7 @@ function NoteTagsEditor({ entry, suggestions }: { entry: TrackerEntry; suggestio
  * Appends to the record. A follow-up picks who spoke — you, or them — so the
  * board knows whether it's still waiting. Earlier rows are edited in the Timeline.
  */
-function AddUpdateForm({ entry }: { entry: TrackerEntry }) {
+function AddUpdateForm({ entry, autoFocus }: { entry: TrackerEntry; autoFocus?: boolean }) {
   const { run, pending } = useRun();
   const isFollowUp = entry.kind === "FollowUp";
   const [fromThem, setFromThem] = useState(isFollowUp && followStateOf(entry) === "waiting");
@@ -238,7 +331,7 @@ function AddUpdateForm({ entry }: { entry: TrackerEntry }) {
       <div className="flex flex-col gap-1.5">
         {/* The editor is a contenteditable (aria-label = this text), not a form field a <label> can target. */}
         <p aria-hidden="true" className="text-sm font-semibold text-text">{label}</p>
-        <UpdateEditor boxed id={`note-${entry.id}`} label={label} placeholder="Write, or paste formatted text, images or files" minHeight={entry.kind === "Note" ? "min-h-44" : "min-h-28"} onChange={setValue} onSubmit={save} />
+        <UpdateEditor boxed autoFocus={autoFocus} id={`note-${entry.id}`} label={label} placeholder="Write, or paste formatted text, images or files" minHeight={entry.kind === "Note" ? "min-h-44" : "min-h-28"} onChange={setValue} onSubmit={save} />
         <p className="text-sm text-text-muted">{isFollowUp && fromThem ? "Optional — leave blank to just mark it replied." : "⌘/Ctrl + Enter saves. Images and files up to 4 MB."}</p>
       </div>
 
@@ -573,12 +666,12 @@ function EditUpdateForm({ update, minHeight = "min-h-24", onDone }: { update: Tr
   );
 }
 
-function Timeline({ entry }: { entry: TrackerEntry }) {
+function Timeline({ entry, className }: { entry: TrackerEntry; className?: string }) {
   const isFollowUp = entry.kind === "FollowUp";
   const [editingId, setEditingId] = useState<string | null>(null);
   const heading = isFollowUp ? "Conversation" : entry.kind === "Task" ? "Notes" : "Updates";
   return (
-    <section aria-label={heading} className="min-w-0 border-t border-border pt-5 md:border-t-0 md:border-l md:pt-0 md:pl-8">
+    <section aria-label={heading} className={cn("min-w-0", className)}>
       <h3 className="text-sm font-semibold text-text">
         {heading} <span className="font-normal text-text-subtle tabular-nums">· {entry.updates.length}</span>
       </h3>

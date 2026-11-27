@@ -2727,6 +2727,7 @@ dialog.modal-full > div > header, dialog.modal-full > div > footer { background:
 .rs-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 0.25rem 0.875rem; padding: 0.875rem 1rem; border-top: 1px solid var(--c-border); }
 .rs-row:first-child { border-top: 0; }
 .rs-row-actions { gap: 0.125rem; }
+.rs-type-list-heading { display: none; }
 .rs-code-row { margin-top: 0.375rem; padding: 0.5rem 0.75rem; background: #0b1d2e; font-size: var(--text-xs); white-space: pre; overflow-x: auto; overflow-wrap: normal; }
 .rt-chip { display: inline-flex; padding: 0.0625rem 0.5rem; border-radius: 999px; font-size: var(--text-2xs); font-weight: 600; letter-spacing: 0.04em; }
 .rp-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 1rem 0.625rem 1.5rem; border-bottom: 1px solid var(--c-border); }
@@ -2734,6 +2735,14 @@ dialog.modal-full > div > header, dialog.modal-full > div > footer { background:
 @media (max-width: 47.99rem) {
   .rs-row { grid-template-columns: auto minmax(0, 1fr); }
   .rs-row-actions { grid-column: 2; margin-left: -0.5rem; }
+  .rs-type-row .rs-row-added { grid-column: 2; }
+  .rs-type-row .rs-row-actions { flex-wrap: wrap; margin-left: 0; }
+}
+@media (min-width: 48rem) {
+  .rs-type-list-heading, .rs-type-row { grid-template-columns: 2.25rem minmax(0, 1fr) 6.75rem 11.5rem; }
+  .rs-type-list-heading { display: grid; column-gap: 0.875rem; padding: 0 1rem 0.625rem; }
+  .rs-type-row { align-items: center; }
+  .rs-type-row .rs-row-actions { justify-content: flex-end; }
 }
 
 /* Quick log (2026-11-20): kind tabs and day chips in the Paste step. */

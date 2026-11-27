@@ -4,7 +4,7 @@
 > delete a module, route, model or script, update the relevant section in the same
 > change.
 >
-> Last synced with the codebase: **2026-11-27**
+> Last synced with the codebase: **2026-11-28**
 
 ---
 
@@ -78,10 +78,10 @@ authenticated shell.
 | `/work-logs/[workLogId]` | `.../page.tsx` | read-only detail + Copy as text; side rail begins with that day's Tracker to-dos |
 | `/work-logs/[workLogId]/edit` | `.../edit/page.tsx` | `WorkLogEditor` — the day page: numbered steps (`StepHeading` in `section-heading.tsx`), Finish day → `/work-logs/[id]?finished=1` |
 | `/tickets` | `(app)/tickets/page.tsx` | `TicketBoard` (`PageHead`, direct New ticket form, underline status tabs, list + open ticket with editable number/title/project, compact journey and latest update); redirects to `/work-logs` if tickets disabled; `?ticket=<id>` selects that ticket (status filter → All) |
-| `/tracker` | `(app)/tracker/page.tsx` | `TrackerBoard` (`components/tracker/`, split 2026-11-27: `tracker-board.tsx` frame + tab switch, `tabs/{todo,personal,follow-ups,notes,archived}.tsx` one file per tab, `entry-dialog.tsx` the opened entry, `rows.tsx` to-do / follow-up rows, `kit.tsx` shared types, row parts, add pill, `useRun`; state rules come from `lib/tracker-rules.ts`) — two-column queue per tab (To-do: Today | Upcoming; Follow-ups: Needs you | Waiting; Notes: composer | notes), latest update inline, finished entries in a collapsed group; entries open in a two-column dialog; rich editor + read-only renderer in `components/tracker/update-editor.tsx` (Notes TipTap schema + upload-only images), legacy plain-text rendering in `note-text.tsx`; default landing after login; `?view=todo\|followups\|personal\|notes\|archived` picks the tab; `?open=<id>` opens that entry (Ask's source links; dropped from the URL once opened) |
+| `/tracker` | `(app)/tracker/page.tsx` | `TrackerBoard` (`components/tracker/`, split 2026-11-27: `tracker-board.tsx` frame + tab switch, `tabs/{todo,personal,follow-ups,notes,archived}.tsx` one file per tab, `entry-dialog.tsx` the opened entry, `rows.tsx` to-do / follow-up rows, `kit.tsx` shared types, row parts, add pill, `useRun`; state rules come from `lib/tracker-rules.ts`) — two-column queue per tab (To-do: Today | Upcoming; Follow-ups: Needs you | Waiting; Notes: composer | notes), latest update inline, finished entries in a collapsed group; entry dialog body is single-column for Personal to-dos and Notes, with inline title and details editing for Personal to-dos via `editPersonalTodo` and their timeline below the task text; work to-dos and follow-ups use the split layout; rich editor + read-only renderer in `components/tracker/update-editor.tsx` (Notes TipTap schema + upload-only images), legacy plain-text rendering in `note-text.tsx`; default landing after login; `?view=todo\|followups\|personal\|notes\|archived` picks the tab; `?open=<id>` opens that entry (Ask's source links; dropped from the URL once opened) |
 | `/notes`, `/notes/new`, `/notes/[noteId]`, `/notes/[noteId]/edit` | `(app)/notes/**` | notebooks; the list is `NoteLibrary` (layout "F": header, summary column, bookshelf) |
 | `/resources` | `(app)/resources/page.tsx` | `ResourceLibrary`; queues a stale Gmail check with `after()` |
-| `/resources/[type]` | `(app)/resources/[type]/page.tsx` | `ResourceTypeView`; slug = `resourceTypeKey(type)` (404 for an unknown type) |
+| `/resources/[type]` | `(app)/resources/[type]/page.tsx` | `ResourceTypeView`; slug = `resourceTypeKey(type)` (404 for an unknown type). Drupal renders `ResourceRow` with added dates and Open actions |
 | `/favourites` | `(app)/favourites/page.tsx` | reads Prisma directly; `?show=important\|notes\|resources` picks the tab |
 | `/profile` | `(app)/profile/page.tsx` | `ProfileForm` |
 | `/achievements` | `(app)/achievements/page.tsx` | `AchievementsBoard` (account menu) |

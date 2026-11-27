@@ -223,6 +223,15 @@ export const plural = (count: number, one: string, many = `${one}s`) => (count =
 /** "Thu 8 Oct" */
 export const dayLabel = (iso: string) => format(parseISO(iso), "EEE d MMM");
 
+export const STICKY_TITLE_MAX_LENGTH = 80;
+
+/** A personal to-do stores its title and details together. Older entries can be body-only. */
+export function splitSticky(subject: string) {
+  const [first, ...rest] = subject.split("\n");
+  if (first.length > STICKY_TITLE_MAX_LENGTH) return { title: "", body: subject.trim() };
+  return { title: first.trim(), body: rest.join("\n").trim() };
+}
+
 /** Run a server action, toast the outcome, refresh the board. */
 export function useRun() {
   const router = useRouter();

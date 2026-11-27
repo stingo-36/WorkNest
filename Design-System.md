@@ -5,7 +5,7 @@
 > and `app/src/app/(auth)/auth-motion.css` (login / register). This file explains the system and the rules. If you change a token,
 > update the table here in the same change.
 >
-> Last synced with the codebase: **2026-11-27**
+> Last synced with the codebase: **2026-11-28**
 
 ---
 
@@ -138,6 +138,7 @@ Text keeps its line breaks (`whitespace-pre-line`). Edit (pencil) shows on hover
 like Delete; editing swaps the card's content for a `bg-surface/70` textarea, a key hint and
 Cancel / Save (`Button size="sm"`). The add field becomes an auto-growing textarea with a
 "Enter to add · Shift+Enter for a new line" hint under the rule.
+The opened Personal to-do uses the Note dialog’s one-column reading layout: summary and actions in a wrapping toolbar, a collapsed Details panel, and a centered `max-w-3xl` body for the task text, inline editors, and timeline. **Edit** is a labelled pencil button in the toolbar and swaps the task text for Title and Details fields with Cancel and Save.
 The `.tk-*` type classes are scoped under `.tk-focus` so they beat `.app-shell main hN`.
 Sizes: see Type scale.
 
@@ -179,7 +180,7 @@ components"); keep them distinct when adding to a page:
 
 | Page | Pattern |
 |---|---|
-| Tracker | date · tabs + search → title + add field → **two columns** (Today \| Upcoming, Needs you \| Waiting, composer \| notes); finished entries collapse under one *Show* line; entry opens in a two-column dialog |
+| Tracker | date · tabs + search → title + add field → **two columns** (Today \| Upcoming, Needs you \| Waiting, composer \| notes); finished entries collapse under one *Show* line; work to-dos and follow-ups open in a split dialog; Personal to-dos and Notes use a single reading column |
 | Work Logs | split hero (form + slate sprint card with ring) → **vertical timeline** per sprint |
 | Work-log editor (day page, 2026-11-18) | top bar (Back to sprint, ‹ ›, day type, View log) → **one white `.wl-steps` card**: `.wl-steps-head` (date, optional title, `.wl-progress` "x of 3", save status) and numbered `.wl-card` steps under hairlines (`StepHeading`: `.wl-step-num` turns green with a white tick when done) → `.wl-finish` bar; to-dos below. Max width 56rem, no side rail |
 | Work-log detail | `.wld` scope: back link + dated ‹ › → `.wld-hero` card (`.wld-datebox`, `.wld-title`, Copy + primary Edit log, `.wld-stats` row) → main (summary, ticket work as `.wld-ticket` with `.wld-this` + `.wld-history` timeline, meetings + work done 2-up from xl) + 19–21rem rail (to-dos, attachments & links, activity); card headings are uppercase micro-labels |
@@ -187,7 +188,7 @@ components"); keep them distinct when adding to a page:
 | Favourites | `PageHead` → **underline tabs** (All · Important · Notes · Resources, `?show=`) → Important as a two-column section, then Notes and Resources side by side; items = disc + meta + big title |
 | Notes | layout "F": title + search + New note → **summary column** (notebook count, cover-colour bars, sections/pages/starred) + **bookshelf** of accent-coloured covers |
 | Note reader | **three-column docs** (contents · page · on this page at xl) |
-| Resources | Notes pattern (2026-11-17): `PageHead` (date, counts, `SearchPill`, `primaryPill`) → type rows (`.rt-tile` in a `.rt-tone-0…7` tone, name + `.rt-fresh` "N new", newest titles, items, added) beside a sticky preview (tone band, Gmail line, numbered `.rp-item`s with one-tap `.rs-act` Open / Copy + star, Add + Open) at xl (2026-11-20; lg before). **Search** shows `.rs-rows` of `.rs-row` (tile, title, `.rt-chip` type in its tone, site or `.rs-code-row`, actions; actions wrap under the text below md). A merge note (primary-subtle box, `role="note"`) sits under the type rows. **Type page:** back link → `.rt-banner` in the type tone with white `.rt-banner-add` → `.rt-import` Gmail line → `.rt-filter` pills + search → `.rs-cards` link cards (1/2/3 across; `.rs-card-new` ring + `.rs-new` for today's Gmail imports) or `.rs-terms` dark code cards |
+| Resources | Notes pattern (2026-11-17): `PageHead` (date, counts, `SearchPill`, `primaryPill`) → type rows (`.rt-tile` in a `.rt-tone-0…7` tone, name + `.rt-fresh` "N new", newest titles, items, added) beside a sticky preview (tone band, Gmail line, numbered `.rp-item`s with one-tap `.rs-act` Open / Copy + star, Add + Open) at xl (2026-11-20; lg before). **Search** shows `.rs-rows` of `.rs-row` (tile, title, `.rt-chip` type in its tone, site or `.rs-code-row`, actions; actions wrap under the text below md). A merge note (primary-subtle box, `role="note"`) sits under the type rows. **Type page:** back link → `.rt-banner` in the type tone with white `.rt-banner-add` → `.rt-import` Gmail line → `.rt-filter` pills + search → `.rs-cards` link cards (1/2/3 across; `.rs-card-new` ring + `.rs-new` for today's Gmail imports) or `.rs-terms` dark code cards. Drupal uses `.rs-rows` with an Added column and visible Open, star, edit and delete actions. On phones the date and actions sit below the resource text. New Gmail rows use `bg-primary-subtle` and the Gmail badge |
 | Profile | `.pf` scope: 17–19rem sticky left column (`.pf-id` deep-ocean identity card + `.pf-nav` grouped menu; chips under lg) → "Settings · group" title + `.pf-card` cards with `.pf-card-head` icon tile (`ListCard`, `SettingsRows`, Password) |
 | Achievements | totals strip → **centred rail, alternating cards** from lg |
 | Reports | **sprint card rail** → paper on a desk |
