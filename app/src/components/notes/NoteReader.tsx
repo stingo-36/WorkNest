@@ -1,7 +1,7 @@
 "use client";
 
 import { useReducedMotion } from "framer-motion";
-import { ChevronRight, List, Pencil, Star, Trash2 } from "lucide-react";
+import { ChevronRight, List, Maximize2, Minimize2, Pencil, Star, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 
@@ -55,6 +55,7 @@ export function NoteReader({
   const [activeId, setActiveId] = useState<string | null>(firstPage ? pageAnchor(firstPage.id) : null);
   const [contentsOpen, setContentsOpen] = useState(false);
   const tocRef = useRef<HTMLDivElement>(null);
+  const fullscreen = useNoteFullscreen();
 
   /*
     Which heading you are reading: the last one whose top has crossed the
@@ -251,7 +252,7 @@ export function NoteReader({
   }, [sections, note.description, note.title, note.updatedLabel]);
 
   return (
-    <div style={{ "--note": accent } as CSSProperties} className="grid min-w-0 gap-8 lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[17rem_minmax(0,1fr)] xl:gap-12">
+    <div style={{ "--note": accent } as CSSProperties} data-note-fullscreen={fullscreen.on ? "" : undefined} className="grid min-w-0 gap-8 lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[17rem_minmax(0,1fr)] xl:gap-12">
       {/* Chapter list — the note's identity and every section with all its topics. */}
       <aside className="hidden lg:block">
         <div className="sticky top-[calc(var(--dock-clearance)+1.5rem)] flex max-h-[calc(100dvh-var(--dock-clearance)-3rem)] flex-col gap-4 rounded-2xl border border-border bg-surface p-3">
@@ -304,6 +305,19 @@ export function NoteReader({
             ) : (
               <span className="min-w-0 flex-1 truncate text-md font-semibold text-text">{note.title}</span>
             )}
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              iconOnly
+              onClick={fullscreen.toggle}
+              aria-pressed={fullscreen.on}
+              aria-label={fullscreen.on ? "Exit full screen" : "Full screen"}
+              title={fullscreen.on ? "Exit full screen (Esc)" : "Full screen"}
+              className="shrink-0 text-text"
+            >
+              {fullscreen.on ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
+            </Button>
             <div className="hidden shrink-0 lg:block"><NoteActions note={note} compact /></div>
           </div>
           {contentsOpen ? (
@@ -339,6 +353,47 @@ export function NoteReader({
 
     </div>
   );
+}
+
+/**
+ * Full-screen reading: `data-note-fullscreen` on the reader hides the app's
+ * sidebar, top bar and tab bar (globals.css), and the browser's own full screen
+ * is requested on top where it exists (not on iPhone Safari — the CSS half
+ * still works there). Leaving browser full screen, Esc, or leaving the page
+ * all end it.
+ */
+function useNoteFullscreen() {
+  const [on, setOn] = useState(false);
+
+  useEffect(() => {
+    if (!on) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !document.fullscreenElement) setOn(false);
+    };
+    // Esc in browser full screen is eaten by the browser; this is how we hear it.
+    const onChange = () => {
+      if (!document.fullscreenElement) setOn(false);
+    };
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("fullscreenchange", onChange);
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    };
+  }, [on]);
+
+  const toggle = useCallback(() => {
+    if (on) {
+      setOn(false);
+      return;
+    }
+    setOn(true);
+    // Best effort: refused or unsupported still leaves the in-app full screen.
+    void document.documentElement.requestFullscreen?.().catch(() => {});
+  }, [on]);
+
+  return { on, toggle };
 }
 
 function NoteActions({ note, compact }: { note: { id: string; title: string; favorite: boolean }; compact?: boolean }) {

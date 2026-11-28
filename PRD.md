@@ -409,6 +409,9 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   docs layout**: contents on the left (current section a slate pill, current page sky)
   and the reading column at full width (the right "On this page" rail was removed
   2026-11-02 so notes read wider).
+  **Full screen (2026-11-28):** a button in the sticky bar hides the app's sidebar, top
+  bar and tab bar and asks the browser for full screen where it can; the same button
+  or Esc leaves it.
 - **Editing a note:** a saved note opens with every section and page folded (a new
   note's first page stays open); the formatting toolbar sticks under the save bar while
   you scroll a long page; deleting a section or page asks first (as does trashing a note
@@ -416,6 +419,9 @@ date is when WorkNest should prompt the user to follow up again if nobody has re
   screen and scrolls on its own; clicking a section/page there smooth-scrolls to it.
   A page's editor mounts only when it comes near the screen (long notebooks stay
   smooth to scroll).
+  Each section header has an **Add page** icon beside Duplicate and Delete, so a page
+  can be added without unfolding the section and scrolling to its bottom button
+  (2026-11-28); it opens the section and scrolls to the new page.
 
 ### 5.5 Resources
 

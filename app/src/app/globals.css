@@ -2952,3 +2952,9 @@ dialog.modal-full > div > header, dialog.modal-full > div > footer { background:
 @media (max-width: 47.99rem) {
   .tk-tabrow { flex-direction: column; align-items: stretch; }
 }
+
+/* Note full screen (2026-11-28): the reader alone — sidebar, desk bar, phone
+   header and tab bar hidden while NoteReader sets `data-note-fullscreen`. */
+.app-shell:has([data-note-fullscreen]) { --dock-clearance: 0rem; }
+.app-shell:has([data-note-fullscreen]) :is(.app-side, .app-deskbar, .app-topbar, .app-tabbar) { display: none; }
+.app-shell:has([data-note-fullscreen]) main#main { padding-bottom: 1.5rem; }
