@@ -25,6 +25,10 @@
 
 ## Decisions
 
+- **2026-11-28 — Note full screen hides the app chrome itself, then asks the browser.** `data-note-fullscreen` on the reader hides `.app-side`/`.app-deskbar`/`.app-topbar`/`.app-tabbar` via `:has()` and sets `--dock-clearance: 0`; `requestFullscreen` on `<html>` is best effort (missing on iPhone Safari, refused in embedded previews). Fullscreening the reader element instead would move scrolling off `window` and break the reader's scroll tracking and jumps.
+
+- **2026-11-28 — The note editor's section header wraps by card width (`@container`, `@2xl:`), not by screen width.** At 1024 the card sits between the sidebar and *At a glance* and is ~26rem wide, so the `md:` one-row header squeezed the title input to a few pixels.
+
 - **2026-11-28 — Opened Personal to-dos use the Note dialog layout.** Split the stored subject into title and body using the same rules as sticky cards. The toolbar holds status, dates and actions, with Details collapsed. Show the existing timeline in the reading column, and open the composer there via Add a note. The toolbar’s Edit action saves title and details via `editPersonalTodo`.
 
 - **2026-11-28 — Gmail imports Drupal Module Watch.** The issues already arrive under the Drupal Daily label. Read the current digest’s module cards and keep support for the older digest. Retry zero-result Module Watch issues once within the normal 14-day window, keeping successful and undone imports.
@@ -1273,6 +1277,7 @@ is done on the real rendered app.
 
 ## Changelog
 
+- 2026-11-28 — Notes: Add page icon on each section header in the editor; Full screen toggle in the reader; section header wraps by card width — `components/notes/{SectionEditor,NoteReader}.tsx`, `app/globals.css`
 - 2026-11-28 — Fixed invalid Gmail Undo dialog nesting on both Resources views and gave each confirmation dialog unique accessible label IDs — `components/resources/{resource-library,resource-type-view}.tsx`, `components/ui/confirmation-dialog.tsx`
 - 2026-11-28 — Drupal Resources uses a single list with added dates, visible Open buttons and Gmail highlights — `components/resources/{resource-type-view,resource-cards}.tsx`, `app/globals.css`
 - 2026-11-28 — Added inline title and details editing to the Personal to-do dialog — `components/tracker/entry-dialog.tsx`

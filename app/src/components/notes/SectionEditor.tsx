@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, Reorder, useDragControls, useReducedMotion } from "framer-motion";
-import { ChevronDown, Copy, GripVertical, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, Copy, FilePlus, GripVertical, Plus, Trash2 } from "lucide-react";
 import { useId } from "react";
 
 import {
@@ -77,10 +77,12 @@ export function SectionEditor({
       dragListener={false}
       dragControls={controls}
       id={`note-section-${section.id}`}
-      className="wl-card min-w-0 scroll-mt-48 overflow-clip [&:not(:first-child)]:mt-6"
+      className="wl-card @container min-w-0 scroll-mt-48 overflow-clip [&:not(:first-child)]:mt-6"
     >
-      {/* Section header: tinted bar, the title lives right in it. */}
-      <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-border bg-card-tint px-3 py-3 md:flex-nowrap md:px-4">
+      {/* Section header: tinted bar, the title lives right in it. Wraps the
+          title onto its own row by the card's width, not the screen's — beside
+          the sidebar and "At a glance" a 1024 card is phone-narrow. */}
+      <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-border bg-card-tint px-3 py-3 md:px-4 @2xl:flex-nowrap">
         <button
           type="button"
           aria-label={`Reorder ${label}`}
@@ -98,7 +100,7 @@ export function SectionEditor({
           {label}
         </span>
 
-        <div className="order-last w-full min-w-0 md:order-none md:w-auto md:flex-1">
+        <div className="order-last w-full min-w-0 @2xl:order-none @2xl:w-auto @2xl:flex-1">
           <label htmlFor={titleId} className="sr-only">Section title</label>
           <input
             id={titleId}
@@ -113,11 +115,15 @@ export function SectionEditor({
           ) : null}
         </div>
 
-        <span className="ml-auto shrink-0 text-xs font-medium text-text-muted md:ml-0">
+        <span className="ml-auto shrink-0 text-xs font-medium text-text-muted @2xl:ml-0">
           {pageCount} page{pageCount === 1 ? "" : "s"}
         </span>
 
         <ToolbarGroup>
+          {/* Same as the button under the pages, without unfolding and scrolling first. */}
+          <IconAction label={`Add page to ${label}`} onClick={onAddPage} tone="copy">
+            <FilePlus aria-hidden="true" className="size-[15px]" />
+          </IconAction>
           <IconAction label={`Duplicate ${label}`} onClick={onDuplicate} tone="copy">
             <Copy aria-hidden="true" className="size-[15px]" />
           </IconAction>
